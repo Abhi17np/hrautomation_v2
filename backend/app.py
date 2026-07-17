@@ -4,10 +4,19 @@ from flask_jwt_extended import JWTManager
 from pymongo import MongoClient
 from datetime import timedelta
 import os
+import os
+from datetime import timedelta
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+
+
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}}, 
-     allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+CORS(app,
+     resources={r"/api/*": {"origins": "*"}},
+     allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 app.config['JWT_SECRET_KEY']            = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-prod')
@@ -15,6 +24,13 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES']  = timedelta(hours=8)
 app.config['STORAGE_ROOT']              = os.path.join(os.getcwd(), 'storage')
 app.config['UPLOAD_FOLDER']             = os.path.join(os.getcwd(), 'storage')
 app.config['MONGO_URI']                 = os.getenv('MONGO_URI', 'mongodb://localhost:27017/hr_offer_letters')
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    return response
 
 for d in ['templates', 'letters', 'documents', 'previews']:
     os.makedirs(os.path.join(app.config['STORAGE_ROOT'], d), exist_ok=True)
@@ -31,6 +47,7 @@ from routes.approvals          import approvals_bp
 from routes.exit               import exit_bp
 from routes.appointment_orders import appointment_orders_bp
 from routes.documents          import documents_bp
+from routes.leaves             import leaves_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
@@ -40,6 +57,7 @@ app.register_blueprint(approvals_bp,          url_prefix='/api/approvals')
 app.register_blueprint(exit_bp,               url_prefix='/api/exit')
 app.register_blueprint(appointment_orders_bp, url_prefix='/api/appointment-orders')
 app.register_blueprint(documents_bp,          url_prefix='/api/documents')
+app.register_blueprint(leaves_bp,             url_prefix='/api/leaves')
 
 @app.route('/')
 def index():

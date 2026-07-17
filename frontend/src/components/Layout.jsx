@@ -10,6 +10,7 @@ const NAV_HR = [
   { to: '/appointment', icon: '◈', label: 'Appointment Orders' },
   { to: '/approvals', icon: '✓', label: 'Approvals' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
+  { to: '/leave-management', icon: '▤' , label: 'Leave Management' },  // <-- add
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
@@ -17,6 +18,7 @@ const NAV_EMPLOYEE = [
   { to: '/appointment', icon: '◈', label: 'Appointment Order' },
   { to: '/documents', icon: '⬡', label: 'My Documents' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
+   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },  // <-- add
 ];
 
 const NAV_MANAGER = [
@@ -26,6 +28,7 @@ const NAV_MANAGER = [
   { to: '/documents', icon: '⬡', label: 'My Documents' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/approvals', icon: '✓', label: 'Approvals' },
+   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },  // <-- add
 ];
 
 const ROLE_COLOR = {

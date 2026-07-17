@@ -11,6 +11,8 @@ import ExitPage      from './pages/ExitPage';
 import Layout        from './components/Layout';
 import AppointmentPage from './pages/AppointmentPage';
 import DocumentsPage   from './pages/DocumentsPage';
+import LeaveTrackerPage    from './pages/LeaveTrackerPage';
+import LeaveManagementPage from './pages/LeaveManagementPage';
 
 
 import './App.css';
@@ -37,6 +39,8 @@ const PAGES = {
   '/exit':         ExitPage,
   '/appointment':  AppointmentPage,
   '/documents':    DocumentsPage,
+  '/leave-tracker':   LeaveTrackerPage,      // <-- add: employee & manager
+      '/leave-management': LeaveManagementPage,
 };
 
 // FIX #5 (App.jsx L41): proper 404 page for unknown routes

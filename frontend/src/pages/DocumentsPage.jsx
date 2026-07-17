@@ -165,35 +165,217 @@ export default function DocumentsPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Step 1 — Personal Info Form
+// Step 1 — Personal Info Form (sectioned, Zoho-style)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STEP1_FIELDS = [
-  { key: 'full_name', label: 'Full Name', type: 'text', placeholder: 'As per Aadhaar', required: true, pattern: null },
-  { key: 'dob', label: 'Date of Birth', type: 'date', placeholder: '', required: true, pattern: null },
-  { key: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: 'XXXX XXXX XXXX', required: true, pattern: /^\d{4}\s?\d{4}\s?\d{4}$/ },
-  { key: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true, pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/ },
-  { key: 'phone', label: 'Mobile Number', type: 'tel', placeholder: '10-digit number', required: true, pattern: /^\d{10}$/ },
-  { key: 'bank_name', label: 'Bank Name', type: 'text', placeholder: 'e.g. State Bank of India', required: true, pattern: null },
-  { key: 'account_number', label: 'Bank Account Number', type: 'text', placeholder: 'Enter account number', required: true, pattern: null },
-  { key: 'ifsc_code', label: 'IFSC Code', type: 'text', placeholder: 'e.g. SBIN0001234', required: true, pattern: /^[A-Z]{4}0[A-Z0-9]{6}$/ },
-  { key: 'degree_10_marks', label: '10th Marks / Percentage', type: 'text', placeholder: 'e.g. 85% or 520/600', required: true, pattern: null },
-  { key: 'degree_12_marks', label: '12th Marks / Percentage', type: 'text', placeholder: 'e.g. 78% or 460/600', required: true, pattern: null },
-  { key: 'graduation_marks', label: 'Graduation Marks / CGPA', type: 'text', placeholder: 'e.g. 8.5 CGPA or 75%', required: true, pattern: null },
-  { key: 'postgrad_marks', label: 'Post Graduation Marks / CGPA', type: 'text', placeholder: 'e.g. 8.0 CGPA or 72% (if applicable)', required: false, pattern: null },
-  { key: 'address', label: 'Permanent Address', type: 'textarea', placeholder: 'Enter your full address here', required: true, pattern: null },
+// Section 2–6: simple field groups
+const SIMPLE_SECTIONS = [
+  {
+    title: 'Personal Details',
+    fields: [
+      { key: 'dob', label: 'Date of Birth', type: 'date', placeholder: '', required: true, pattern: null },
+    ],
+  },
+  {
+    title: 'Identity Details',
+    fields: [
+      { key: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: 'XXXX XXXX XXXX', required: true, pattern: /^\d{4}\s?\d{4}\s?\d{4}$/ },
+      { key: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true, pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/ },
+    ],
+  },
+  {
+    title: 'Contact Details',
+    fields: [
+      { key: 'phone', label: 'Mobile Number', type: 'tel', placeholder: '10-digit number', required: true, pattern: /^\d{10}$/ },
+    ],
+  },
+  {
+    title: 'Bank Details',
+    fields: [
+      { key: 'bank_name', label: 'Bank Name', type: 'text', placeholder: 'e.g. State Bank of India', required: true, pattern: null },
+      { key: 'account_number', label: 'Bank Account Number', type: 'text', placeholder: 'Enter account number', required: true, pattern: null },
+      { key: 'ifsc_code', label: 'IFSC Code', type: 'text', placeholder: 'e.g. SBIN0001234', required: true, pattern: /^[A-Z]{4}0[A-Z0-9]{6}$/ },
+    ],
+  },
+  {
+    title: 'Address',
+    fields: [
+      { key: 'address_line1', label: 'Address Line 1', type: 'text', placeholder: 'House / Street', required: true, pattern: null },
+      { key: 'address_line2', label: 'Address Line 2', type: 'text', placeholder: 'Locality / Landmark (optional)', required: false, pattern: null },
+      { key: 'city', label: 'City', type: 'text', placeholder: 'e.g. Bengaluru', required: true, pattern: null },
+      { key: 'state', label: 'State', type: 'text', placeholder: 'e.g. Karnataka', required: true, pattern: null },
+      { key: 'country', label: 'Country', type: 'text', placeholder: 'e.g. India', required: true, pattern: null },
+      { key: 'postal_code', label: 'Postal Code', type: 'text', placeholder: 'e.g. 560001', required: true, pattern: /^\d{4,10}$/ },
+    ],
+  },
+];
+
+// Section 7–9: repeatable tables
+const TABLE_SECTIONS = [
+  {
+    key: 'education',
+    title: 'Education Details',
+    minRows: 1,
+    columns: [
+      { key: 'institute', label: 'Institute Name', type: 'text', placeholder: 'Institute / School / College', required: true },
+      { key: 'degree', label: 'Degree / Diploma', type: 'text', placeholder: 'e.g. 10th, 12th, B.Tech', required: true },
+      { key: 'specialization', label: 'Specialization', type: 'text', placeholder: 'e.g. Computer Science', required: false },
+      { key: 'marks', label: 'Marks / CGPA', type: 'text', placeholder: 'e.g. 85% or 8.5 CGPA', required: true },
+      { key: 'year', label: 'Year of Completion', type: 'text', placeholder: 'e.g. 2022', required: true },
+    ],
+  },
+  {
+    key: 'work_experience',
+    title: 'Work Experience',
+    minRows: 0,
+    columns: [
+      { key: 'company', label: 'Company Name', type: 'text', placeholder: 'Company name', required: true },
+      { key: 'job_title', label: 'Job Title', type: 'text', placeholder: 'Role / designation', required: true },
+      { key: 'from_date', label: 'From Date', type: 'date', placeholder: '', required: true },
+      { key: 'to_date', label: 'To Date', type: 'date', placeholder: '', required: false },
+      { key: 'description', label: 'Job Description', type: 'text', placeholder: 'Brief description (optional)', required: false },
+    ],
+  },
+  {
+    key: 'dependents',
+    title: 'Dependent Details',
+    minRows: 0,
+    columns: [
+      { key: 'name', label: 'Name', type: 'text', placeholder: 'Dependent name', required: true },
+      { key: 'relationship', label: 'Relationship', type: 'text', placeholder: 'e.g. Spouse, Child, Parent', required: true },
+      { key: 'dob', label: 'Date of Birth', type: 'date', placeholder: '', required: false },
+    ],
+  },
 ];
 
 const getStep1Key = (uid) => `hr_step1_data_${uid}`;
 
+function calcAge(dobStr) {
+  if (!dobStr) return '';
+  const dob = new Date(dobStr);
+  if (isNaN(dob.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age >= 0 ? age : '';
+}
+
+// ── Section wrapper — visually matches existing .card styling ──────────────
+function SectionCard({ title, children }) {
+  return (
+    <div className="card" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
+      <div className="card-header" style={{ padding: '12px 16px' }}>
+        <div className="card-title" style={{ fontSize: 13 }}>{title}</div>
+      </div>
+      <div style={{ padding: 16 }}>{children}</div>
+    </div>
+  );
+}
+
+// ── Generic repeatable table for Education / Work Experience / Dependents ──
+function RepeatableTable({ title, columns, rows, onChange, readOnly, minRows = 0, errors = {} }) {
+  const addRow = () => {
+    const blank = {};
+    columns.forEach(c => { blank[c.key] = ''; });
+    onChange([...rows, blank]);
+  };
+  const removeRow = (idx) => {
+    if (rows.length <= minRows) return;
+    onChange(rows.filter((_, i) => i !== idx));
+  };
+  const setCell = (idx, key, val) => {
+    const next = rows.map((r, i) => (i === idx ? { ...r, [key]: val } : r));
+    onChange(next);
+  };
+
+  return (
+    <SectionCard
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{title}</span>
+          {!readOnly && (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={addRow} style={{ fontSize: 11 }}>
+              + Add Row
+            </button>
+          )}
+        </div>
+      }
+    >
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: '4px 0' }}>
+          No entries added{minRows > 0 ? ' yet — add at least one row.' : '.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.map((row, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${columns.length}, 1fr) ${readOnly ? '' : 'auto'}`,
+                gap: 10, alignItems: 'end',
+                padding: '10px', background: 'var(--surface-2)', borderRadius: 8,
+              }}
+            >
+              {columns.map(col => {
+                const errKey = `${title}_${idx}_${col.key}`;
+                return (
+                  <div key={col.key} className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>
+                      {col.label}{col.required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
+                    </label>
+                    <input
+                      type={col.type} value={row[col.key] || ''}
+                      onChange={e => !readOnly && setCell(idx, col.key, e.target.value)}
+                      placeholder={col.placeholder} disabled={readOnly}
+                      style={{ borderColor: errors[errKey] ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
+                    />
+                  </div>
+                );
+              })}
+              {!readOnly && (
+                <button
+                  type="button" className="btn btn-sm btn-secondary"
+                  onClick={() => removeRow(idx)}
+                  disabled={rows.length <= minRows}
+                  style={{ fontSize: 11, height: 34 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
+  const { user } = useAuth();
   const STEP1_KEY = getStep1Key(userId);
   const saved = (() => { try { return JSON.parse(localStorage.getItem(STEP1_KEY) || '{}'); } catch { return {}; } })();
-  const [form, setForm] = useState(saved);
+
+  // Ensure table sections always have an initial row set (min rows for education)
+  const withDefaults = (data) => {
+    const next = { ...data };
+    TABLE_SECTIONS.forEach(sec => {
+      if (!Array.isArray(next[sec.key])) {
+        next[sec.key] = sec.minRows > 0 ? [Object.fromEntries(sec.columns.map(c => [c.key, '']))] : [];
+      }
+    });
+    return next;
+  };
+
+  const [form, setForm] = useState(withDefaults(saved));
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setTable = (key, rows) => setForm(p => ({ ...p, [key]: rows }));
+
+  const allSimpleFields = SIMPLE_SECTIONS.flatMap(s => s.fields);
 
   const validate = () => {
     const errs = {};
@@ -205,7 +387,7 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
       return true;
     };
 
-    STEP1_FIELDS.forEach(f => {
+    allSimpleFields.forEach(f => {
       const v = (form[f.key] || '').trim();
       if (f.required && !v) { errs[f.key] = 'Required'; return; }
       if (!v) return;
@@ -230,10 +412,6 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
         if (!/^\d{9,18}$/.test(stripped)) { errs[f.key] = 'Account number must be 9–18 digits'; return; }
         if (isRepetitive(stripped)) { errs[f.key] = 'Invalid account number'; return; }
       }
-      if (f.key === 'full_name') {
-        if (!/^[A-Za-z\s\.]{2,}$/.test(v)) { errs[f.key] = 'Only letters allowed'; return; }
-        if (v.trim().split(/\s+/).length < 2) { errs[f.key] = 'Enter full name (first + last)'; return; }
-      }
       if (f.key === 'dob' && v) {
         const dob = new Date(v);
         const today = new Date();
@@ -242,15 +420,24 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
         if (age < 16) { errs[f.key] = 'Age must be at least 16'; return; }
         if (age > 75) { errs[f.key] = 'Check date of birth'; return; }
       }
-      if (['degree_10_marks', 'degree_12_marks', 'graduation_marks', 'postgrad_marks'].includes(f.key)) {
-        if (!/^\d{1,3}(\.\d{1,2})?(%|\/\d{2,4})?(\s*CGPA)?$/i.test(v)) {
-          errs[f.key] = 'e.g. 85%, 520/600, or 8.5 CGPA'; return;
-        }
-      }
-      if (f.key === 'address' && v.length < 20) {
-        errs[f.key] = 'Enter complete address (min 20 characters)'; return;
-      }
     });
+
+    // Table section validation
+    TABLE_SECTIONS.forEach(sec => {
+      const rows = form[sec.key] || [];
+      if (sec.minRows > 0 && rows.length < sec.minRows) {
+        errs[`${sec.key}__rows`] = `Add at least ${sec.minRows} entry`;
+      }
+      rows.forEach((row, idx) => {
+        sec.columns.forEach(col => {
+          const v = (row[col.key] || '').toString().trim();
+          if (col.required && !v) {
+            errs[`${sec.title}_${idx}_${col.key}`] = 'Required';
+          }
+        });
+      });
+    });
+
     return errs;
   };
 
@@ -260,15 +447,22 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    localStorage.setItem(STEP1_KEY, JSON.stringify(form));
-    axios.post('/api/employees/me/step1', form).catch(() => { });
-    onComplete(form);
+
+    // Build a joined single-line address for downstream consumers (letters, HR view)
+    const address = [form.address_line1, form.address_line2, form.city, form.state, form.postal_code, form.country]
+      .filter(Boolean).join(', ');
+
+    const payload = { ...form, full_name: user?.name || '', email: user?.email || '', address };
+    localStorage.setItem(STEP1_KEY, JSON.stringify(payload));
+    axios.post('/api/employees/me/step1', payload).catch(() => { });
+    onComplete(payload);
   };
 
   const fieldErr = (k) => submitted && errors[k];
+  const age = calcAge(form.dob);
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <h1 style={{ fontFamily: 'var(--display)', fontSize: 22, fontWeight: 800, margin: 0 }}>
@@ -309,35 +503,68 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
       </div>
 
       <form onSubmit={submit} noValidate>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {STEP1_FIELDS.map(f => (
-            <div key={f.key} className="form-group" style={{ margin: 0, gridColumn: f.type === 'textarea' ? '1 / -1' : 'auto' }}>
-              <label className="form-label">
-                {f.label}{f.required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
-              </label>
-              {f.type === 'textarea' ? (
-                <textarea
-                  rows={3} value={form[f.key] || ''} onChange={e => !readOnly && set(f.key, e.target.value)}
-                  placeholder={f.placeholder} disabled={readOnly}
-                  style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
-                />
-              ) : (
-                <input
-                  type={f.type} value={form[f.key] || ''}
-                  onChange={e => {
-                    if (readOnly) return;
-                    const UPPER_KEYS = ['pan_number', 'aadhaar_number', 'ifsc_code'];
-                    const val = e.target.value;
-                    set(f.key, UPPER_KEYS.includes(f.key) ? val.toUpperCase() : val);
-                  }}
-                  placeholder={f.placeholder} disabled={readOnly}
-                  style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
-                />
-              )}
-              {fieldErr(f.key) && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors[f.key]}</div>}
+
+        {/* ── Section 1: Basic Information (auto-fetched, read-only) ── */}
+        <SectionCard title="Basic Information">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Full Name</label>
+              <input type="text" value={user?.name || ''} disabled style={{ opacity: 0.75 }} />
             </div>
-          ))}
-        </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Email</label>
+              <input type="text" value={user?.email || ''} disabled style={{ opacity: 0.75 }} />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Sections 2–6: simple grouped fields ── */}
+        {SIMPLE_SECTIONS.map(section => (
+          <SectionCard key={section.title} title={section.title}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {section.fields.map(f => (
+                <div key={f.key} className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">
+                    {f.label}{f.required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
+                  </label>
+                  <input
+                    type={f.type} value={form[f.key] || ''}
+                    onChange={e => {
+                      if (readOnly) return;
+                      const UPPER_KEYS = ['pan_number', 'aadhaar_number', 'ifsc_code'];
+                      const val = e.target.value;
+                      set(f.key, UPPER_KEYS.includes(f.key) ? val.toUpperCase() : val);
+                    }}
+                    placeholder={f.placeholder} disabled={readOnly}
+                    style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
+                  />
+                  {fieldErr(f.key) && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors[f.key]}</div>}
+                </div>
+              ))}
+              {section.title === 'Personal Details' && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Age</label>
+                  <input type="text" value={age} disabled style={{ opacity: 0.75 }} />
+                </div>
+              )}
+            </div>
+          </SectionCard>
+        ))}
+
+        {/* ── Sections 7–9: repeatable tables ── */}
+        {TABLE_SECTIONS.map(sec => (
+          <RepeatableTable
+            key={sec.key}
+            title={sec.title}
+            columns={sec.columns}
+            rows={form[sec.key] || []}
+            onChange={(rows) => setTable(sec.key, rows)}
+            readOnly={readOnly}
+            minRows={sec.minRows}
+            errors={submitted ? errors : {}}
+          />
+        ))}
+
         <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
           {!readOnly && (
             <button type="submit" className="btn btn-primary" style={{ minWidth: 200, padding: '12px 0' }}>Save & Continue to Step 2 →</button>
@@ -347,6 +574,7 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EmployeeDocumentsView
@@ -814,6 +1042,7 @@ function HRReviewModal({ submission, onClose, onDone }) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
                       {[
                         { key: 'full_name', label: 'Full Name' },
+                        { key: 'email', label: 'Email' },
                         { key: 'dob', label: 'Date of Birth' },
                         { key: 'aadhaar_number', label: 'Aadhaar Number' },
                         { key: 'pan_number', label: 'PAN Number' },
@@ -821,10 +1050,6 @@ function HRReviewModal({ submission, onClose, onDone }) {
                         { key: 'bank_name', label: 'Bank Name' },
                         { key: 'account_number', label: 'Account Number' },
                         { key: 'ifsc_code', label: 'IFSC Code' },
-                        { key: 'degree_10_marks', label: '10th Marks' },
-                        { key: 'degree_12_marks', label: '12th Marks' },
-                        { key: 'graduation_marks', label: 'Graduation Marks' },
-                        { key: 'postgrad_marks', label: 'Post Graduation Marks' },
                       ].map(({ key, label }) => {
                         const val = fullSub.step1_data[key];
                         if (!val) return null;
@@ -841,10 +1066,45 @@ function HRReviewModal({ submission, onClose, onDone }) {
                     {/* Address — full width */}
                     {fullSub.step1_data.address && (
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 2 }}>Permanent Address</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 2 }}>Address</div>
                         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', lineHeight: 1.5 }}>{fullSub.step1_data.address}</div>
                       </div>
                     )}
+
+                    {/* Education / Work Experience / Dependents — repeatable table snapshots */}
+                    {[
+                      { key: 'education', title: 'Education Details', cols: [['institute', 'Institute'], ['degree', 'Degree'], ['specialization', 'Specialization'], ['marks', 'Marks/CGPA'], ['year', 'Year']] },
+                      { key: 'work_experience', title: 'Work Experience', cols: [['company', 'Company'], ['job_title', 'Job Title'], ['from_date', 'From'], ['to_date', 'To'], ['description', 'Description']] },
+                      { key: 'dependents', title: 'Dependent Details', cols: [['name', 'Name'], ['relationship', 'Relationship'], ['dob', 'DOB']] },
+                    ].map(({ key, title, cols }) => {
+                      const rows = fullSub.step1_data[key] || [];
+                      if (!rows.length) return null;
+                      return (
+                        <div key={key} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)', textTransform: 'uppercase', marginBottom: 6 }}>{title}</div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr>
+                                  {cols.map(([k, label]) => (
+                                    <th key={k} style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>{label}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((row, idx) => (
+                                  <tr key={idx}>
+                                    {cols.map(([k]) => (
+                                      <td key={k} style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>{row[k] || '—'}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

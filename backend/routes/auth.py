@@ -76,6 +76,9 @@ def me():
                 if emp.get('designation'):  data['designation']   = emp['designation']
                 if emp.get('department'):   data['department']    = emp['department']
                 if emp.get('employee_id'):  data['employee_code'] = emp['employee_id']
+                if emp.get('manager_id'):
+                    mgr_emp = db.employees.find_one({'_id': ObjectId(emp['manager_id'])})
+                    if mgr_emp: data['manager_name'] = mgr_emp.get('name', '')
         except Exception:
             pass
     # Also merge personal profile fields saved by the user
@@ -191,6 +194,9 @@ def get_profile():
             if emp.get('designation'):  user['designation']   = emp['designation']
             if emp.get('department'):   user['department']    = emp['department']
             if emp.get('employee_id'):  user['employee_code'] = emp['employee_id']
+            if emp.get('manager_id'):
+                mgr_emp = db.employees.find_one({'_id': ObjectId(emp['manager_id'])})
+                if mgr_emp: user['manager_name'] = mgr_emp.get('name', '')
     return jsonify(user)
 
 

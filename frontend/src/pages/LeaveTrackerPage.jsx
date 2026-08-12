@@ -24,7 +24,11 @@ const LEAVE_META = {
   CL: { label: 'Casual Leave', color: '#2563eb', bg: 'rgba(37,99,235,.10)', icon: '☼' },
   SL: { label: 'Sick Leave',   color: '#7c3aed', bg: 'rgba(124,58,237,.10)', icon: '✚' },
   ML: { label: 'Menstrual Leave', color: '#db2777', bg: 'rgba(219,39,119,.10)', icon: '❀' },
+  MATERNITY: { label: 'Maternity Leave', color: '#be185d', bg: 'rgba(190,24,93,.10)', icon: '♥' },
+  CO: { label: 'Compensatory Leave', color: '#0d9488', bg: 'rgba(13,148,136,.10)', icon: '⇄' },
   LP: { label: 'Leave Without Pay', color: '#d97706', bg: 'rgba(217,119,6,.10)', icon: '⊘' },
+  OD: { label: 'On Duty', color: '#0891b2', bg: 'rgba(8,145,178,.10)', icon: '✔' },
+  PERMISSION: { label: 'Permission', color: '#65a30d', bg: 'rgba(101,163,13,.10)', icon: '⏱' },
 };
 
 const STATUS_META = {
@@ -69,7 +73,7 @@ function Avatar({ name, size = 32 }) {
 }
 
 // ─── Apply Leave Modal (with live preview) ──────────────────────────────────
-function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
+function ApplyLeaveModal({ isFemale, summary, onClose, onSubmitted }) {
   const [leaveType, setLeaveType] = useState('');
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
@@ -79,14 +83,25 @@ function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
   const [saving, setSaving]       = useState(false);
   const [preview, setPreview]     = useState(null);
   const [previewing, setPreviewing] = useState(false);
+
+  // Permission-specific state
+  const [permissionMode, setPermissionMode] = useState('half_day'); // 'half_day' | 'hourly'
+  const [fromTime, setFromTime] = useState('');
+  const [toTime, setToTime]     = useState('');
+
   const debounceRef = useRef(null);
 
-  const availableTypes = isFemale ? ['CL', 'SL', 'ML', 'LP'] : ['CL', 'SL', 'LP'];
+  const availableTypes = isFemale
+    ? ['CL', 'SL', 'ML', 'MATERNITY', 'CO', 'LP', 'OD', 'PERMISSION']
+    : ['CL', 'SL', 'CO', 'LP', 'OD', 'PERMISSION'];
 
-  // Live preview whenever type/dates change
+  const isBalanceTrackedType = ['CL', 'SL', 'ML'].includes(leaveType);
+  const isPermission = leaveType === 'PERMISSION';
+
+  // Live preview whenever type/dates change — only for day-based, quota-tracked types
   useEffect(() => {
     setPreview(null);
-    if (!leaveType || !fromDate || !toDate || toDate < fromDate) return;
+    if (!isBalanceTrackedType || !fromDate || !toDate || toDate < fromDate) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setPreviewing(true);
@@ -100,20 +115,52 @@ function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
       } finally { setPreviewing(false); }
     }, 350);
     return () => clearTimeout(debounceRef.current);
-  }, [leaveType, fromDate, toDate]);
+  }, [leaveType, fromDate, toDate, isBalanceTrackedType]);
+
+  // Reset permission sub-fields when switching away from Permission
+  useEffect(() => {
+    if (!isPermission) { setPermissionMode('half_day'); setFromTime(''); setToTime(''); }
+  }, [isPermission]);
+
+  const clSlRemaining = summary ? Math.max(0, (summary.monthly_cap ?? 0) - (summary.used_this_month ?? 0)) : null;
+  const mlRemaining = summary ? Math.max(0, (summary.ml_monthly_cap ?? 0) - (summary.ml_used_this_month ?? 0)) : null;
 
   const submit = async (acknowledgeLp = false) => {
     setError('');
     if (!leaveType) return setError('Please select a leave type.');
-    if (!fromDate || !toDate) return setError('Please select a date range.');
-    if (toDate < fromDate) return setError('End date cannot be before start date.');
+
+    if (isPermission) {
+      if (!fromDate) return setError('Please select a date.');
+      if (permissionMode === 'hourly' && (!fromTime || !toTime)) {
+        return setError('Please select both from and to time.');
+      }
+      if (permissionMode === 'hourly' && toTime <= fromTime) {
+        return setError('To time must be after from time.');
+      }
+    } else {
+      if (!fromDate || !toDate) return setError('Please select a date range.');
+      if (toDate < fromDate) return setError('End date cannot be before start date.');
+    }
     if (!reason.trim()) return setError('Please provide a reason for leave.');
+
     setSaving(true);
     try {
-      await axios.post('/api/leaves/apply', {
-        leave_type: leaveType, from_date: fromDate, to_date: toDate,
-        team_email: teamEmail, reason, acknowledge_lp_split: acknowledgeLp,
-      });
+      const payload = {
+        leave_type: leaveType,
+        from_date: fromDate,
+        to_date: isPermission ? fromDate : toDate,
+        team_email: teamEmail,
+        reason,
+        acknowledge_lp_split: acknowledgeLp,
+      };
+      if (isPermission) {
+        payload.permission_mode = permissionMode; // 'half_day' | 'hourly'
+        if (permissionMode === 'hourly') {
+          payload.from_time = fromTime;
+          payload.to_time = toTime;
+        }
+      }
+      await axios.post('/api/leaves/apply', payload);
       onSubmitted();
     } catch (e) {
       if (e.response?.status === 409 && e.response?.data?.error === 'lp_confirmation_required') {
@@ -124,7 +171,8 @@ function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
     } finally { setSaving(false); }
   };
 
-  const hasLpSplit = leaveType !== 'LP' && preview && !preview.error && preview.lp_days > 0;
+  const hasLpSplit = isBalanceTrackedType && preview && !preview.error && preview.lp_days > 0;
+  const halfDayLpRisk = isPermission && permissionMode === 'half_day' && clSlRemaining !== null && clSlRemaining < 0.5;
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -141,28 +189,94 @@ function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
           <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
             <option value="">Select…</option>
             {availableTypes.map(k => (
-              <option key={k} value={k}>{LEAVE_META[k].label} ({k})</option>
+              <option key={k} value={k}>{LEAVE_META[k].label}{k !== 'MATERNITY' && k !== 'OD' && k !== 'PERMISSION' ? ` (${k})` : ''}</option>
             ))}
           </select>
         </div>
 
-        <div className="form-row" style={{ margin: '14px 0' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">From *</label>
+        {/* Balance display — shown as soon as a type is picked */}
+        {leaveType && summary && (
+          <div style={{
+            marginBottom: 14, padding: '10px 13px', borderRadius: 8,
+            background: 'var(--surface-2)', border: '1px solid var(--border)',
+            fontSize: 12.5, color: '#000',
+          }}>
+            {(leaveType === 'CL' || leaveType === 'SL') && (
+              <>Balance: <strong>{clSlRemaining}</strong> of <strong>{summary.monthly_cap}</strong> day(s) left this month (shared CL/SL pool)</>
+            )}
+            {leaveType === 'ML' && (
+              <>Balance: <strong>{mlRemaining}</strong> of <strong>{summary.ml_monthly_cap}</strong> day(s) left this month</>
+            )}
+            {leaveType === 'PERMISSION' && (
+              <>Half-day permission draws from your shared CL/SL pool — <strong>{clSlRemaining}</strong> of <strong>{summary.monthly_cap}</strong> day(s) left this month. Hourly permission is tracked separately and doesn't affect this balance.</>
+            )}
+            {leaveType === 'CO' && (
+              <>Balance: <strong>{summary.comp_off_available ?? 0}</strong> comp-off day(s) available (earned separately, not part of CL/SL pool)</>
+            )}
+            {leaveType === 'LP' && <>This will be recorded as unpaid leave — no balance is deducted.</>}
+            {leaveType === 'MATERNITY' && <>Maternity leave has no monthly cap — select your continuous date range below.</>}
+            {leaveType === 'OD' && <>On Duty is not counted as leave — it marks you as Present for the selected date(s).</>}
+          </div>
+        )}
+
+        {/* Date fields */}
+        {isPermission ? (
+          <div className="form-group">
+            <label className="form-label">Date *</label>
             <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
           </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">To *</label>
-            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
+        ) : (
+          <div className="form-row" style={{ margin: '14px 0' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">From *</label>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">To *</label>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* Permission sub-fields */}
+        {isPermission && (
+          <div className="form-group">
+            <label className="form-label">Permission type *</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: permissionMode === 'hourly' ? 10 : 0 }}>
+              <button type="button"
+                className={`btn btn-sm ${permissionMode === 'half_day' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPermissionMode('half_day')}>Half Day</button>
+              <button type="button"
+                className={`btn btn-sm ${permissionMode === 'hourly' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPermissionMode('hourly')}>From – To Time</button>
+            </div>
+            {permissionMode === 'hourly' && (
+              <div className="form-row">
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">From time *</label>
+                  <input type="time" value={fromTime} onChange={e => setFromTime(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">To time *</label>
+                  <input type="time" value={toTime} onChange={e => setToTime(e.target.value)} />
+                </div>
+              </div>
+            )}
+            {permissionMode === 'half_day' && halfDayLpRisk && (
+              <div className="alert alert-warning" style={{ marginTop: 10 }}>
+                ⚠️ Your CL/SL balance is below 0.5 day — this half-day permission will be recorded as Leave Without Pay.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Live preview for CL/SL/ML */}
         {previewing && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
             <span className="spinner" style={{ width: 12, height: 12 }} /> Checking your balance…
           </div>
         )}
-        {preview && !preview.error && leaveType !== 'LP' && (
+        {preview && !preview.error && isBalanceTrackedType && (
           <div className={`alert ${hasLpSplit ? 'alert-warning' : 'alert-success'}`} style={{ marginBottom: 14 }}>
             <span>{hasLpSplit ? <>⚠️ {preview.warning}</> : <>✓ All {preview.days} day(s) fit within your free {leaveType} quota this month.</>}</span>
           </div>
@@ -181,7 +295,7 @@ function ApplyLeaveModal({ isFemale, onClose, onSubmitted }) {
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => submit(hasLpSplit)} disabled={saving || previewing}>
+          <button className="btn btn-primary" onClick={() => submit(hasLpSplit || halfDayLpRisk)} disabled={saving || previewing}>
             {saving ? 'Submitting…' : hasLpSplit ? `Submit (${preview.paid_days}d paid + ${preview.lp_days}d LP)` : 'Submit'}
           </button>
         </div>
@@ -318,8 +432,8 @@ function SummaryTab({ summary, requests, onApply }) {
           <ProgressRow label="Used this month (CL + SL combined)" value={`${summary.used_this_month} / ${summary.monthly_cap}`} />
           <div className="progress-bar" style={{ marginBottom: 10 }}><div className="progress-fill" style={{ width: `${clSlPct}%` }} /></div>
           <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Year to date</span>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-dim)' }}>{summary.used_this_year} used / {summary.annual_quota} available</span>
+            <span style={{ fontSize: 13, color: '#000' }}>Year to date</span>
+            <span style={{ fontSize: 13, fontWeight: 400, color: '#000' }}>{summary.used_this_year} used / {summary.annual_quota} available</span>
           </div>
         </div>
 
@@ -435,6 +549,20 @@ function RequestsTab({ requests, onApply, onCancel }) {
 }
 
 // ─── Team Requests tab (manager only) ───────────────────────────────────────
+function LeaveTypeBadge({ type }) {
+  const meta = LEAVE_META[type];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      fontSize: 12, fontWeight: 700, color: meta.color, background: meta.bg,
+      padding: '4px 11px', borderRadius: 'var(--radius-full)', border: `1px solid ${meta.color}30`,
+      whiteSpace: 'nowrap',
+    }}>
+      {meta.label}
+    </span>
+  );
+}
+
 function TeamTab({ pending, onAction }) {
   const [remarksFor, setRemarksFor] = useState(null);
   const [remarks, setRemarks] = useState('');
@@ -453,35 +581,78 @@ function TeamTab({ pending, onAction }) {
   return (
     <div className="card" style={{ padding: 0 }}>
       {pending.map((r, i) => (
-        <div key={r._id} style={{ padding: '16px 20px', borderBottom: i < pending.length - 1 ? '1px solid var(--border)' : 'none' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Avatar name={r.employee_name} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.employee_name} <span style={{ color: 'var(--text-faint)', fontWeight: 400, fontSize: 12 }}>({r.employee_code})</span></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-                  <TypeChip type={r.leave_type} />
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--text-dim)' }}>{r.from_date} → {r.to_date} ({r.days}d)</span>
-                  {r.lp_days > 0 && r.leave_type !== 'LP' && (
-                    <span style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 11.5 }}>· {r.paid_days}d paid + {r.lp_days}d LP</span>
-                  )}
-                </div>
-                {r.reason && <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 5 }}>{r.reason}</div>}
+        <div key={r._id} style={{ padding: '20px', borderBottom: i < pending.length - 1 ? '1px solid var(--border)' : 'none' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 14, alignItems: 'start' }}>
+
+            <Avatar name={r.employee_name} />
+
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, fontSize: 14.5 }}>{r.employee_name}</span>
+                <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>({r.employee_code})</span>
               </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                <LeaveTypeBadge type={r.leave_type} />
+                {r.lp_days > 0 && r.leave_type !== 'LP' && (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: LEAVE_META.LP.color }}>
+                    {r.paid_days}d paid + {r.lp_days}d Leave Without Pay
+                  </span>
+                )}
+              </div>
+
+              <div style={{
+                marginTop: 10, padding: '10px 13px', display: 'flex', alignItems: 'center', gap: 24,
+                background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8,
+              }}>
+                <div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-faint)', marginRight: 6 }}>
+                    From:
+                  </span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: '#000' }}>{r.from_date}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-faint)', marginRight: 6 }}>
+                    To:
+                  </span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: '#000' }}>{r.to_date}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-faint)', marginRight: 6 }}>
+                    Days:
+                  </span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: '#000' }}>{r.days}</span>
+                </div>
+              </div>
+
+              {r.reason && (
+                <div style={{
+                  marginTop: 12, padding: '10px 13px', background: 'var(--surface-2)',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  fontSize: 13.5, lineHeight: 1.5, color: 'var(--text)',
+                }}>
+                  <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 4 }}>
+                    Reason
+                  </span>
+                  {r.reason}
+                </div>
+              )}
+
+              {remarksFor === r._id && (
+                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                  <input placeholder="Rejection reason (required)" value={remarks} onChange={e => setRemarks(e.target.value)} style={{ flex: 1 }} />
+                  <button className="btn btn-sm btn-danger"
+                          onClick={() => { onAction(r._id, 'reject', remarks); setRemarksFor(null); setRemarks(''); }}>Confirm Reject</button>
+                  <button className="btn btn-sm btn-secondary" onClick={() => { setRemarksFor(null); setRemarks(''); }}>Cancel</button>
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+
+            <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-sm btn-primary" onClick={() => onAction(r._id, 'approve')}>Approve</button>
               <button className="btn btn-sm btn-danger" onClick={() => setRemarksFor(r._id)}>Reject</button>
             </div>
           </div>
-          {remarksFor === r._id && (
-            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-              <input placeholder="Rejection reason (required)" value={remarks} onChange={e => setRemarks(e.target.value)} style={{ flex: 1 }} />
-              <button className="btn btn-sm btn-danger"
-                      onClick={() => { onAction(r._id, 'reject', remarks); setRemarksFor(null); setRemarks(''); }}>Confirm Reject</button>
-              <button className="btn btn-sm btn-secondary" onClick={() => { setRemarksFor(null); setRemarks(''); }}>Cancel</button>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -558,6 +729,7 @@ export default function LeaveTrackerPage() {
       {showApply && (
         <ApplyLeaveModal
           isFemale={!!summary?.is_female}
+          summary={summary}
           onClose={() => setShowApply(false)}
           onSubmitted={() => { setShowApply(false); setToast('Leave request submitted'); setTimeout(() => setToast(''), 2500); load(); }}
         />

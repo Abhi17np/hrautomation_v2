@@ -40,9 +40,14 @@ from bson import ObjectId
 
 leaves_bp = Blueprint('leaves', __name__)
 
-LEAVE_TYPES = {'CL', 'SL', 'LP', 'ML'}
-POOLED_TYPES = {'CL', 'SL'}     # share the CL/SL monthly pool
-ML_TYPE = 'ML'                  # its own monthly pool, female only
+LEAVE_TYPES = {'CL', 'SL', 'LP', 'ML', 'MATERNITY', 'OD', 'CO', 'PERMISSION'}
+POOLED_TYPES = {'CL', 'SL'}         # share the CL/SL monthly pool
+ML_TYPE = 'ML'                      # its own monthly pool, female only
+MATERNITY_TYPE = 'MATERNITY'        # female only, no cap, continuous block, no quota impact
+OD_TYPE = 'OD'                      # not leave — marks attendance as Present, no balance impact
+CO_TYPE = 'CO'                      # comp-off — standalone earned balance, not month-based
+PERMISSION_TYPE = 'PERMISSION'      # half-day draws 0.5d from CL/SL pool; hourly tracked separately, no pool impact
+FEMALE_ONLY_TYPES = {ML_TYPE, MATERNITY_TYPE}
 
 CATEGORY_RULES = {
     'regular':      {'monthly_cap': 2, 'ml_monthly_cap': 0},
@@ -112,7 +117,7 @@ def _get_or_create_category(db, employee_id, year=None):
         # Defensive migration: a doc created by an earlier schema version
         # (e.g. the old annual_quota/monthly_credit model) is missing the
         # v2 fields. Rather than crash, backfill them in place.
-        required = ('monthly_cap', 'ml_monthly_cap', 'monthly_used', 'ml_monthly_used', 'lp_monthly')
+        required = ('monthly_cap', 'ml_monthly_cap', 'monthly_used', 'ml_monthly_used', 'lp_monthly', 'comp_off_balance')
         if not all(k in doc for k in required):
             category = doc.get('category') or _suggest_category(db, db.employees.find_one({'_id': ObjectId(employee_id)}) or {}, employee_id)
             rules = CATEGORY_RULES.get(category, CATEGORY_RULES['regular'])
@@ -123,6 +128,8 @@ def _get_or_create_category(db, employee_id, year=None):
                 'monthly_used':    doc.get('monthly_used') or {str(m): 0 for m in range(1, 13)},
                 'ml_monthly_used': doc.get('ml_monthly_used') or {str(m): 0 for m in range(1, 13)},
                 'lp_monthly':      doc.get('lp_monthly') or {str(m): 0 for m in range(1, 13)},
+                'comp_off_balance': doc.get('comp_off_balance', 0),
+                'comp_off_earned_dates': doc.get('comp_off_earned_dates') or [],
                 'updated_at':      datetime.utcnow(),
             }
             db.leave_balances.update_one({'_id': doc['_id']}, {'$set': patch})
@@ -145,6 +152,8 @@ def _get_or_create_category(db, employee_id, year=None):
         'monthly_used':    {str(m): 0 for m in range(1, 13)},   # CL/SL pool, per month
         'ml_monthly_used': {str(m): 0 for m in range(1, 13)},   # ML pool, per month
         'lp_monthly':      {str(m): 0 for m in range(1, 13)},   # informational only
+        'comp_off_balance': 0,                                  # earned comp-off, standalone
+        'comp_off_earned_dates': [],                            # weekend/holiday dates already credited — prevents double-crediting
         'manually_set':    False,
         'created_at':      datetime.utcnow(),
         'updated_at':      datetime.utcnow(),
@@ -175,6 +184,20 @@ def _compute_split(cat_doc, leave_type, from_date, to_date):
         days = _date_range(from_date, to_date)
         return 0, len(days), []
 
+    if leave_type in (MATERNITY_TYPE, OD_TYPE):
+        # No monthly-quota impact whatsoever — Maternity is a paid continuous
+        # block outside the CL/SL/ML pools; On Duty isn't leave at all (it's
+        # handled as a Present marker over in attendance.py).
+        days = _date_range(from_date, to_date)
+        return len(days), 0, []
+
+    if leave_type == CO_TYPE:
+        # Comp-off draws from its own standalone earned balance, not a
+        # per-month pool — the balance check/deduction happens in apply_leave
+        # and the approval handler, not here.
+        days = _date_range(from_date, to_date)
+        return len(days), 0, []
+
     is_ml = (leave_type == ML_TYPE)
     cap = cat_doc['ml_monthly_cap'] if is_ml else cat_doc['monthly_cap']
     used_map = cat_doc['ml_monthly_used'] if is_ml else cat_doc['monthly_used']
@@ -203,8 +226,35 @@ def _compute_split(cat_doc, leave_type, from_date, to_date):
     return total_paid, total_lp, month_breakdown
 
 
-def _apply_month_breakdown(db, cat_doc_id, leave_type, month_breakdown):
-    is_ml = (leave_type == ML_TYPE)
+def _compute_permission(cat_doc, permission_mode, the_date, from_time=None, to_time=None):
+    """Half-day permission draws 0.5 day from the CL/SL pool for that day's
+    month (falls to LP if the pool is already exhausted). Hourly permission
+    is tracked in hours only and never touches the CL/SL pool.
+    Returns (paid_days, lp_days, month_breakdown, permission_hours)."""
+    if permission_mode == 'hourly':
+        try:
+            t1 = datetime.strptime(from_time, '%H:%M')
+            t2 = datetime.strptime(to_time, '%H:%M')
+        except (TypeError, ValueError):
+            return None
+        hours = round((t2 - t1).total_seconds() / 3600, 2)
+        if hours <= 0:
+            return None
+        return 0, 0, [], hours
+
+    # half_day
+    d = datetime.strptime(the_date, '%Y-%m-%d')
+    month_str = str(d.month)
+    remaining = cat_doc['monthly_cap'] - cat_doc['monthly_used'].get(month_str, 0)
+    if remaining >= 0.5:
+        paid, lp = 0.5, 0
+    else:
+        paid, lp = 0, 0.5
+    breakdown = [{'year': d.year, 'month': d.month, 'paid': paid, 'lp': lp}]
+    return paid, lp, breakdown, None
+
+
+def _apply_month_breakdown(db, cat_doc_id, is_ml, month_breakdown):
     field = 'ml_monthly_used' if is_ml else 'monthly_used'
     lp_field = 'lp_monthly'
     inc = {}
@@ -216,6 +266,28 @@ def _apply_month_breakdown(db, cat_doc_id, leave_type, month_breakdown):
             inc[f'{lp_field}.{m}'] = inc.get(f'{lp_field}.{m}', 0) + entry['lp']
     if inc:
         db.leave_balances.update_one({'_id': cat_doc_id}, {'$inc': inc, '$set': {'updated_at': datetime.utcnow()}})
+
+
+def _apply_approval_effects(db, cat_doc, r):
+    """Called once a request is approved — applies the correct balance
+    mutation for whichever leave_type this request actually is."""
+    leave_type = r.get('leave_type')
+    if leave_type in ('LP', MATERNITY_TYPE, OD_TYPE):
+        return  # no balance impact
+    if leave_type == CO_TYPE:
+        db.leave_balances.update_one(
+            {'_id': cat_doc['_id']},
+            {'$inc': {'comp_off_balance': -r.get('days', 0)},
+             '$set': {'updated_at': datetime.utcnow()}},
+        )
+        return
+    if leave_type == PERMISSION_TYPE:
+        if r.get('permission_mode') == 'hourly':
+            return  # hourly never touches CL/SL — nothing to apply
+        _apply_month_breakdown(db, cat_doc['_id'], False, r.get('month_breakdown', []))
+        return
+    # CL, SL, ML
+    _apply_month_breakdown(db, cat_doc['_id'], leave_type == ML_TYPE, r.get('month_breakdown', []))
 
 
 def _notify_hr(db, message, link='', related_id=None):
@@ -258,6 +330,7 @@ def _this_year_summary(cat_doc, lp_used_this_year):
         'ml_used_this_month': cat_doc['ml_monthly_used'].get(this_month, 0),
         'ml_available_this_month': (max(0, ml_cap - cat_doc['ml_monthly_used'].get(this_month, 0)) if ml_cap else None),
         'lp_days_taken':      lp_used_this_year,
+        'comp_off_available': cat_doc.get('comp_off_balance', 0),
     }
 
 
@@ -317,15 +390,26 @@ def preview_leave():
     leave_type = (data.get('leave_type') or '').upper().strip()
     from_date, to_date = data.get('from_date'), data.get('to_date')
     if leave_type not in LEAVE_TYPES:
-        return jsonify({'error': 'leave_type must be one of CL, SL, LP, ML'}), 400
+        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(LEAVE_TYPES))}'}), 400
     if not from_date or not to_date:
         return jsonify({'error': 'from_date and to_date are required'}), 400
 
     cat_doc = _get_or_create_category(db, emp_ref, datetime.strptime(from_date, '%Y-%m-%d').year)
-    if leave_type == ML_TYPE and cat_doc['category'] != 'female':
-        return jsonify({'error': 'Menstrual Leave is only available to female employees'}), 400
+    if leave_type in FEMALE_ONLY_TYPES and cat_doc['category'] != 'female':
+        return jsonify({'error': f'{leave_type.title()} is only available to female employees'}), 400
 
-    paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+    if leave_type == PERMISSION_TYPE:
+        permission_mode = (data.get('permission_mode') or 'half_day').strip()
+        result = _compute_permission(cat_doc, permission_mode, from_date,
+                                      data.get('from_time'), data.get('to_time'))
+        if result is None:
+            return jsonify({'error': 'Invalid permission time range'}), 400
+        paid, lp, breakdown, hours = result
+        if permission_mode == 'hourly':
+            return jsonify({'days': 0, 'paid_days': 0, 'lp_days': 0, 'permission_hours': hours,
+                             'breakdown': [], 'warning': None})
+    else:
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
 
     message = None
     if leave_type != 'LP' and lp > 0:
@@ -355,11 +439,23 @@ def apply_leave():
     reason = (data.get('reason') or '').strip()
     team_email = (data.get('team_email') or '').strip()
     acknowledge_lp = bool(data.get('acknowledge_lp_split'))
+    permission_mode = (data.get('permission_mode') or '').strip() or None
+    from_time = data.get('from_time')
+    to_time = data.get('to_time')
 
     if leave_type not in LEAVE_TYPES:
-        return jsonify({'error': 'leave_type must be one of CL, SL, LP, ML'}), 400
-    if not from_date or not to_date:
-        return jsonify({'error': 'from_date and to_date are required'}), 400
+        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(LEAVE_TYPES))}'}), 400
+    if leave_type == PERMISSION_TYPE:
+        if not from_date:
+            return jsonify({'error': 'from_date is required'}), 400
+        to_date = to_date or from_date
+        if permission_mode not in ('half_day', 'hourly'):
+            return jsonify({'error': "permission_mode must be 'half_day' or 'hourly'"}), 400
+        if permission_mode == 'hourly' and (not from_time or not to_time):
+            return jsonify({'error': 'from_time and to_time are required for hourly permission'}), 400
+    else:
+        if not from_date or not to_date:
+            return jsonify({'error': 'from_date and to_date are required'}), 400
     if not reason:
         return jsonify({'error': 'Reason for leave is required'}), 400
 
@@ -368,11 +464,24 @@ def apply_leave():
     if not cat_doc:
         return jsonify({'error': 'Employee record not found'}), 404
 
-    if leave_type == ML_TYPE and cat_doc['category'] != 'female':
-        return jsonify({'error': 'Menstrual Leave is only available to female employees'}), 400
+    if leave_type in FEMALE_ONLY_TYPES and cat_doc['category'] != 'female':
+        return jsonify({'error': f'{leave_type.title()} is only available to female employees'}), 400
 
-    paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
-    if leave_type != 'LP' and lp > 0 and not acknowledge_lp:
+    permission_hours = None
+    if leave_type == PERMISSION_TYPE:
+        result = _compute_permission(cat_doc, permission_mode, from_date, from_time, to_time)
+        if result is None:
+            return jsonify({'error': 'Invalid permission time range'}), 400
+        paid, lp, breakdown, permission_hours = result
+    elif leave_type == CO_TYPE:
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        if cat_doc.get('comp_off_balance', 0) < paid:
+            return jsonify({'error': f"Insufficient comp-off balance. You have {cat_doc.get('comp_off_balance', 0)} day(s) available."}), 400
+    else:
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+
+    lp_prone_types = {'CL', 'SL', 'ML', PERMISSION_TYPE}
+    if leave_type in lp_prone_types and lp > 0 and not acknowledge_lp:
         return jsonify({
             'error': 'lp_confirmation_required',
             'paid_days': paid, 'lp_days': lp,
@@ -381,7 +490,7 @@ def apply_leave():
         }), 409
 
     emp = db.employees.find_one({'_id': ObjectId(emp_ref)})
-    days_total = paid + lp
+    days_total = 0 if (leave_type == PERMISSION_TYPE and permission_mode == 'hourly') else (paid + lp)
 
     if u.get('role') == 'manager':
         status, approver_note = 'pending_hr_head', 'Routed to HR Head/Admin (manager has no reporting manager)'
@@ -401,6 +510,12 @@ def apply_leave():
         'created_by': uid, 'created_at': datetime.utcnow(),
         'history': [{'action': 'submitted', 'by': uid, 'timestamp': datetime.utcnow().isoformat()}],
     }
+    if leave_type == PERMISSION_TYPE:
+        doc['permission_mode'] = permission_mode
+        if permission_mode == 'hourly':
+            doc['from_time'] = from_time
+            doc['to_time'] = to_time
+            doc['permission_hours'] = permission_hours
     result = db.leave_requests.insert_one(doc)
 
     split_note = f" ({paid}d {leave_type} + {lp}d LP)" if (leave_type != 'LP' and lp > 0) else ''
@@ -489,10 +604,10 @@ def manager_action(rid):
         return jsonify({'error': 'Rejection reason is required'}), 400
 
     new_status = 'approved' if act == 'approve' else 'rejected'
-    if act == 'approve' and r.get('leave_type') != 'LP':
+    if act == 'approve':
         year = datetime.strptime(r['from_date'], '%Y-%m-%d').year
         cat_doc = _get_or_create_category(db, r['employee_id'], year)
-        _apply_month_breakdown(db, cat_doc['_id'], r['leave_type'], r.get('month_breakdown', []))
+        _apply_approval_effects(db, cat_doc, r)
 
     db.leave_requests.update_one({'_id': ObjectId(rid)}, {
         '$set': {'status': new_status, 'updated_at': datetime.utcnow(),
@@ -547,10 +662,10 @@ def hr_head_action(rid):
         return jsonify({'error': 'Rejection reason is required'}), 400
 
     new_status = 'approved' if act == 'approve' else 'rejected'
-    if act == 'approve' and r.get('leave_type') != 'LP':
+    if act == 'approve':
         year = datetime.strptime(r['from_date'], '%Y-%m-%d').year
         cat_doc = _get_or_create_category(db, r['employee_id'], year)
-        _apply_month_breakdown(db, cat_doc['_id'], r['leave_type'], r.get('month_breakdown', []))
+        _apply_approval_effects(db, cat_doc, r)
 
     db.leave_requests.update_one({'_id': ObjectId(rid)}, {
         '$set': {'status': new_status, 'updated_at': datetime.utcnow(),
@@ -612,8 +727,14 @@ def adjust_balance(emp_id):
         update['monthly_cap'] = float(data['monthly_cap'])
     if 'ml_monthly_cap' in data:
         update['ml_monthly_cap'] = float(data['ml_monthly_cap'])
+    if 'comp_off_balance' in data:
+        update['comp_off_balance'] = float(data['comp_off_balance'])
 
     db.leave_balances.update_one({'_id': cat_doc['_id']}, {'$set': update})
+
+    if 'comp_off_credit' in data:
+        # Additive credit (e.g. "add 1 day earned this week") instead of a hard overwrite
+        db.leave_balances.update_one({'_id': cat_doc['_id']}, {'$inc': {'comp_off_balance': float(data['comp_off_credit'])}})
 
     if 'correct_month' in data and 'correct_used' in data:
         month = str(int(data['correct_month']))

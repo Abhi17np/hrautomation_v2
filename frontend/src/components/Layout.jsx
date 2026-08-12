@@ -11,6 +11,7 @@ const NAV_HR = [
   { to: '/approvals', icon: '✓', label: 'Approvals' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/leave-management', icon: '▤' , label: 'Leave Management' },  // <-- add
+  { to: '/attendance', icon: '◷', label: 'Attendance' },
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
@@ -19,6 +20,7 @@ const NAV_EMPLOYEE = [
   { to: '/documents', icon: '⬡', label: 'My Documents' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
    { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },  // <-- add
+  { to: '/attendance', icon: '◷', label: 'Attendance' },
 ];
 
 const NAV_MANAGER = [
@@ -29,22 +31,23 @@ const NAV_MANAGER = [
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/approvals', icon: '✓', label: 'Approvals' },
    { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },  // <-- add
+  { to: '/attendance', icon: '◷', label: 'Attendance' },
 ];
 
 const ROLE_COLOR = {
-  admin: '#2563eb',
-  hr_head: '#2563eb',
-  hr: '#059669',
-  manager: '#7c3aed',
-  employee: '#0891b2',
+  admin: '#3E7BFA',
+  hr_head: '#3E7BFA',
+  hr: '#27AE60',
+  manager: '#7C6FE0',
+  employee: '#0E9F94',
 };
 
 const ROLE_BG = {
-  admin: 'rgba(37,99,235,.10)',
-  hr_head: 'rgba(37,99,235,.10)',
-  hr: 'rgba(5,150,105,.10)',
-  manager: 'rgba(124,58,237,.10)',
-  employee: 'rgba(8,145,178,.10)',
+  admin: 'rgba(62,123,250,.10)',
+  hr_head: 'rgba(62,123,250,.10)',
+  hr: 'rgba(39,174,96,.10)',
+  manager: 'rgba(124,111,224,.10)',
+  employee: 'rgba(14,159,148,.10)',
 };
 
 const TABS = ['Personal', 'Corporate', 'Emergency', 'Password', 'Accounts'];
@@ -56,24 +59,23 @@ function NavLink({ to, icon, label, currentPath, badge }) {
     <button
       onClick={() => { window.location.hash = to; }}
       style={{
-        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-        padding: '8px 12px', borderRadius: 8, marginBottom: 1,
-        fontSize: 13.5, fontWeight: isActive ? 600 : 500,
-        color: isActive ? '#f1f5f9' : '#94a3b8',
-        background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
-        border: `1px solid ${isActive ? 'rgba(255,255,255,0.15)' : 'transparent'}`,
-        transition: 'all .13s', cursor: 'pointer', textAlign: 'left',
-        letterSpacing: '-0.1px',
+        display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+        padding: '11px 12px', borderRadius: 12, marginBottom: 1,
+        fontSize: 13, fontWeight: isActive ? 600 : 500,
+        color: isActive ? '#3E7BFA' : '#8A94A6',
+        background: isActive ? '#ECF2FE' : 'transparent',
+        border: 'none',
+        transition: 'background .15s, color .15s', cursor: 'pointer', textAlign: 'left',
       }}
       onMouseEnter={e => {
         if (!isActive) {
-          e.currentTarget.style.color = '#e2e8f0';
-          e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+          e.currentTarget.style.color = '#232B3A';
+          e.currentTarget.style.background = '#F0F5FE';
         }
       }}
       onMouseLeave={e => {
         if (!isActive) {
-          e.currentTarget.style.color = '#94a3b8';
+          e.currentTarget.style.color = '#8A94A6';
           e.currentTarget.style.background = 'transparent';
         }
       }}
@@ -82,14 +84,14 @@ function NavLink({ to, icon, label, currentPath, badge }) {
         width: 20, height: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 13, flexShrink: 0,
-        opacity: isActive ? 1 : 0.6,
+        opacity: isActive ? 1 : 0.7,
       }}>
         {icon}
       </span>
       <span style={{ flex: 1 }}>{label}</span>
       {badge > 0 && (
         <span style={{
-          background: '#ef4444', color: '#fff',
+          background: '#EB5757', color: '#fff',
           fontSize: 10, fontWeight: 700,
           borderRadius: 99, minWidth: 18, height: 18,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -218,8 +220,8 @@ function ProfileModal({ onClose }) {
 
   useEffect(() => { if (tab === 4 && user?.role === 'admin') loadAccounts(); }, [tab]);
 
-  const rc = ROLE_COLOR[user?.role] || '#2563eb';
-  const rbg = ROLE_BG[user?.role] || 'rgba(37,99,235,.10)';
+  const rc = ROLE_COLOR[user?.role] || '#3E7BFA';
+  const rbg = ROLE_BG[user?.role] || 'rgba(62,123,250,.10)';
 
   const changePassword = async () => {
     setPwError(''); setPwSuccess('');
@@ -256,7 +258,7 @@ function ProfileModal({ onClose }) {
       <div className="modal" style={{ maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
 
         {/* Header */}
-        <div style={{ padding: '22px 24px 0', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ padding: '22px 24px 0', background: '#fff', borderBottom: '1px solid #EEF1F6' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
 
             {/* Avatar */}
@@ -274,7 +276,7 @@ function ProfileModal({ onClose }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontFamily: 'var(--display)', fontWeight: 700,
-                fontSize: 15.5, color: '#0f172a', letterSpacing: '-0.3px',
+                fontSize: 15.5, color: '#232B3A', letterSpacing: '-0.3px',
               }}>
                 {user?.name}
               </div>
@@ -288,12 +290,12 @@ function ProfileModal({ onClose }) {
                   {user?.role}
                 </span>
                 {user?.emp_code && (
-                  <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: '#94a3b8' }}>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: '#AEB7C4' }}>
                     {user.emp_code}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>
+              <div style={{ fontSize: 11.5, color: '#8A94A6', marginTop: 3 }}>
                 {user?.email}
               </div>
             </div>
@@ -303,13 +305,13 @@ function ProfileModal({ onClose }) {
               onClick={onClose}
               style={{
                 width: 28, height: 28, borderRadius: 7,
-                border: '1px solid #e2e8f0', background: 'transparent',
-                color: '#64748b', cursor: 'pointer', fontSize: 13,
+                border: '1px solid #EEF1F6', background: 'transparent',
+                color: '#8A94A6', cursor: 'pointer', fontSize: 13,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'all .13s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F5F7FA'; e.currentTarget.style.color = '#232B3A'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8A94A6'; }}
             >
               ✕
             </button>
@@ -326,8 +328,8 @@ function ProfileModal({ onClose }) {
                   style={{
                     padding: '8px 18px', fontSize: 12.5, fontWeight: 600,
                     background: 'none', border: 'none', cursor: 'pointer',
-                    borderBottom: `2px solid ${tab === realIdx ? '#2563eb' : 'transparent'}`,
-                    color: tab === realIdx ? '#2563eb' : '#64748b',
+                    borderBottom: `2px solid ${tab === realIdx ? '#3E7BFA' : 'transparent'}`,
+                    color: tab === realIdx ? '#3E7BFA' : '#8A94A6',
                     transition: 'all .13s', letterSpacing: '-0.1px',
                   }}
                 >
@@ -407,14 +409,14 @@ function ProfileModal({ onClose }) {
                   <label className="form-label">{label}</label>
                   <input
                     value={val || '—'} readOnly
-                    style={{ background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed', border: '1.5px solid #e2e8f0' }}
+                    style={{ background: '#F3F6FC', color: '#AEB7C4', cursor: 'not-allowed', border: '1.5px solid #EEF1F6' }}
                   />
                 </div>
               ))}
               <div style={{
                 gridColumn: '1 / -1', padding: '10px 14px',
                 background: '#eff6ff', border: '1px solid #bfdbfe',
-                borderRadius: 8, fontSize: 12, color: '#2563eb', fontWeight: 500,
+                borderRadius: 8, fontSize: 12, color: '#3E7BFA', fontWeight: 500,
               }}>
                 Corporate details are managed by HR and cannot be edited here.
               </div>
@@ -489,8 +491,8 @@ function ProfileModal({ onClose }) {
                     {accounts.map(acc => (
                       <div key={acc._id} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '10px 14px', background: '#f8fafc',
-                        border: '1px solid #e2e8f0', borderRadius: 9,
+                        padding: '10px 14px', background: '#F3F6FC',
+                        border: '1px solid #EEF1F6', borderRadius: 9,
                       }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
@@ -501,8 +503,8 @@ function ProfileModal({ onClose }) {
                           {acc.name?.[0]?.toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{acc.name}</div>
-                          <div style={{ fontSize: 11.5, color: '#64748b', fontFamily: 'monospace' }}>{acc.email}</div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: '#232B3A' }}>{acc.name}</div>
+                          <div style={{ fontSize: 11.5, color: '#8A94A6', fontFamily: 'monospace' }}>{acc.email}</div>
                         </div>
                         <span style={{
                           fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8,
@@ -530,7 +532,7 @@ function ProfileModal({ onClose }) {
               </div>
 
               {/* Divider */}
-              <div style={{ height: 1, background: '#e2e8f0' }} />
+              <div style={{ height: 1, background: '#EEF1F6' }} />
 
               {/* Create account form */}
               <div>
@@ -583,9 +585,9 @@ function ProfileModal({ onClose }) {
 
         {/* Footer */}
         <div style={{
-          padding: '14px 24px', borderTop: '1px solid #e2e8f0',
+          padding: '14px 24px', borderTop: '1px solid #EEF1F6',
           display: 'flex', justifyContent: 'flex-end', gap: 8,
-          background: '#f8fafc', position: 'sticky', bottom: 0,
+          background: '#F3F6FC', position: 'sticky', bottom: 0,
         }}>
           {(!['employee', 'manager'].includes(user?.role) || missingFields.length === 0) && (
             <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -618,7 +620,7 @@ export default function Layout({ children, currentPath }) {
   const rc = ROLE_COLOR[user?.role] || '#4f8ef7';
 
   const needsProfileGate = ['employee', 'manager'].includes(user?.role) && !isProfileComplete(user);
-  const rbg = ROLE_BG[user?.role] || 'rgba(37,99,235,.10)';
+  const rbg = ROLE_BG[user?.role] || 'rgba(62,123,250,.10)';
 
   // Fetch total pending approval count for sidebar badge (only when logged in)
   useEffect(() => {
@@ -647,39 +649,43 @@ export default function Layout({ children, currentPath }) {
       : NAV_HR;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f8fafc' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F3F6FC' }}>
 
       {/* ══ Sidebar ══ */}
       <aside style={{
-        width: 228, flexShrink: 0,
-        background: '#334155',
-        borderRight: '1px solid #1e293b',
+        width: 224, flexShrink: 0,
+        background: '#fff',
+        borderRadius: 20,
+        boxShadow: '0 8px 24px rgba(113,144,175,.12)',
+        margin: '16px 8px 16px 16px',
+        height: 'calc(100vh - 32px)',
         display: 'flex', flexDirection: 'column',
+        boxSizing: 'border-box',
       }}>
 
         {/* Logo */}
         <div style={{
-          padding: '18px 18px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          padding: '18px 16px 16px',
+          borderBottom: '1px solid #EEF1F6',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <img
             src="/infopace-logo.webp"
             alt="Logo"
             style={{
-              width: 60, height: 60, borderRadius: 6, flexShrink: 0,
+              height: 34, width: 'auto', maxWidth: 74, flexShrink: 0,
               objectFit: 'contain'
             }}
           />
           <div>
             <div style={{
-              fontFamily: 'var(--display)', fontWeight: 800,
-              fontSize: 15, letterSpacing: '-0.4px', color: '#f1f5f9', lineHeight: 1,
+              fontFamily: 'var(--display)', fontWeight: 600,
+              fontSize: 14, color: '#232B3A', lineHeight: 1.2,
             }}>
               HR Automation
             </div>
             <div style={{
-              fontSize: 9.5, color: '#94a3b8',
+              fontSize: 9.5, color: '#8A94A6',
               fontFamily: 'var(--mono)', marginTop: 2,
               textTransform: 'uppercase', letterSpacing: '1px',
             }}>
@@ -693,7 +699,7 @@ export default function Layout({ children, currentPath }) {
         {/* Nav */}
         <nav style={{ flex: 1, padding: '10px', overflowY: 'auto' }}>
           <div style={{
-            fontSize: 9.5, fontWeight: 700, color: '#64748b',
+            fontSize: 9.5, fontWeight: 700, color: '#AEB7C4',
             textTransform: 'uppercase', letterSpacing: '1.2px',
             padding: '8px 12px 5px',
           }}>
@@ -710,33 +716,27 @@ export default function Layout({ children, currentPath }) {
         </nav>
 
         {/* User block */}
-        <div style={{ padding: '10px 10px 12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ padding: '10px 10px 12px', borderTop: '1px solid #EEF1F6' }}>
 
           {/* Profile button — click handler unchanged */}
           <button
             onClick={() => setShowProfile(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', marginBottom: 7,
-              padding: '8px 10px', borderRadius: 9,
-              background: 'transparent', border: '1px solid transparent',
-              cursor: 'pointer', transition: 'all .13s', textAlign: 'left',
+              width: '100%', marginBottom: 6,
+              padding: '8px 10px', borderRadius: 12,
+              background: 'transparent', border: 'none',
+              cursor: 'pointer', transition: 'background .13s', textAlign: 'left',
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = 'transparent';
-            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F0F5FE'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
           >
             {/* Avatar */}
             <div style={{
-              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
               background: rbg, border: `1.5px solid ${rc}35`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 800, color: rc,
+              fontSize: 13, fontWeight: 600, color: rc,
               fontFamily: 'var(--display)',
             }}>
               {user?.name?.[0]?.toUpperCase()}
@@ -745,45 +745,42 @@ export default function Layout({ children, currentPath }) {
             {/* Name / role */}
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{
-                fontSize: 12.5, fontWeight: 600, color: '#f1f5f9',
+                fontSize: 13, fontWeight: 600, color: '#232B3A',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                letterSpacing: '-0.1px',
               }}>
                 {user?.name}
               </div>
               <div style={{
-                fontSize: 10, color: '#94a3b8', fontFamily: 'var(--mono)',
+                fontSize: 10.5, color: '#8A94A6', fontFamily: 'var(--mono)',
                 textTransform: 'uppercase', letterSpacing: '0.6px', marginTop: 1,
               }}>
                 {user?.role}
               </div>
             </div>
 
-            <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0 }}>›</span>
+            <span style={{ fontSize: 12, color: '#AEB7C4', flexShrink: 0 }}>›</span>
           </button>
 
           {/* Sign out — click handler unchanged */}
           <button
             onClick={() => { logout(); window.location.hash = '/'; }}
             style={{
-              width: '100%', padding: '7px 10px', borderRadius: 8,
-              background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-              color: '#94a3b8', fontSize: 12.5, fontWeight: 500,
-              cursor: 'pointer', transition: 'all .13s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              width: '100%', padding: '10px 10px', borderRadius: 12,
+              background: 'transparent', border: 'none',
+              color: '#8A94A6', fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', transition: 'background .13s, color .13s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.borderColor = '#fca5a5';
-              e.currentTarget.style.color = '#dc2626';
-              e.currentTarget.style.background = '#fef2f2';
+              e.currentTarget.style.color = '#EB5757';
+              e.currentTarget.style.background = '#FDECEA';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.color = '#8A94A6';
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <span style={{ fontSize: 11 }}>⇥</span>
+            <span style={{ fontSize: 12 }}>⇥</span>
             Sign out
           </button>
         </div>
@@ -792,8 +789,8 @@ export default function Layout({ children, currentPath }) {
       {/* ══ Main ══ */}
       <main style={{
         flex: 1, overflow: 'auto',
-        background: '#f8fafc',
-        padding: '28px 32px',
+        background: '#F3F6FC',
+        padding: '16px 24px 32px 8px',
       }}>
         {children}
       </main>
@@ -805,7 +802,7 @@ export default function Layout({ children, currentPath }) {
       {needsProfileGate && !showProfile && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(0,0,0,0.85)',
+          background: 'rgba(35,43,58,0.55)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
@@ -844,9 +841,9 @@ export default function Layout({ children, currentPath }) {
                   .map(label => (
                     <span key={label} style={{
                       padding: '3px 10px', borderRadius: 20,
-                      background: 'rgba(240,82,82,.1)',
-                      border: '1px solid rgba(240,82,82,.25)',
-                      fontSize: 12, color: 'var(--red)',
+                      background: 'rgba(235,87,87,.1)',
+                      border: '1px solid rgba(235,87,87,.25)',
+                      fontSize: 12, color: '#EB5757',
                     }}>
                       {label}
                     </span>

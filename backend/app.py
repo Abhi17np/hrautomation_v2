@@ -48,6 +48,7 @@ from routes.exit               import exit_bp
 from routes.appointment_orders import appointment_orders_bp
 from routes.documents          import documents_bp
 from routes.leaves             import leaves_bp
+from routes.attendance         import attendance_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
@@ -58,6 +59,7 @@ app.register_blueprint(exit_bp,               url_prefix='/api/exit')
 app.register_blueprint(appointment_orders_bp, url_prefix='/api/appointment-orders')
 app.register_blueprint(documents_bp,          url_prefix='/api/documents')
 app.register_blueprint(leaves_bp,             url_prefix='/api/leaves')
+app.register_blueprint(attendance_bp,         url_prefix='/api/attendance')
 
 @app.route('/')
 def index():
@@ -84,6 +86,17 @@ def server_error(e): return {'error': 'Internal server error'}, 500
 from scheduler import start_scheduler
 start_scheduler(app)
 
+# ── Start biometric attendance sync (guarded — a missing device/driver
+#    should never take down the whole API) ────────────────────────────────────
+try:
+    from services.essl_sync import start_background_sync
+    start_background_sync(app)
+except Exception as e:
+    print(f'[app.py] ESSL biometric sync not started: {e}', flush=True)
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5050))
-    app.run(host="0.0.0.0", port=port, debug=True, use_reloader=False)
+    # threaded=True is important: a slow/unreachable biometric device connection
+    # (services/essl_sync.py) must not block every other API request while it
+    # times out — without this, Flask's dev server handles one request at a time.
+    app.run(host="0.0.0.0", port=port, debug=True, use_reloader=False, threaded=True)

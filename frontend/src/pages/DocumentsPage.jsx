@@ -168,12 +168,22 @@ export default function DocumentsPage() {
 // Step 1 — Personal Info Form (sectioned, Zoho-style)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Section 2–6: simple field groups
+// Basic Information — rendered inside its own hardcoded card (Name/Email are
+// read-only auto-fetched; Phone/Emergency Contact are editable) but still
+// validated alongside everything else.
+const BASIC_INFO_FIELDS = [
+  { key: 'phone', label: 'Phone Number', type: 'tel', placeholder: '10-digit number', required: true, pattern: /^\d{10}$/ },
+  { key: 'emergency_contact_phone', label: 'Emergency Contact Number', type: 'tel', placeholder: '10-digit number', required: true, pattern: /^\d{10}$/ },
+];
+
+// Section 2–5: simple field groups
 const SIMPLE_SECTIONS = [
   {
     title: 'Personal Details',
     fields: [
       { key: 'dob', label: 'Date of Birth', type: 'date', placeholder: '', required: true, pattern: null },
+      { key: 'blood_group', label: 'Blood Group', type: 'select', required: true, pattern: null,
+        options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
     ],
   },
   {
@@ -181,12 +191,9 @@ const SIMPLE_SECTIONS = [
     fields: [
       { key: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: 'XXXX XXXX XXXX', required: true, pattern: /^\d{4}\s?\d{4}\s?\d{4}$/ },
       { key: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true, pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/ },
-    ],
-  },
-  {
-    title: 'Contact Details',
-    fields: [
-      { key: 'phone', label: 'Mobile Number', type: 'tel', placeholder: '10-digit number', required: true, pattern: /^\d{10}$/ },
+      { key: 'id_type', label: 'Additional ID Type', type: 'select', required: false, pattern: null,
+        options: ['Driving License', 'Voter ID', 'Passport', 'Other'] },
+      { key: 'id_number', label: 'ID Number', type: 'text', placeholder: 'Enter ID number', required: false, pattern: null },
     ],
   },
   {
@@ -198,7 +205,7 @@ const SIMPLE_SECTIONS = [
     ],
   },
   {
-    title: 'Address',
+    title: 'Address Details',
     fields: [
       { key: 'address_line1', label: 'Address Line 1', type: 'text', placeholder: 'House / Street', required: true, pattern: null },
       { key: 'address_line2', label: 'Address Line 2', type: 'text', placeholder: 'Locality / Landmark (optional)', required: false, pattern: null },
@@ -260,6 +267,33 @@ function calcAge(dobStr) {
   if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
   return age >= 0 ? age : '';
 }
+
+const FIELD_LIMITS = {
+  aadhaar_number: 12,
+  pan_number: 10,
+  phone: 10,
+  emergency_contact_phone: 10,
+  ifsc_code: 11,
+  account_number: 18,
+  postal_code: 10,
+};
+
+function sanitizeFieldValue(key, raw) {
+  const UPPER_KEYS = ['pan_number', 'aadhaar_number', 'ifsc_code'];
+  let val = UPPER_KEYS.includes(key) ? raw.toUpperCase() : raw;
+
+  if (['aadhaar_number', 'phone', 'emergency_contact_phone', 'postal_code', 'account_number'].includes(key)) {
+    val = val.replace(/\D/g, '');
+  }
+  if (key === 'pan_number' || key === 'ifsc_code') {
+    val = val.replace(/[^A-Z0-9]/g, '');
+  }
+
+  const max = FIELD_LIMITS[key];
+  return max ? val.slice(0, max) : val;
+}
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 // ── Section wrapper — visually matches existing .card styling ──────────────
 function SectionCard({ title, children }) {
@@ -369,13 +403,13 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
   };
 
   const [form, setForm] = useState(withDefaults(saved));
-  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setTable = (key, rows) => setForm(p => ({ ...p, [key]: rows }));
 
-  const allSimpleFields = SIMPLE_SECTIONS.flatMap(s => s.fields);
+  const allSimpleFields = [...BASIC_INFO_FIELDS, ...SIMPLE_SECTIONS.flatMap(s => s.fields)];
 
   const validate = () => {
     const errs = {};
@@ -445,7 +479,6 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
     e.preventDefault();
     setSubmitted(true);
     const errs = validate();
-    setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     // Build a joined single-line address for downstream consumers (letters, HR view)
@@ -458,7 +491,8 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
     onComplete(payload);
   };
 
-  const fieldErr = (k) => submitted && errors[k];
+  const errors = validate();
+  const fieldErr = (k) => (touched[k] || submitted) && errors[k];
   const age = calcAge(form.dob);
 
   return (
@@ -504,7 +538,7 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
 
       <form onSubmit={submit} noValidate>
 
-        {/* ── Section 1: Basic Information (auto-fetched, read-only) ── */}
+        {/* ── Section 1: Basic Information (name/email auto-fetched read-only; phone + emergency contact editable) ── */}
         <SectionCard title="Basic Information">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="form-group" style={{ margin: 0 }}>
@@ -515,10 +549,48 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
               <label className="form-label">Email</label>
               <input type="text" value={user?.email || ''} disabled style={{ opacity: 0.75 }} />
             </div>
+            {BASIC_INFO_FIELDS.map(f => (
+              <div key={f.key} className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">
+                  {f.label}{f.required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
+                </label>
+                <input
+                  type={f.type} value={form[f.key] || ''}
+                  onChange={e => {
+                    if (readOnly) return;
+                    set(f.key, sanitizeFieldValue(f.key, e.target.value));
+                  }}
+                  onBlur={() => setTouched(t => ({ ...t, [f.key]: true }))}
+                  placeholder={f.placeholder} disabled={readOnly}
+                  maxLength={FIELD_LIMITS[f.key] || undefined}
+                  inputMode="numeric"
+                  style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
+                />
+                {fieldErr(f.key) && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors[f.key]}</div>}
+              </div>
+            ))}
           </div>
         </SectionCard>
 
-        {/* ── Sections 2–6: simple grouped fields ── */}
+        {/* ── Employee Details (auto-fetched, read-only) ── */}
+        <SectionCard title="Employee Details">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Date of Joining</label>
+              <input type="text" value={user?.joining_date || '—'} disabled style={{ opacity: 0.75 }} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Employee ID</label>
+              <input type="text" value={user?.employee_code || '—'} disabled style={{ opacity: 0.75 }} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Reporting Manager</label>
+              <input type="text" value={user?.manager_name || '—'} disabled style={{ opacity: 0.75 }} />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Sections 2–5: simple grouped fields ── */}
         {SIMPLE_SECTIONS.map(section => (
           <SectionCard key={section.title} title={section.title}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -527,17 +599,32 @@ function Step1Form({ onComplete, userId, readOnly = false, onBack }) {
                   <label className="form-label">
                     {f.label}{f.required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
                   </label>
-                  <input
-                    type={f.type} value={form[f.key] || ''}
-                    onChange={e => {
-                      if (readOnly) return;
-                      const UPPER_KEYS = ['pan_number', 'aadhaar_number', 'ifsc_code'];
-                      const val = e.target.value;
-                      set(f.key, UPPER_KEYS.includes(f.key) ? val.toUpperCase() : val);
-                    }}
-                    placeholder={f.placeholder} disabled={readOnly}
-                    style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
-                  />
+                  {f.type === 'select' ? (
+                    <select
+                      value={form[f.key] || ''}
+                      onChange={e => { if (!readOnly) set(f.key, e.target.value); }}
+                      onBlur={() => setTouched(t => ({ ...t, [f.key]: true }))}
+                      disabled={readOnly}
+                      style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
+                    >
+                      <option value="">Select…</option>
+                      {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type={f.type} value={form[f.key] || ''}
+                      onChange={e => {
+                        if (readOnly) return;
+                        set(f.key, sanitizeFieldValue(f.key, e.target.value));
+                      }}
+                      onBlur={() => setTouched(t => ({ ...t, [f.key]: true }))}
+                      placeholder={f.placeholder} disabled={readOnly}
+                      maxLength={FIELD_LIMITS[f.key] || undefined}
+                      inputMode={['aadhaar_number', 'phone', 'account_number', 'postal_code'].includes(f.key) ? 'numeric' : undefined}
+                      max={f.key === 'dob' ? todayStr() : undefined}
+                      style={{ borderColor: fieldErr(f.key) ? 'var(--red)' : undefined, opacity: readOnly ? 0.75 : 1 }}
+                    />
+                  )}
                   {fieldErr(f.key) && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors[f.key]}</div>}
                 </div>
               ))}

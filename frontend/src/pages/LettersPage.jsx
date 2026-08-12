@@ -2137,14 +2137,14 @@ function EmployeeLettersView() {
   const others = letters.filter(l => !SENT_STATUSES.includes(l.status));
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+    <div>
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'var(--display)', fontSize: 22, fontWeight: 800, margin: 0 }}>
-          My Offer Letters
-        </h1>
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 4 }}>
-          Welcome, {user?.name} · {user?.emp_code}
+      <div className="page-header" style={{ marginBottom: 32 }}>
+        <div>
+          <div className="page-title">My Offer Letters</div>
+          <div className="page-subtitle" style={{ marginTop: 6 }}>
+            Welcome, {user?.name} · {user?.emp_code}
+          </div>
         </div>
       </div>
 
@@ -2174,7 +2174,7 @@ function EmployeeLettersView() {
       {/* Issued letters only */}
       {sent.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
             ✓ Your Offer Letter{sent.length > 1 ? 's' : ''}
           </div>
           {sent.map(l => (

@@ -1,50 +1,95 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+
+// ─── Original illustration: person beside a dashboard tablet + plant ────────
+// (Composition inspired by common "welcome" sign-in illustrations, drawn
+// fresh as flat-color SVG shapes — not a reproduction of any stock asset.)
+function HeroIllustration() {
+  return (
+    <svg width="270" height="230" viewBox="0 0 270 230" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* soft decorative hex shapes behind */}
+      <polygon points="220,20 240,32 240,56 220,68 200,56 200,32" fill="#ffffff" opacity=".08" />
+      <polygon points="248,60 265,70 265,90 248,100 231,90 231,70" fill="#ffffff" opacity=".10" />
+      <polygon points="205,110 222,120 222,140 205,150 188,140 188,120" fill="#ffffff" opacity=".07" />
+      <circle cx="40" cy="30" r="16" fill="#ffffff" opacity=".08" />
+
+      {/* ground shadow */}
+      <ellipse cx="120" cy="214" rx="95" ry="10" fill="#0B2E86" opacity=".14" />
+
+      {/* tablet / dashboard card, slightly tilted */}
+      <g transform="translate(60,30) rotate(-6 90 95)">
+        <rect x="0" y="0" width="180" height="150" rx="14" fill="#ffffff" />
+        <rect x="0" y="0" width="180" height="150" rx="14" fill="url(#tabletShade)" opacity=".5" />
+        {/* top bar with traffic dots */}
+        <circle cx="16" cy="16" r="3.5" fill="#F2994A" />
+        <circle cx="28" cy="16" r="3.5" fill="#F7C948" />
+        <circle cx="40" cy="16" r="3.5" fill="#27AE60" />
+        <rect x="60" y="12" width="60" height="8" rx="4" fill="#DDE9FD" />
+
+        {/* mini bar chart */}
+        <rect x="14" y="100" width="12" height="34" rx="3" fill="#3E7BFA" />
+        <rect x="30" y="86" width="12" height="48" rx="3" fill="#6E9DFC" />
+        <rect x="46" y="112" width="12" height="22" rx="3" fill="#B9D0FB" />
+        <rect x="62" y="94" width="12" height="40" rx="3" fill="#3E7BFA" />
+
+        {/* avatar badge */}
+        <circle cx="30" cy="70" r="14" fill="#ECF2FE" />
+        <circle cx="30" cy="66" r="5" fill="#3E7BFA" />
+        <path d="M20 78c2-5 6-7 10-7s8 2 10 7" stroke="#3E7BFA" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+
+        {/* line chart panel */}
+        <rect x="92" y="60" width="76" height="44" rx="8" fill="#101A33" />
+        <polyline points="98,92 112,80 126,88 140,68 154,76 162,64"
+          fill="none" stroke="#EB5757" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="162" cy="64" r="3" fill="#EB5757" />
+
+        {/* text lines */}
+        <rect x="92" y="112" width="50" height="6" rx="3" fill="#EEF1F6" />
+        <rect x="92" y="124" width="66" height="6" rx="3" fill="#EEF1F6" />
+      </g>
+
+      {/* person */}
+      <g transform="translate(8,60)">
+        {/* legs */}
+        <rect x="20" y="120" width="12" height="46" rx="5" fill="#232B3A" />
+        <rect x="38" y="120" width="12" height="46" rx="5" fill="#3D4759" />
+        {/* torso / shirt */}
+        <path d="M10 70c0-14 12-24 26-24s26 10 26 24l4 54H6z" fill="#EB6B5E" />
+        {/* arm crossed */}
+        <path d="M14 82c-6 8-8 18-4 28" stroke="#EB6B5E" strokeWidth="12" strokeLinecap="round" fill="none" />
+        <path d="M58 82c6 8 8 18 4 28" stroke="#EB6B5E" strokeWidth="12" strokeLinecap="round" fill="none" />
+        {/* neck + head */}
+        <rect x="30" y="38" width="12" height="14" fill="#F2B28C" />
+        <circle cx="36" cy="30" r="17" fill="#F7CBA4" />
+        {/* hair + beard */}
+        <path d="M19 26a17 17 0 0134-2c0-3-6-14-17-14S19 20 19 24z" fill="#232B3A" />
+        <path d="M22 34c1 7 6 12 14 12s13-5 14-12c-3 3-9 5-14 5s-11-2-14-5z" fill="#232B3A" opacity=".85" />
+      </g>
+
+      {/* plant pot */}
+      <g transform="translate(4,168)">
+        <path d="M4 18h28l-4 20H8z" fill="#E08E3E" />
+        <path d="M18 18c0-14-10-20-16-22 8 2 14 10 14 22z" fill="#27AE60" />
+        <path d="M18 18c0-16 12-22 20-24-10 2-18 12-18 24z" fill="#34C976" />
+        <path d="M18 18c0-10-6-16-10-18 6 1 10 8 10 18z" fill="#1F9450" />
+      </g>
+
+      <defs>
+        <linearGradient id="tabletShade" x1="0" y1="0" x2="180" y2="150" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff" />
+          <stop offset="1" stopColor="#F3F6FC" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focused, setFocused] = useState('');
-  const [cursor, setCursor] = useState({ x: 50, y: 50 });
   const { login } = useAuth();
-
-  useEffect(() => {
-    let targetX = 50;
-    let targetY = 50;
-    let currentX = 50;
-    let currentY = 50;
-    let animId;
-
-    const move = (e) => {
-      targetX = (e.clientX / window.innerWidth) * 100;
-      targetY = (e.clientY / window.innerHeight) * 100;
-    };
-
-    const update = () => {
-      currentX += (targetX - currentX) * 0.08;
-      currentY += (targetY - currentY) * 0.08;
-      setCursor({ x: currentX, y: currentY });
-
-      const elements = document.querySelectorAll('.parallax-shape');
-      elements.forEach((el, i) => {
-        const speed = (i + 1) * 0.05;
-        const x = (targetX - 50) * speed;
-        const y = (targetY - 50) * speed;
-        el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${x * 0.1}deg)`;
-      });
-
-      animId = requestAnimationFrame(update);
-    };
-
-    window.addEventListener('mousemove', move);
-    update();
-    return () => {
-      window.removeEventListener('mousemove', move);
-      cancelAnimationFrame(animId);
-    };
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,302 +107,117 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#f8fafc',
-      position: 'relative',
-      overflow: 'hidden',
-      fontFamily: "'Inter', -apple-system, sans-serif",
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#EAF2FE', position: 'relative', overflow: 'hidden', padding: 24,
+      fontFamily: 'var(--font)',
     }}>
+      {/* ── decorative blurred circles on the page background ── */}
+      <div style={{ position: 'absolute', top: -130, left: -110, width: 360, height: 360, borderRadius: '50%', background: 'rgba(255,255,255,.55)' }} />
+      <div style={{ position: 'absolute', bottom: -160, left: '14%', width: 280, height: 280, borderRadius: '50%', background: 'rgba(184,209,250,.55)' }} />
+      <div style={{ position: 'absolute', top: '10%', right: '6%', width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,.45)' }} />
+      <div style={{ position: 'absolute', bottom: '6%', right: '18%', width: 120, height: 120, borderRadius: '50%', background: 'rgba(62,123,250,.10)' }} />
 
-      {/* Animated Background */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-
-        {/* Blob 1 — top-left, indigo */}
-        <div style={{
-          position: 'absolute',
-          top: '-15%', left: '-10%',
-          width: '55vw', height: '55vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(68, 76, 231, 0.10) 0%, transparent 70%)',
-          animation: 'blobDrift1 18s ease-in-out infinite alternate',
-        }} />
-
-        {/* Blob 2 — bottom-right, green */}
-        <div style={{
-          position: 'absolute',
-          bottom: '-20%', right: '-10%',
-          width: '50vw', height: '50vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 106, 0.08) 0%, transparent 70%)',
-          animation: 'blobDrift2 22s ease-in-out infinite alternate',
-        }} />
-
-        {/* Blob 3 — center-right, purple */}
-        <div style={{
-          position: 'absolute',
-          top: '30%', right: '-5%',
-          width: '35vw', height: '35vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(139, 92, 246, 0.07) 0%, transparent 70%)',
-          animation: 'blobDrift3 14s ease-in-out infinite alternate',
-        }} />
-
-        {/* Blob 4 — center-left, sky blue */}
-        <div style={{
-          position: 'absolute',
-          bottom: '10%', left: '5%',
-          width: '40vw', height: '40vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(56, 189, 248, 0.06) 0%, transparent 70%)',
-          animation: 'blobDrift4 26s ease-in-out infinite alternate',
-        }} />
-
-        {/* Floating Glass Shapes */}
-        <div className="parallax-shape" style={{
-          position: 'absolute', top: '20%', right: '15%',
-          width: 140, height: 140,
-          background: 'rgba(255,255,255,0.4)',
-          borderRadius: 30,
-          border: '1px solid rgba(255,255,255,0.6)',
-          backdropFilter: 'blur(8px)',
-          opacity: 0.5,
-        }} />
-        <div className="parallax-shape" style={{
-          position: 'absolute', bottom: '15%', left: '10%',
-          width: 100, height: 100,
-          background: 'rgba(255,255,255,0.3)',
-          borderRadius: '50%',
-          border: '1px solid rgba(255,255,255,0.5)',
-          backdropFilter: 'blur(6px)',
-          opacity: 0.4,
-        }} />
-
-        {/* Cursor Halo */}
-        <div style={{
-          position: 'absolute',
-          left: `${cursor.x}%`, top: `${cursor.y}%`,
-          width: 500, height: 500,
-          background: 'radial-gradient(circle, rgba(68,76,231,0.06) 0%, transparent 65%)',
-          transform: 'translate(-50%, -50%)',
-          transition: 'left 0.6s cubic-bezier(0.23, 1, 0.32, 1), top 0.6s cubic-bezier(0.23, 1, 0.32, 1)',
-        }} />
-
-        {/* Subtle Grid */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'radial-gradient(rgba(68,76,231,0.05) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }} />
-      </div>
-
-      {/* Main Content Container */}
+      {/* ── floating card ── */}
       <div style={{
-        position: 'relative', zIndex: 1,
-        width: '100%', maxWidth: 410,
-        margin: '0 20px',
-        animation: 'slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+        position: 'relative', zIndex: 1, width: '100%', maxWidth: 900,
+        background: '#fff', borderRadius: 28,
+        boxShadow: '0 30px 70px rgba(31,62,133,.18), 0 8px 20px rgba(31,62,133,.08)',
+        display: 'flex', overflow: 'hidden', minHeight: 560,
       }}>
 
-        {/* Branding Section */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        {/* Left — illustrated brand panel */}
+        <div style={{
+          flex: '1 1 45%', minWidth: 300,
+          background: 'linear-gradient(160deg, #3E7BFA 0%, #2F68E0 100%)',
+          padding: '40px 40px 0', position: 'relative', overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', color: '#fff',
+        }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 140, height: 75, borderRadius: 18,
-            background: '#ffffff',
-            boxShadow: '0 12px 30px rgba(68,76,231,0.12), 0 1px 3px rgba(0,0,0,0.05)',
-            marginBottom: 20, padding: '10px 14px',
-            border: '1px solid rgba(255,255,255,1)',
+            padding: '10px 18px', borderRadius: 12, flexShrink: 0,
+            background: '#fff', boxShadow: '0 4px 14px rgba(15,35,90,.18)',
+            marginBottom: 30, alignSelf: 'flex-start',
           }}>
-            <img src="/infopaceee.jpg" alt="Infopace"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src="/infopace-logo.webp" alt="Infopace" style={{ height: 34, width: 'auto', maxWidth: 150, objectFit: 'contain', display: 'block' }} />
           </div>
 
           <h1 style={{
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontSize: 24, fontWeight: 800, color: '#0f172a',
-            letterSpacing: '-0.5px', margin: '0 0 6px',
+            fontFamily: 'var(--display)', fontSize: 25, fontWeight: 700,
+            lineHeight: 1.35, margin: '0 0 8px', maxWidth: 230,
           }}>
-            HR <span style={{
-              background: 'linear-gradient(135deg, #444ce7, #6172f3)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            }}>Automation</span> System
+            One place for all your HR needs.
           </h1>
-          <p style={{ fontSize: 13, color: '#64748b', fontWeight: 500, margin: 0 }}>
-            Infopace India — Internal HR Portal
+          <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', maxWidth: 220, margin: 0 }}>
+            Offer letters, appointment orders, exits, approvals & leave — all in one portal.
           </p>
+
+          <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', paddingBottom: 4 }}>
+            <HeroIllustration />
+          </div>
         </div>
 
-        {/* Glass Card */}
+        {/* Right — sign-in form */}
         <div style={{
-          background: 'rgba(255,255,255,0.7)',
-          backdropFilter: 'blur(30px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.8)',
-          borderRadius: 24,
-          padding: '36px 36px 32px',
-          boxShadow: '0 25px 50px -12px rgba(68,76,231,0.12), inset 0 0 0 1px rgba(255,255,255,0.4)',
+          flex: '1 1 55%', minWidth: 300, padding: '52px 52px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
-          <div style={{ marginBottom: 24 }}>
-            <h2 style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: 18, fontWeight: 700, color: '#0f172a',
-              margin: '0 0 6px',
-            }}>Welcome back</h2>
-            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
-              Sign in to access your dashboard
-            </p>
-          </div>
+          <h2 style={{ fontFamily: 'var(--display)', fontSize: 21, fontWeight: 700, color: '#232B3A', margin: '0 0 5px' }}>
+            Sign in
+          </h2>
+          <p style={{ fontSize: 12.5, color: '#8A94A6', margin: '0 0 26px' }}>
+            Welcome back to the HR Automation System
+          </p>
 
           {error && (
-            <div style={{
-              padding: '12px 16px', borderRadius: 12, marginBottom: 20,
-              background: '#fef2f2', border: '1px solid rgba(239, 68, 68, 0.1)',
-              color: '#dc2626', fontSize: 13, fontWeight: 500,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
+            <div className="alert alert-error" style={{ marginBottom: 18 }}>
               <span>⚠</span> {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="Email Address"
+              required
+              autoFocus
+              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+            />
 
-            {/* Email Field */}
-            <div>
-              <label style={{
-                display: 'block', fontSize: 11, fontWeight: 700,
-                color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8,
-              }}>Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onFocus={() => setFocused('email')}
-                onBlur={() => setFocused('')}
-                placeholder="you@infopaceindia.com"
-                required
-                style={{
-                  width: '100%', padding: '12px 16px',
-                  borderRadius: 12, fontSize: 14,
-                  border: `1.5px solid ${focused === 'email' ? '#444ce7' : '#e2e8f0'}`,
-                  background: focused === 'email' ? '#fff' : 'rgba(255,255,255,0.5)',
-                  color: '#0f172a', outline: 'none',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: focused === 'email' ? '0 0 0 4px rgba(68,76,231,0.08)' : 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label style={{
-                display: 'block', fontSize: 11, fontWeight: 700,
-                color: '#475569', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8,
-              }}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onFocus={() => setFocused('password')}
-                onBlur={() => setFocused('')}
-                placeholder="••••••••"
-                required
-                style={{
-                  width: '100%', padding: '12px 16px',
-                  borderRadius: 12, fontSize: 14,
-                  border: `1.5px solid ${focused === 'password' ? '#444ce7' : '#e2e8f0'}`,
-                  background: focused === 'password' ? '#fff' : 'rgba(255,255,255,0.5)',
-                  color: '#0f172a', outline: 'none',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: focused === 'password' ? '0 0 0 4px rgba(68,76,231,0.08)' : 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+            <p style={{ fontSize: 11.5, color: '#AEB7C4', lineHeight: 1.6, margin: '2px 0 4px' }}>
+              This portal is for Infopace India employees only. Contact HR if you
+              believe you should have access but can't sign in.
+            </p>
 
             <button
               type="submit"
+              className="btn btn-primary"
               disabled={loading}
-              style={{
-                marginTop: 8, padding: '13px',
-                borderRadius: 14, border: 'none',
-                background: loading ? '#94a3b8' : 'linear-gradient(135deg, #444ce7 0%, #6172f3 100%)',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: loading ? 'none' : '0 8px 24px rgba(68,76,231,0.25)',
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+              style={{ width: '100%', padding: '13px', fontSize: 13.5, borderRadius: 12, marginTop: 4 }}
             >
               {loading ? (
                 <>
-                  <div className="spinner" />
+                  <span className="spinner" style={{ borderColor: 'rgba(255,255,255,.35)', borderTopColor: '#fff' }} />
                   Signing in…
                 </>
               ) : 'Sign in →'}
             </button>
           </form>
+
+          <p style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: '#AEB7C4', fontWeight: 500 }}>
+            Contact your administrator if you need access
+          </p>
         </div>
-
-        <p style={{
-          textAlign: 'center', marginTop: 24,
-          fontSize: 12.5, color: '#94a3b8', fontWeight: 500,
-        }}>
-          Contact your administrator if you need access
-        </p>
       </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Inter:wght@400;500;600;700&display=swap');
-
-        @keyframes blobDrift1 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          33%  { transform: translate(40px, 30px) scale(1.05); }
-          66%  { transform: translate(20px, 60px) scale(0.97); }
-          100% { transform: translate(60px, 20px) scale(1.08); }
-        }
-        @keyframes blobDrift2 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          33%  { transform: translate(-50px, -30px) scale(1.06); }
-          66%  { transform: translate(-20px, -60px) scale(0.95); }
-          100% { transform: translate(-40px, -10px) scale(1.04); }
-        }
-        @keyframes blobDrift3 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          50%  { transform: translate(-30px, 50px) scale(1.1); }
-          100% { transform: translate(20px, 80px) scale(0.93); }
-        }
-        @keyframes blobDrift4 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          40%  { transform: translate(60px, -40px) scale(1.07); }
-          100% { transform: translate(30px, -70px) scale(0.96); }
-        }
-
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .spinner {
-          width: 16px; height: 16px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: #fff;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-        .parallax-shape {
-          transition: transform 0.2s cubic-bezier(0.1, 1, 0.3, 1);
-        }
-        input::placeholder { color: #cbd5e1; }
-      `}</style>
     </div>
   );
 }

@@ -670,7 +670,12 @@ function ClearancePanel({ emp, onUpdate, onClose }) {
   const [clearances, setClearances] = useState(emp.clearances || {});
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState('');
+  const [assignedAssets, setAssignedAssets] = useState(null);
   const days = daysUntil(emp.last_working_day);
+
+  useEffect(() => {
+    axios.get(`/api/assets/employee/${emp._id}`).then(r => setAssignedAssets(r.data)).catch(() => setAssignedAssets([]));
+  }, [emp._id]);
   const done = CLEARANCE_ITEMS.filter(i => clearances[i.key]).length;
   const total = CLEARANCE_ITEMS.length;
   const pct = Math.round((done / total) * 100);
@@ -716,6 +721,22 @@ function ClearancePanel({ emp, onUpdate, onClose }) {
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
+
+        {assignedAssets && assignedAssets.length > 0 && (
+          <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 8 }}>
+              Assigned assets — return before clearing IT Assets
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {assignedAssets.map(a => (
+                <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+                  <span>{a.category} — {a.brand} {a.model}</span>
+                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-dim)' }}>{a.asset_tag}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {CLEARANCE_ITEMS.map(item => {

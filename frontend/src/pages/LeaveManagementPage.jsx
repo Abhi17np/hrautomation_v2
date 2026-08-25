@@ -128,54 +128,6 @@ function AdjustBalanceModal({ row, onClose, onSaved }) {
   );
 }
 
-// ─── Notification bell ───────────────────────────────────────────────────────
-function NotificationBell() {
-  const [open, setOpen] = useState(false);
-  const [data, setData] = useState({ notifications: [], unread_count: 0 });
-  const load = () => axios.get('/api/leaves/notifications').then(r => setData(r.data)).catch(() => {});
-
-  useEffect(() => { load(); const id = setInterval(load, 30000); return () => clearInterval(id); }, []);
-
-  const openPanel = () => {
-    setOpen(o => !o);
-    if (data.unread_count > 0) axios.post('/api/leaves/notifications/mark-read').then(load).catch(() => {});
-  };
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={openPanel} style={{ width: 36, height: 36, padding: 0, borderRadius: 9, position: 'relative', fontSize: 15 }}>
-        🔔
-        {data.unread_count > 0 && (
-          <span style={{
-            position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 'var(--radius-full)',
-            background: 'var(--red)', color: '#fff', fontSize: 9.5, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-          }}>{data.unread_count}</span>
-        )}
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', right: 0, top: 42, width: 340, maxHeight: 420, overflowY: 'auto',
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-lg)', zIndex: 50,
-        }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Leave Notifications</div>
-          {data.notifications.length === 0 ? (
-            <div className="empty-state" style={{ padding: '24px 14px' }}>
-              <p style={{ margin: 0 }}>No notifications yet</p>
-            </div>
-          ) : data.notifications.map(n => (
-            <div key={n._id} style={{ padding: '10px 14px', borderBottom: '1px solid var(--surface-2)', fontSize: 12.5 }}>
-              <div>{n.message}</div>
-              <div style={{ color: 'var(--text-faint)', fontSize: 10.5, marginTop: 3 }}>{new Date(n.created_at).toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── All Requests tab ────────────────────────────────────────────────────────
 function AllRequestsTab({ requests, canDecide, onDecide }) {
   const [remarksFor, setRemarksFor] = useState(null);
@@ -351,7 +303,6 @@ export default function LeaveManagementPage() {
             {!canDecide && ' You can view and adjust balances; approvals are handled by managers and HR Head.'}
           </div>
         </div>
-        <NotificationBell />
       </div>
 
       {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}

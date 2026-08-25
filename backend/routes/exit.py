@@ -22,6 +22,7 @@ from io import BytesIO
 import os, re, tempfile, zipfile, gridfs, smtplib
 from email.message import EmailMessage
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
+from services.notify import notify, notify_employee
 
 exit_bp = Blueprint('exit', __name__)
 
@@ -250,6 +251,11 @@ def approve_resignation(emp_id):
         'updated_at':               datetime.utcnow(),
     }})
 
+    notify_employee(db, emp_id, type='exit', title='Resignation approved',
+                     message=f'Your resignation was approved by {u.get("name", "your manager")}. '
+                             f'You are now serving your notice period.',
+                     link='/exit', related_id=emp_id)
+
     return jsonify({'message': 'Resignation approved. Employee is now serving notice period.'})
 
 
@@ -289,6 +295,11 @@ def reject_resignation(emp_id):
         'rejection_reason':         data.get('reason', ''),
         'updated_at':               datetime.utcnow(),
     }})
+
+    notify_employee(db, emp_id, type='exit', title='Resignation rejected',
+                     message=f'Your resignation was rejected by {u.get("name", "your manager")}.'
+                             + (f' Reason: {data.get("reason")}' if data.get('reason') else ''),
+                     link='/exit', related_id=emp_id)
 
     return jsonify({'message': 'Resignation rejected. Employee restored to active.'})
 
@@ -353,6 +364,11 @@ def update_clearance(emp_id):
         'status':     new_status,
         'updated_at': datetime.utcnow(),
     }})
+
+    if all_clear:
+        notify(db, type='exit', title='Clearance complete',
+               message=f'All clearances are complete for {emp.get("name", "an employee")} — ready for relieving letter.',
+               roles=['hr', 'hr_head', 'admin'], link='/exit', related_id=emp_id)
 
     return jsonify({'all_cleared': all_clear, 'status': new_status, 'clearances': merged})
 

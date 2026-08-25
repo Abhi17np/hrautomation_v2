@@ -51,6 +51,12 @@ from routes.documents          import documents_bp
 from routes.leaves             import leaves_bp
 from routes.attendance         import attendance_bp
 from routes.payslips           import payslips_bp
+from routes.notifications      import notifications_bp
+from routes.holidays           import holidays_bp
+from routes.org_chart          import org_chart_bp
+from routes.assets             import assets_bp
+from routes.expenses           import expenses_bp
+from routes.analytics          import analytics_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
@@ -63,6 +69,12 @@ app.register_blueprint(documents_bp,          url_prefix='/api/documents')
 app.register_blueprint(leaves_bp,             url_prefix='/api/leaves')
 app.register_blueprint(attendance_bp,         url_prefix='/api/attendance')
 app.register_blueprint(payslips_bp,           url_prefix='/api/payslips')
+app.register_blueprint(notifications_bp,      url_prefix='/api/notifications')
+app.register_blueprint(holidays_bp,           url_prefix='/api/holidays')
+app.register_blueprint(org_chart_bp,          url_prefix='/api/org-chart')
+app.register_blueprint(assets_bp,             url_prefix='/api/assets')
+app.register_blueprint(expenses_bp,           url_prefix='/api/expenses')
+app.register_blueprint(analytics_bp,          url_prefix='/api/analytics')
 
 @app.route('/')
 def index():

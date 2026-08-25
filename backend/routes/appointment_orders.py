@@ -23,6 +23,7 @@ from io import BytesIO
 import os, uuid, gridfs, tempfile
 
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
+from services.notify import notify_employee
 
 appointment_orders_bp = Blueprint('appointment_orders', __name__)
 
@@ -480,6 +481,11 @@ def hr_action(oid):
 
     update_ops['$set']['employee_notified'] = False
     db.appointment_orders.update_one({'_id': ObjectId(oid)}, update_ops)
+
+    notify_employee(db, o.get('employee_id'), type='appointment_order', title=f'Appointment order {new_status}',
+                     message=f'Your appointment order was {new_status}.' + (f' {remarks}' if act == 'reject' and remarks else ''),
+                     link='/appointment-orders', related_id=oid)
+
     return jsonify({'message': f'Appointment order {act}d', 'new_status': new_status})
 
 

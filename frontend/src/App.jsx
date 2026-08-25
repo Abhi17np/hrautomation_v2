@@ -16,6 +16,12 @@ import LeaveManagementPage from './pages/LeaveManagementPage';
 import AttendancePage      from './pages/AttendancePage';
 import PayslipPage         from './pages/PayslipPage';
 import PayslipManagementPage from './pages/PayslipManagementPage';
+import NotificationsPage   from './pages/NotificationsPage';
+import HolidaysPage        from './pages/HolidaysPage';
+import OrgChartPage        from './pages/OrgChartPage';
+import AssetsPage          from './pages/AssetsPage';
+import ExpensesPage        from './pages/ExpensesPage';
+import ReportsPage         from './pages/ReportsPage';
 
 
 import './App.css';
@@ -47,6 +53,12 @@ const PAGES = {
   '/attendance': AttendancePage,
   '/payslip': PayslipPage,
   '/payslip-management': PayslipManagementPage,
+  '/notifications': NotificationsPage,
+  '/holidays':      HolidaysPage,
+  '/org-chart':     OrgChartPage,
+  '/assets':        AssetsPage,
+  '/expenses':      ExpensesPage,
+  '/reports':       ReportsPage,
 };
 
 // FIX #5 (App.jsx L41): proper 404 page for unknown routes

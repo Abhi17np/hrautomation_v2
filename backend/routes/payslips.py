@@ -13,6 +13,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
 
+from services.notify import notify_employee
+
 payslips_bp = Blueprint('payslips', __name__)
 
 
@@ -435,9 +437,16 @@ def release_payslip(payslip_id):
     payslip['released_by'] = str(uid)
     payslip['released_at'] = datetime.utcnow()
     payslip['updated_at'] = datetime.utcnow()
-    
+
     db.payslips.update_one({'_id': ObjectId(payslip_id)}, {'$set': payslip})
-    
+
+    month_name = datetime(int(payslip['year']), int(payslip['month']), 1).strftime('%B %Y')
+    notify_employee(
+        db, payslip['employee_id'], type='payslip', title='Payslip released',
+        message=f'Your payslip for {month_name} has been released.',
+        link='/payslip', related_id=payslip_id,
+    )
+
     return jsonify(serialize_payslip(payslip))
 
 

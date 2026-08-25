@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 const NAV_HR = [
   { to: '/', icon: '⊞', label: 'Dashboard' },
@@ -13,6 +14,11 @@ const NAV_HR = [
   { to: '/leave-management', icon: '▤' , label: 'Leave Management' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip-management', icon: '💰', label: 'Payslips' },
+  { to: '/expenses', icon: '🧾', label: 'Expenses' },
+  { to: '/assets', icon: '💻', label: 'Assets' },
+  { to: '/holidays', icon: '📅', label: 'Holidays' },
+  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
+  { to: '/reports', icon: '📊', label: 'Reports' },
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
@@ -23,6 +29,10 @@ const NAV_EMPLOYEE = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip', icon: '💰', label: 'Payslips' },
+  { to: '/expenses', icon: '🧾', label: 'Expenses' },
+  { to: '/assets', icon: '💻', label: 'My Assets' },
+  { to: '/holidays', icon: '📅', label: 'Holidays' },
+  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
 ];
 
 const NAV_MANAGER = [
@@ -35,6 +45,11 @@ const NAV_MANAGER = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip-management', icon: '💰', label: 'Payslips' },
+  { to: '/expenses', icon: '🧾', label: 'Expenses' },
+  { to: '/assets', icon: '💻', label: 'Assets' },
+  { to: '/holidays', icon: '📅', label: 'Holidays' },
+  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
+  { to: '/reports', icon: '📊', label: 'Reports' },
 ];
 
 const ROLE_COLOR = {
@@ -795,6 +810,9 @@ export default function Layout({ children, currentPath }) {
         background: '#F3F6FC',
         padding: '16px 24px 32px 8px',
       }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <NotificationBell />
+        </div>
         {children}
       </main>
 

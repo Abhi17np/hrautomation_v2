@@ -38,6 +38,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
 
+from services.notify import notify, notify_employee
+
 leaves_bp = Blueprint('leaves', __name__)
 
 LEAVE_TYPES = {'CL', 'SL', 'LP', 'ML', 'MATERNITY', 'OD', 'CO', 'PERMISSION'}
@@ -174,28 +176,45 @@ def _date_range(from_date, to_date):
     return days
 
 
-def _compute_split(cat_doc, leave_type, from_date, to_date):
+def _load_holiday_dates(db, from_date, to_date):
+    """Company holidays falling inside [from_date, to_date] — a day that
+    lands on one of these shouldn't consume any leave quota (paid or LP)."""
+    docs = db.holidays.find({'date': {'$gte': from_date, '$lte': to_date}}, {'date': 1})
+    out = set()
+    for d in docs:
+        try:
+            out.add(datetime.strptime(d['date'], '%Y-%m-%d').date())
+        except (ValueError, KeyError):
+            continue
+    return out
+
+
+def _compute_split(cat_doc, leave_type, from_date, to_date, holiday_dates=None):
     """Day-by-day: for each day, spend from that day's month's remaining free
     quota (CL/SL pool or ML pool); anything left over becomes LP for that day.
+    A day that falls on a company holiday (holiday_dates) is skipped entirely —
+    it charges neither the paid pool nor LP.
     Returns (paid_days, lp_days, month_breakdown) where month_breakdown is a
     list of {year, month, paid, lp} so approval can credit the right buckets.
     Does NOT mutate cat_doc — this is also used for the pre-submit preview."""
+    holiday_dates = holiday_dates or set()
+
     if leave_type == 'LP':
-        days = _date_range(from_date, to_date)
+        days = [d for d in _date_range(from_date, to_date) if d.date() not in holiday_dates]
         return 0, len(days), []
 
     if leave_type in (MATERNITY_TYPE, OD_TYPE):
         # No monthly-quota impact whatsoever — Maternity is a paid continuous
         # block outside the CL/SL/ML pools; On Duty isn't leave at all (it's
         # handled as a Present marker over in attendance.py).
-        days = _date_range(from_date, to_date)
+        days = [d for d in _date_range(from_date, to_date) if d.date() not in holiday_dates]
         return len(days), 0, []
 
     if leave_type == CO_TYPE:
         # Comp-off draws from its own standalone earned balance, not a
         # per-month pool — the balance check/deduction happens in apply_leave
         # and the approval handler, not here.
-        days = _date_range(from_date, to_date)
+        days = [d for d in _date_range(from_date, to_date) if d.date() not in holiday_dates]
         return len(days), 0, []
 
     is_ml = (leave_type == ML_TYPE)
@@ -207,6 +226,8 @@ def _compute_split(cat_doc, leave_type, from_date, to_date):
     days = _date_range(from_date, to_date)
     by_month = {}
     for d in days:
+        if d.date() in holiday_dates:
+            continue
         key = (d.year, d.month)
         month_str = str(d.month)
         remaining = cap - running_used.get(month_str, 0)
@@ -226,11 +247,13 @@ def _compute_split(cat_doc, leave_type, from_date, to_date):
     return total_paid, total_lp, month_breakdown
 
 
-def _compute_permission(cat_doc, permission_mode, the_date, from_time=None, to_time=None):
+def _compute_permission(cat_doc, permission_mode, the_date, from_time=None, to_time=None, holiday_dates=None):
     """Half-day permission draws 0.5 day from the CL/SL pool for that day's
-    month (falls to LP if the pool is already exhausted). Hourly permission
-    is tracked in hours only and never touches the CL/SL pool.
+    month (falls to LP if the pool is already exhausted), unless the_date is
+    a company holiday, in which case nothing is charged at all. Hourly
+    permission is tracked in hours only and never touches the CL/SL pool.
     Returns (paid_days, lp_days, month_breakdown, permission_hours)."""
+    holiday_dates = holiday_dates or set()
     if permission_mode == 'hourly':
         try:
             t1 = datetime.strptime(from_time, '%H:%M')
@@ -244,6 +267,8 @@ def _compute_permission(cat_doc, permission_mode, the_date, from_time=None, to_t
 
     # half_day
     d = datetime.strptime(the_date, '%Y-%m-%d')
+    if d.date() in holiday_dates:
+        return 0, 0, [], None
     month_str = str(d.month)
     remaining = cat_doc['monthly_cap'] - cat_doc['monthly_used'].get(month_str, 0)
     if remaining >= 0.5:
@@ -291,10 +316,14 @@ def _apply_approval_effects(db, cat_doc, r):
 
 
 def _notify_hr(db, message, link='', related_id=None):
-    db.leave_notifications.insert_one({
-        'target_role': 'hr', 'message': message, 'link': link,
-        'related_id': related_id, 'read': False, 'created_at': datetime.utcnow(),
-    })
+    notify(db, type='leave', title='Leave request', message=message,
+           roles=['hr', 'hr_head', 'admin'], link=link or '/leave-management',
+           related_id=related_id)
+
+
+def _notify_employee_of_decision(db, employee_id, message, related_id=None):
+    notify_employee(db, employee_id, type='leave', title='Leave request update',
+                     message=message, link='/leave-tracker', related_id=related_id)
 
 
 def _enrich_request(r, db):
@@ -398,10 +427,12 @@ def preview_leave():
     if leave_type in FEMALE_ONLY_TYPES and cat_doc['category'] != 'female':
         return jsonify({'error': f'{leave_type.title()} is only available to female employees'}), 400
 
+    holiday_dates = _load_holiday_dates(db, from_date, to_date)
+
     if leave_type == PERMISSION_TYPE:
         permission_mode = (data.get('permission_mode') or 'half_day').strip()
         result = _compute_permission(cat_doc, permission_mode, from_date,
-                                      data.get('from_time'), data.get('to_time'))
+                                      data.get('from_time'), data.get('to_time'), holiday_dates)
         if result is None:
             return jsonify({'error': 'Invalid permission time range'}), 400
         paid, lp, breakdown, hours = result
@@ -409,7 +440,7 @@ def preview_leave():
             return jsonify({'days': 0, 'paid_days': 0, 'lp_days': 0, 'permission_hours': hours,
                              'breakdown': [], 'warning': None})
     else:
-        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date, holiday_dates)
 
     message = None
     if leave_type != 'LP' and lp > 0:
@@ -467,18 +498,20 @@ def apply_leave():
     if leave_type in FEMALE_ONLY_TYPES and cat_doc['category'] != 'female':
         return jsonify({'error': f'{leave_type.title()} is only available to female employees'}), 400
 
+    holiday_dates = _load_holiday_dates(db, from_date, to_date)
+
     permission_hours = None
     if leave_type == PERMISSION_TYPE:
-        result = _compute_permission(cat_doc, permission_mode, from_date, from_time, to_time)
+        result = _compute_permission(cat_doc, permission_mode, from_date, from_time, to_time, holiday_dates)
         if result is None:
             return jsonify({'error': 'Invalid permission time range'}), 400
         paid, lp, breakdown, permission_hours = result
     elif leave_type == CO_TYPE:
-        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date, holiday_dates)
         if cat_doc.get('comp_off_balance', 0) < paid:
             return jsonify({'error': f"Insufficient comp-off balance. You have {cat_doc.get('comp_off_balance', 0)} day(s) available."}), 400
     else:
-        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date, holiday_dates)
 
     lp_prone_types = {'CL', 'SL', 'ML', PERMISSION_TYPE}
     if leave_type in lp_prone_types and lp > 0 and not acknowledge_lp:
@@ -519,10 +552,21 @@ def apply_leave():
     result = db.leave_requests.insert_one(doc)
 
     split_note = f" ({paid}d {leave_type} + {lp}d LP)" if (leave_type != 'LP' and lp > 0) else ''
+    emp_name = emp.get('name', 'An employee') if emp else 'An employee'
+
+    if status == 'pending_manager':
+        mgr_user = db.users.find_one({'employee_ref': manager_id})
+        if mgr_user:
+            notify(db, type='leave', title='Leave approval needed',
+                   message=f"{emp_name} requested {leave_type} leave "
+                           f"({from_date} to {to_date}, {days_total} day(s)){split_note} — awaiting your approval.",
+                   user_ids=[str(mgr_user['_id'])], link='/leave-tracker',
+                   related_id=str(result.inserted_id))
+
     _notify_hr(
         db,
-        f"{emp.get('name', 'An employee') if emp else 'An employee'} applied for "
-        f"{leave_type} leave ({from_date} to {to_date}, {days_total} day(s)){split_note}",
+        f"{emp_name} applied for {leave_type} leave "
+        f"({from_date} to {to_date}, {days_total} day(s)){split_note}",
         link='/leave-management', related_id=str(result.inserted_id),
     )
 
@@ -619,6 +663,12 @@ def manager_action(rid):
     _notify_hr(db, f"{emp.get('name', 'An employee') if emp else 'An employee'}'s "
                    f"{r.get('leave_type')} leave request was {new_status} by {u.get('name', 'a manager')}",
                link='/leave-management', related_id=rid)
+    _notify_employee_of_decision(
+        db, r['employee_id'],
+        f"Your {r.get('leave_type')} leave request ({r.get('from_date')} to {r.get('to_date')}) was {new_status}"
+        + (f" — {remarks}" if new_status == 'rejected' and remarks else ''),
+        related_id=rid,
+    )
     return jsonify({'message': f'Request {act}d', 'new_status': new_status})
 
 
@@ -672,6 +722,12 @@ def hr_head_action(rid):
                  'decided_by': uid, 'decided_at': datetime.utcnow().isoformat(), 'decision_remarks': remarks},
         '$push': {'history': {'action': act, 'by': uid, 'remarks': remarks, 'timestamp': datetime.utcnow().isoformat()}},
     })
+    _notify_employee_of_decision(
+        db, r['employee_id'],
+        f"Your {r.get('leave_type')} leave request ({r.get('from_date')} to {r.get('to_date')}) was {new_status}"
+        + (f" — {remarks}" if new_status == 'rejected' and remarks else ''),
+        related_id=rid,
+    )
     return jsonify({'message': f'Request {act}d', 'new_status': new_status})
 
 
@@ -743,28 +799,3 @@ def adjust_balance(emp_id):
 
     updated = db.leave_balances.find_one({'_id': cat_doc['_id']})
     return jsonify(_s(updated))
-
-
-@leaves_bp.route('/notifications', methods=['GET'])
-@jwt_required()
-def notifications():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
-    notes = list(db.leave_notifications.find({'target_role': 'hr'}).sort('created_at', -1).limit(100))
-    unread = sum(1 for n in notes if not n.get('read'))
-    return jsonify({'notifications': [_s(n) for n in notes], 'unread_count': unread})
-
-
-@leaves_bp.route('/notifications/mark-read', methods=['POST'])
-@jwt_required()
-def mark_notifications_read():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
-    db.leave_notifications.update_many({'target_role': 'hr', 'read': False}, {'$set': {'read': True}})
-    return jsonify({'message': 'Marked as read'})

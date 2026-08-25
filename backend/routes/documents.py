@@ -13,6 +13,8 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 import gridfs
 
+from services.notify import notify
+
 documents_bp = Blueprint('documents', __name__)
 logger = logging.getLogger(__name__)
 
@@ -341,6 +343,9 @@ def submission_action(sub_id):
             }
         }
     )
+    notify(db, type='document', title=f'Documents {new_status}',
+           message=f'Your document submission was {new_status}.' + (f' {remarks}' if new_status == 'rejected' and remarks else ''),
+           user_ids=[sub.get('user_id')], link='/documents', related_id=sub_id)
     return jsonify({'message': f'Documents {new_status}.', 'new_status': new_status}), 200
 
 

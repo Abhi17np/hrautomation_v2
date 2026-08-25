@@ -14,6 +14,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 CORS(app,
      resources={r"/api/*": {"origins": "*"}},
      allow_headers=["Content-Type", "Authorization"],
@@ -49,6 +50,7 @@ from routes.appointment_orders import appointment_orders_bp
 from routes.documents          import documents_bp
 from routes.leaves             import leaves_bp
 from routes.attendance         import attendance_bp
+from routes.payslips           import payslips_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
@@ -60,6 +62,7 @@ app.register_blueprint(appointment_orders_bp, url_prefix='/api/appointment-order
 app.register_blueprint(documents_bp,          url_prefix='/api/documents')
 app.register_blueprint(leaves_bp,             url_prefix='/api/leaves')
 app.register_blueprint(attendance_bp,         url_prefix='/api/attendance')
+app.register_blueprint(payslips_bp,           url_prefix='/api/payslips')
 
 @app.route('/')
 def index():

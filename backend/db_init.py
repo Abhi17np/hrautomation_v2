@@ -299,6 +299,51 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── payslips ───────────────────────────────────────────────────────────
+    # Employee payslips: monthly salary slips with breakdown
+    "payslips": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["employee_id", "month", "year", "status", "created_at"],
+                "properties": {
+                    "employee_id":      {"bsonType": "string", "description": "ObjectId of employee"},
+                    "month":            {"bsonType": "int", "description": "Month 1-12"},
+                    "year":             {"bsonType": "int", "description": "Year e.g. 2025"},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["draft", "generated", "approved", "released"],
+                        "description": "Payslip status"
+                    },
+                    "basic":            {"bsonType": ["double", "int", "string", "null"], "description": "Basic salary"},
+                    "hra":              {"bsonType": ["double", "int", "string", "null"], "description": "House Rent Allowance"},
+                    "da":               {"bsonType": ["double", "int", "string", "null"], "description": "Dearness Allowance"},
+                    "allowances":       {"bsonType": ["double", "int", "string", "null"], "description": "Total allowances"},
+                    "gross_salary":     {"bsonType": ["double", "int", "string", "null"], "description": "Basic + HRA + DA + Allowances"},
+                    "pf_deduction":     {"bsonType": ["double", "int", "string", "null"], "description": "Provident Fund deduction"},
+                    "esi_deduction":    {"bsonType": ["double", "int", "string", "null"], "description": "ESI deduction"},
+                    "income_tax":       {"bsonType": ["double", "int", "string", "null"], "description": "Income tax deduction"},
+                    "other_deductions": {"bsonType": ["double", "int", "string", "null"], "description": "Other deductions"},
+                    "total_deductions": {"bsonType": ["double", "int", "string", "null"], "description": "Sum of all deductions"},
+                    "net_salary":       {"bsonType": ["double", "int", "string", "null"], "description": "Gross - Deductions"},
+                    "working_days":     {"bsonType": ["int", "string", "null"], "description": "Total working days in month"},
+                    "present_days":     {"bsonType": ["int", "string", "null"], "description": "Days present"},
+                    "absent_days":      {"bsonType": ["int", "string", "null"], "description": "Days absent"},
+                    "leave_days":       {"bsonType": ["int", "string", "null"], "description": "Leave days taken"},
+                    "remarks":          {"bsonType": "string", "description": "Any notes on payslip"},
+                    "generated_by":     {"bsonType": "string", "description": "HR user ObjectId who generated"},
+                    "approved_by":      {"bsonType": "string", "description": "HR Head/Admin who approved"},
+                    "approved_at":      {"bsonType": "date", "description": "Approval timestamp"},
+                    "released_by":      {"bsonType": "string", "description": "User who released payslip"},
+                    "released_at":      {"bsonType": "date", "description": "Release timestamp"},
+                    "created_at":       {"bsonType": "date"},
+                    "updated_at":       {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
 }
 
 
@@ -350,6 +395,13 @@ INDEXES = {
         {"keys": [("user_id", ASCENDING), ("submitted_at", DESCENDING)], "name": "idx_subs_user_date"},
         {"keys": [("status", ASCENDING)], "name": "idx_subs_status"},
         {"keys": [("submitted_at", DESCENDING)], "name": "idx_subs_submitted_desc"},
+    ],
+    "payslips": [
+        {"keys": [("employee_id", ASCENDING), ("year", DESCENDING), ("month", DESCENDING)], "name": "idx_payslips_emp_date"},
+        {"keys": [("employee_id", ASCENDING), ("status", ASCENDING)], "name": "idx_payslips_emp_status"},
+        {"keys": [("status", ASCENDING)], "name": "idx_payslips_status"},
+        {"keys": [("year", ASCENDING), ("month", ASCENDING)], "name": "idx_payslips_period"},
+        {"keys": [("created_at", DESCENDING)], "name": "idx_payslips_created_desc"},
     ],
 }
 

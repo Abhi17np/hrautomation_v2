@@ -56,6 +56,25 @@ function fmtDate(d) {
   catch { return d; }
 }
 
+// Same formula as backend/services/payroll.py:calculate_ctc_breakdown —
+// mirrored here so the Edit Employee form can preview it live without a
+// round trip, and payroll (which reads the stored CTC) ends up computing
+// the exact same numbers HR saw while entering it.
+function calcCtcBreakdownPreview(annualCtc, availPf = true) {
+  const ctc = Number(annualCtc) || 0;
+  if (!ctc) return null;
+  const basicA = Math.round(ctc * 0.5);
+  const hraA = Math.round(basicA * 0.4);
+  const daA = Math.round(basicA * 0.2);
+  const pfA = availPf ? 1800 * 12 : 0;
+  const otherA = Math.max(0, Math.trunc(ctc) - basicA - hraA - daA - pfA);
+  const grossM = Math.round((basicA + hraA + daA + otherA) / 12);
+  return {
+    basicM: Math.round(basicA / 12), hraM: Math.round(hraA / 12), daM: Math.round(daA / 12),
+    otherM: Math.round(otherA / 12), pfM: availPf ? 1800 : 0, grossM,
+  };
+}
+
 function InfoRow({ label, value }) {
   if (!value) return null;
   return (
@@ -1111,7 +1130,13 @@ function EditModal({ emp, onClose, onDone }) {
       await axios.put(`/api/employees/${emp._id}`, form);
       onDone('Employee updated.');
     } catch (err) {
-      setError(err.response?.data?.error || 'Update failed');
+      const status = err.response?.status;
+      const serverMsg = err.response?.data?.error;
+      setError(
+        serverMsg ? serverMsg
+          : status ? `Update failed (server returned ${status}).`
+          : 'Update failed — no response from server. Check that the backend is running.'
+      );
       setLoading(false);
     }
   };
@@ -1151,10 +1176,42 @@ function EditModal({ emp, onClose, onDone }) {
               <input value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </div>
             <div className="form-group">
-              <label className="form-label">CTC</label>
+              <label className="form-label">CTC (Annual)</label>
               <input value={form.ctc || ''} onChange={e => setForm({ ...form, ctc: e.target.value })} />
             </div>
           </div>
+
+          {(() => {
+            const bd = calcCtcBreakdownPreview(form.ctc);
+            if (!bd) return null;
+            return (
+              <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', marginBottom: 15 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .6, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  Monthly Salary Breakdown (preview)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, fontSize: 12 }}>
+                  {[['Basic', bd.basicM], ['HRA', bd.hraM], ['DA', bd.daM], ['Other', bd.otherM]].map(([label, val]) => (
+                    <div key={label}>
+                      <div style={{ color: 'var(--text-dim)', fontSize: 10 }}>{label}</div>
+                      <div style={{ fontWeight: 600 }}>₹{val.toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-dim)' }}>PF (Employer, monthly)</span>
+                  <span style={{ fontWeight: 600 }}>₹{bd.pfM.toLocaleString()}</span>
+                </div>
+                <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ fontWeight: 700 }}>Gross Monthly</span>
+                  <span style={{ fontWeight: 700, color: 'var(--accent)' }}>₹{bd.grossM.toLocaleString()}</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-faint)', marginTop: 6 }}>
+                  This is how payroll will split the CTC once saved — Basic 50% · HRA 40% of Basic · DA 20% of Basic.
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Joining Date</label>

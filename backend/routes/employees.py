@@ -38,28 +38,9 @@ def list_employees():
     query  = {}
     if status:
         query['status'] = status
-    
+
     all_emps = list(db.employees.find(query).sort('created_at', -1))
-    
-    # Only show employees whose offer letter has reached id_created or beyond
-    VISIBLE_LETTER_STATUSES = {'id_created', 'joined'}
-    
-    visible = []
-    for emp in all_emps:
-        emp_id = str(emp['_id'])
-        # Non-active statuses (exiting, exited, inactive) always show
-        if emp.get('status') != 'active':
-            visible.append(serialize(emp))
-            continue
-        # Active: only show if they have a letter at id_created or joined
-        letter = db.letters.find_one({
-            'employee_id': emp_id,
-            'status': {'$in': list(VISIBLE_LETTER_STATUSES)}
-        })
-        if letter:
-            visible.append(serialize(emp))
-    
-    return jsonify(visible)
+    return jsonify([serialize(e) for e in all_emps])
 
 
 @employees_bp.route('/me/step1', methods=['POST'])

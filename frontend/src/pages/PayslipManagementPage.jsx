@@ -160,9 +160,11 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               ))}
             </select>
             {formData.employee_id && (
-              <div style={{ fontSize: 11.5, marginTop: 5, color: autoFillError ? '#d97706' : 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 11.5, marginTop: 5, color: (autoFillError || (autoFilled && !Number(formData.basic))) ? '#d97706' : 'var(--text-secondary)' }}>
                 {autoFilling ? 'Loading salary structure and attendance…'
                   : autoFillError ? `⚠ ${autoFillError}`
+                  : autoFilled && !Number(formData.basic)
+                    ? '⚠ No CTC or offer letter on file for this employee — enter Basic/HRA/DA manually below.'
                   : autoFilled ? '✓ Earnings and attendance below are auto-filled from this employee\'s CTC and actual attendance — review and adjust before saving.'
                   : null}
               </div>

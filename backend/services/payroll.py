@@ -141,6 +141,23 @@ def compute_payslip_defaults(db, employee, year, month):
     """
     ctc = float(employee.get('ctc') or 0)
     bd = calculate_ctc_breakdown(ctc) if ctc else None
+
+    if not bd:
+        # The employee record's own `ctc` field is frequently left blank —
+        # the authoritative salary structure usually lives on their offer
+        # letter instead, computed with this exact same formula at hire
+        # time. Fall back to that before giving up and showing zeros.
+        letter = db.letters.find_one(
+            {
+                'employee_id': str(employee['_id']),
+                'letter_type': 'offer',
+                'breakdown': {'$exists': True, '$ne': {}},
+            },
+            sort=[('version', -1)],
+        )
+        if letter and letter.get('breakdown'):
+            bd = letter['breakdown']
+
     att = compute_attendance_for_employee(db, str(employee['_id']), year, month)
 
     working_days = att['working_days'] or 1

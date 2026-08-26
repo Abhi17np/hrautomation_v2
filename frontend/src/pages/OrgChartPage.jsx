@@ -7,6 +7,11 @@ function initials(name = '') {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 }
 
+function possessive(name = '') {
+  const first = name.split(' ')[0] || name;
+  return /s$/i.test(first) ? `${first}'` : `${first}'s`;
+}
+
 // A lot of employee records carry a literal "Not Specified" placeholder
 // string rather than an empty value — treat that (and similar placeholders)
 // as no value at all, same as EmployeesPage.jsx does by simply omitting the line.
@@ -96,7 +101,6 @@ function OrgNodeCard({ node, isSelf, isOnChain, reportCount, totalCount, deptCol
       style={{
         width: 190, background: 'var(--surface)', borderRadius: 12, padding: '14px 14px 12px',
         border: `1.5px solid ${isSelf ? 'var(--accent)' : 'var(--border)'}`,
-        borderTop: `3px solid ${isSelf ? 'var(--accent)' : deptColor || 'var(--border)'}`,
         boxShadow: isSelf ? '0 0 0 3px var(--accent-dim)' : isOnChain ? '0 0 0 2px var(--surface-2)' : 'none',
         cursor: 'pointer', textAlign: 'center', transition: 'transform .15s, box-shadow .15s',
       }}
@@ -380,6 +384,13 @@ export default function OrgChartPage() {
 
   const deptEntries = Object.entries(filteredByDept).sort((a, b) => b[1].length - a[1].length);
 
+  // Largest teams first, so a page with many small, unrelated trees doesn't
+  // read as a random jumble.
+  const sortedFilteredTree = useMemo(
+    () => [...filteredTree].sort((a, b) => countDescendants(b) - countDescendants(a)),
+    [filteredTree]
+  );
+
   const openIsolated = emp => setSelected({ ...emp, children: [] });
 
   return (
@@ -406,19 +417,36 @@ export default function OrgChartPage() {
             <DonutCard title="Department Mix" data={deptDonutData} centerLabel="employees" />
           </div>
 
-          {filteredTree.length > 0 && (
+          {sortedFilteredTree.length > 0 && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 14 }}>
                 Reporting Structure
+                {sortedFilteredTree.length > 1 && (
+                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, marginLeft: 8, color: 'var(--text-faint)' }}>
+                    — {sortedFilteredTree.length} separate teams
+                  </span>
+                )}
               </div>
-              <div className="card" style={{ padding: '28px 20px', overflowX: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 32, alignItems: 'center' }}>
-                  {filteredTree.map((n, i) => (
-                    <div key={n._id} style={{ width: '100%', paddingTop: i > 0 ? 28 : 0, borderTop: i > 0 ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'center' }}>
-                      <TreeBranch node={n} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={setSelected} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {sortedFilteredTree.map(n => {
+                  const teamSize = countDescendants(n) + 1;
+                  return (
+                    <div key={n._id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                        padding: '12px 20px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)',
+                      }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>{possessive(n.name)} Team</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', background: 'var(--surface)', borderRadius: 20, padding: '2px 10px', border: '1px solid var(--border)' }}>
+                          {teamSize} {teamSize === 1 ? 'person' : 'people'}
+                        </span>
+                      </div>
+                      <div style={{ padding: '28px 20px', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+                        <TreeBranch node={n} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={setSelected} />
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}

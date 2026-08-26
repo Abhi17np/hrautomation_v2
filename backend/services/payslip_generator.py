@@ -132,31 +132,6 @@ def generate_payslip_docx(payslip, output_path):
 
     doc.add_paragraph()
 
-    # ── Attendance summary ──────────────────────────────────────────────
-    att_title = doc.add_paragraph()
-    r = att_title.add_run('Attendance Summary')
-    r.font.bold = True
-    r.font.size = Pt(11)
-
-    att = doc.add_table(rows=0, cols=4)
-    row = att.add_row().cells
-    for i, (label, value) in enumerate([
-        ('Working Days', payslip.get('working_days')),
-        ('Present', payslip.get('present_days')),
-        ('On Leave', payslip.get('leave_days')),
-        ('Absent (LOP)', payslip.get('absent_days')),
-    ]):
-        row[i].text = ''
-        p1 = row[i].paragraphs[0]
-        r1 = p1.add_run(label)
-        r1.font.size = Pt(8.5)
-        r1.font.color.rgb = MUTED
-        p2 = row[i].add_paragraph()
-        r2 = p2.add_run(str(value if value is not None else '—'))
-        r2.font.size = Pt(10.5)
-        r2.font.bold = True
-        _set_cell_borders(row[i])
-
     doc.add_paragraph()
 
     # ── Earnings / Deductions ───────────────────────────────────────────

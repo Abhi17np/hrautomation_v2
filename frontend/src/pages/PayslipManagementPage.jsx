@@ -293,6 +293,39 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
             ))}
           </div>
 
+          {/* Total Salary — recalculated live from whatever's currently in
+              the Salary Components / Deductions fields above, so HR sees
+              the actual payout before saving instead of just the pieces. */}
+          {(() => {
+            const num = (v) => Number(v) || 0;
+            const gross = num(formData.basic) + num(formData.hra) + num(formData.da) + num(formData.allowances);
+            const deductions = num(formData.pf_deduction) + num(formData.esi_deduction) + num(formData.income_tax) + num(formData.other_deductions);
+            const net = gross - deductions;
+            return (
+              <div style={{
+                background: 'var(--bg-secondary)', padding: 15, borderRadius: 'var(--radius)',
+                marginBottom: 15, border: '1px solid var(--border)',
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: 13, fontWeight: 600 }}>Total Salary</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Gross Salary</span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(gross)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Total Deductions</span>
+                  <span style={{ fontWeight: 600, color: '#d97706' }}>− {formatCurrency(deductions)}</span>
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700,
+                  marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)',
+                }}>
+                  <span>Net Salary</span>
+                  <span style={{ color: '#22c55e' }}>{formatCurrency(net)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Attendance */}
           <div style={{ background: 'var(--bg-secondary)', padding: 15, borderRadius: 'var(--radius)', marginBottom: 15 }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: 13, fontWeight: 600 }}>Attendance</h4>

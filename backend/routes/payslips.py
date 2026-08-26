@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
-import os, tempfile
+import os, tempfile, logging
 
 from services.notify import notify_employee
 from services.payroll import compute_payslip_defaults
@@ -20,6 +20,7 @@ from services.payslip_generator import generate_payslip_docx
 from services.letter_generator import generate_letter_pdf
 
 payslips_bp = Blueprint('payslips', __name__)
+log = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,7 +262,14 @@ def download_payslip(payslip_id):
     tmp_dir = tempfile.mkdtemp()
     base_name = f"payslip_{payslip.get('employee_code') or payslip['employee_id']}_{payslip.get('month')}_{payslip.get('year')}"
     docx_path = os.path.join(tmp_dir, base_name + '.docx')
-    generate_payslip_docx(payslip, docx_path)
+    try:
+        generate_payslip_docx(payslip, docx_path)
+    except Exception as e:
+        # Without this, a bad field on the payslip document turns into an
+        # unhandled 500 with an HTML body, which the frontend (expecting
+        # JSON) can't parse — it just shows a blank "Download failed."
+        log.error(f'Payslip DOCX generation failed for {payslip_id}: {e}')
+        return jsonify({'error': f'Could not generate payslip document: {e}'}), 500
 
     if fmt == 'docx':
         return send_file(
@@ -322,9 +330,18 @@ def create_payslip():
     # retype numbers from memory. Any field HR does supply overrides this.
     defaults = compute_payslip_defaults(db, emp, int(data['year']), int(data['month']))
 
-    def _val(key):
+    def _val(key, cast=float):
+        # HR-supplied values arrive as strings from a form field — cast them
+        # so downstream math (_derive_totals, payslip_generator's _inr)
+        # gets real numbers instead of storing the raw string and crashing
+        # the first time something tries to round() it.
         v = data.get(key)
-        return defaults[key] if v in (None, '') else v
+        if v in (None, ''):
+            return defaults[key]
+        try:
+            return cast(v)
+        except (TypeError, ValueError):
+            return defaults[key]
 
     # Build payslip document
     payslip = {
@@ -340,10 +357,10 @@ def create_payslip():
         'esi_deduction': _val('esi_deduction'),
         'income_tax': _val('income_tax'),
         'other_deductions': _val('other_deductions'),
-        'working_days': _val('working_days'),
-        'present_days': _val('present_days'),
-        'absent_days': _val('absent_days'),
-        'leave_days': _val('leave_days'),
+        'working_days': _val('working_days', lambda v: int(float(v))),
+        'present_days': _val('present_days', lambda v: int(float(v))),
+        'absent_days': _val('absent_days', lambda v: int(float(v))),
+        'leave_days': _val('leave_days', lambda v: int(float(v))),
         'remarks': data.get('remarks', ''),
         'generated_by': str(uid),
         'created_at': datetime.utcnow(),
@@ -459,6 +476,11 @@ def run_payroll():
             continue
 
         defaults = compute_payslip_defaults(db, emp, year, month)
+        # UI-only hints for the create-payslip form (has_salary_source, the
+        # unprorated CTC-derived figures, proration) aren't payslip fields —
+        # drop them before they get persisted onto the stored document.
+        for _k in ('has_salary_source', 'ctc_annual', 'basic_monthly_full', 'hra_monthly_full', 'da_monthly_full', 'proration'):
+            defaults.pop(_k, None)
         payslip = {
             'employee_id': emp_id,
             'month': month,
@@ -511,17 +533,33 @@ def update_payslip(payslip_id):
     
     data = request.json or {}
     
-    # Update allowed fields
-    allowed = [
-        'basic', 'hra', 'da', 'allowances',
-        'pf_deduction', 'esi_deduction', 'income_tax', 'other_deductions',
-        'working_days', 'present_days', 'absent_days', 'leave_days', 'remarks'
-    ]
-    
-    for field in allowed:
-        if field in data:
-            payslip[field] = data[field]
-    
+    # Update allowed fields — cast to real numbers rather than storing
+    # whatever the caller sent (a form field arrives as a string), and
+    # re-cast the existing stored value even when the caller didn't touch
+    # a field, so a payslip created before this validation existed gets
+    # normalized the next time it's saved instead of carrying a string
+    # forward forever (payslip_generator's _inr() can't round() a str).
+    money_fields = ['basic', 'hra', 'da', 'allowances',
+                     'pf_deduction', 'esi_deduction', 'income_tax', 'other_deductions']
+    day_fields = ['working_days', 'present_days', 'absent_days', 'leave_days']
+
+    for field in money_fields:
+        v = data[field] if field in data else payslip.get(field)
+        try:
+            payslip[field] = float(v) if v not in (None, '') else 0.0
+        except (TypeError, ValueError):
+            payslip[field] = 0.0
+
+    for field in day_fields:
+        v = data[field] if field in data else payslip.get(field)
+        try:
+            payslip[field] = int(float(v)) if v not in (None, '') else 0
+        except (TypeError, ValueError):
+            payslip[field] = 0
+
+    if 'remarks' in data:
+        payslip['remarks'] = data['remarks']
+
     # Recalculate derived fields
     basic = float(payslip['basic'] or 0)
     hra = float(payslip['hra'] or 0)

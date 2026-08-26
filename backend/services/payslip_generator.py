@@ -61,7 +61,14 @@ def _row(table, label, value, bold=False, shade=None):
 
 
 def _inr(n):
-    return f"Rs. {int(round(n or 0)):,}"
+    # Payslip fields can be numeric strings if a caller wrote them without
+    # casting (e.g. straight from a form field) — round() rejects str, so
+    # coerce before formatting instead of crashing document generation.
+    try:
+        n = float(n) if n not in (None, '') else 0
+    except (TypeError, ValueError):
+        n = 0
+    return f"Rs. {int(round(n)):,}"
 
 
 def generate_payslip_docx(payslip, output_path):

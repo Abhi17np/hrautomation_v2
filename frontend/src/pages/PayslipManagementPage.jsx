@@ -61,6 +61,7 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
   const [autoFilled, setAutoFilled] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
   const [autoFillError, setAutoFillError] = useState('');
+  const [salaryInfo, setSalaryInfo] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -79,11 +80,17 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
       params: { employee_id: formData.employee_id, month: formData.month, year: formData.year },
     })
       .then(res => {
-        setFormData(prev => ({ ...prev, ...res.data }));
+        // has_salary_source/ctc_annual/*_monthly_full/proration are UI-only
+        // hints, not payslip fields — pull them out before merging the rest
+        // (basic/hra/da/attendance) into the editable form.
+        const { has_salary_source, ctc_annual, basic_monthly_full, hra_monthly_full, da_monthly_full, proration, ...fields } = res.data;
+        setFormData(prev => ({ ...prev, ...fields }));
+        setSalaryInfo({ has_salary_source, ctc_annual, basic_monthly_full, hra_monthly_full, da_monthly_full, proration });
         setAutoFilled(true);
       })
       .catch(err => {
         setAutoFilled(false);
+        setSalaryInfo(null);
         setAutoFillError(
           err.response?.status === 404
             ? 'Auto-fill isn\'t available yet — the backend may need to be restarted after the update.'
@@ -160,13 +167,38 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               ))}
             </select>
             {formData.employee_id && (
-              <div style={{ fontSize: 11.5, marginTop: 5, color: (autoFillError || (autoFilled && !Number(formData.basic))) ? '#d97706' : 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 11.5, marginTop: 5, color: (autoFillError || (autoFilled && salaryInfo && !salaryInfo.has_salary_source)) ? '#d97706' : 'var(--text-secondary)' }}>
                 {autoFilling ? 'Loading salary structure and attendance…'
                   : autoFillError ? `⚠ ${autoFillError}`
-                  : autoFilled && !Number(formData.basic)
+                  : autoFilled && salaryInfo && !salaryInfo.has_salary_source
                     ? '⚠ No CTC or offer letter on file for this employee — enter Basic/HRA/DA manually below.'
                   : autoFilled ? '✓ Earnings and attendance below are auto-filled from this employee\'s CTC and actual attendance — review and adjust before saving.'
                   : null}
+              </div>
+            )}
+
+            {/* CTC breakdown — the salary structure the Basic/HRA/DA fields
+                below were derived from, so HR can see where the numbers
+                came from instead of just the filled-in totals. Refreshes
+                automatically whenever employee/month/year changes. */}
+            {autoFilled && salaryInfo?.has_salary_source && (
+              <div style={{
+                marginTop: 8, padding: '10px 12px', background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12,
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  CTC Breakdown — {formatCurrency(salaryInfo.ctc_annual)} / year
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>Basic /mo</div>{formatCurrency(salaryInfo.basic_monthly_full)}</div>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>HRA /mo</div>{formatCurrency(salaryInfo.hra_monthly_full)}</div>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>DA /mo</div>{formatCurrency(salaryInfo.da_monthly_full)}</div>
+                </div>
+                {salaryInfo.proration < 1 && (
+                  <div style={{ marginTop: 6, color: '#d97706' }}>
+                    ⚠ Prorated to {Math.round(salaryInfo.proration * 100)}% for this month's attendance — the amounts below are lower than the full monthly figures above.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -260,6 +292,39 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               />
             ))}
           </div>
+
+          {/* Total Salary — recalculated live from whatever's currently in
+              the Salary Components / Deductions fields above, so HR sees
+              the actual payout before saving instead of just the pieces. */}
+          {(() => {
+            const num = (v) => Number(v) || 0;
+            const gross = num(formData.basic) + num(formData.hra) + num(formData.da) + num(formData.allowances);
+            const deductions = num(formData.pf_deduction) + num(formData.esi_deduction) + num(formData.income_tax) + num(formData.other_deductions);
+            const net = gross - deductions;
+            return (
+              <div style={{
+                background: 'var(--bg-secondary)', padding: 15, borderRadius: 'var(--radius)',
+                marginBottom: 15, border: '1px solid var(--border)',
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: 13, fontWeight: 600 }}>Total Salary</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Gross Salary</span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(gross)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Total Deductions</span>
+                  <span style={{ fontWeight: 600, color: '#d97706' }}>− {formatCurrency(deductions)}</span>
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700,
+                  marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)',
+                }}>
+                  <span>Net Salary</span>
+                  <span style={{ color: '#22c55e' }}>{formatCurrency(net)}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Attendance */}
           <div style={{ background: 'var(--bg-secondary)', padding: 15, borderRadius: 'var(--radius)', marginBottom: 15 }}>
@@ -357,14 +422,16 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
 }
 
 // Payslip Action Buttons
-function PayslipActions({ payslip, onApprove, onRelease, onDownload, userRole }) {
+function PayslipActions({ payslip, onGenerate, onApprove, onRelease, onDownload, userRole }) {
+  const canGenerate = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'draft';
   const canApprove = ['hr_head', 'admin'].includes(userRole) && payslip.status === 'generated';
   const canRelease = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'approved';
 
   return (
     <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
       <button
-        onClick={() => onDownload(payslip)}
+        onClick={() => onDownload(payslip, 'pdf')}
+        title="Requires LibreOffice on the server — use DOCX if this fails"
         style={{
           padding: '6px 12px', background: 'white', color: '#374151',
           border: '1px solid var(--border)', borderRadius: '4px', fontSize: 12, fontWeight: 600,
@@ -373,6 +440,31 @@ function PayslipActions({ payslip, onApprove, onRelease, onDownload, userRole })
       >
         ⬇ PDF
       </button>
+      <button
+        onClick={() => onDownload(payslip, 'docx')}
+        title="Word document — works even without PDF conversion on the server"
+        style={{
+          padding: '6px 12px', background: 'white', color: '#374151',
+          border: '1px solid var(--border)', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        ⬇ DOCX
+      </button>
+      {canGenerate && (
+        <button
+          onClick={() => onGenerate(payslip._id)}
+          style={{
+            padding: '6px 12px', background: '#2563eb', color: 'white',
+            border: 'none', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.target.style.background = '#1d4ed8'}
+          onMouseLeave={e => e.target.style.background = '#2563eb'}
+        >
+          Generate
+        </button>
+      )}
       {canApprove && (
         <button
           onClick={() => onApprove(payslip._id)}
@@ -557,6 +649,19 @@ export default function PayslipManagementPage() {
     }
   };
 
+  const handleGenerate = async (payslipId) => {
+    try {
+      // PUT with no field changes still recalculates totals from what's
+      // already stored and moves status from 'draft' to 'generated' — the
+      // step that was missing from the UI, so payslips could be created
+      // but never actually advanced past Draft.
+      const res = await axios.put(`/api/payslips/${payslipId}`, {});
+      setPayslips(payslips.map(p => p._id === payslipId ? res.data : p));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to generate');
+    }
+  };
+
   const handleApprove = async (payslipId) => {
     try {
       const res = await axios.post(`/api/payslips/${payslipId}/approve`);
@@ -585,24 +690,37 @@ export default function PayslipManagementPage() {
     fetchPayslips();
   };
 
-  const downloadPayslip = async (payslip) => {
+  const downloadPayslip = async (payslip, format = 'pdf') => {
     try {
       const res = await axios.get(`/api/payslips/${payslip._id}/download`, {
-        params: { format: 'pdf' },
+        params: { format },
         responseType: 'blob',
       });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const mime = format === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+      const url = URL.createObjectURL(new Blob([res.data], { type: mime }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `payslip_${payslip.employee_code || payslip.employee_id}_${payslip.month}_${payslip.year}.pdf`;
+      a.download = `payslip_${payslip.employee_code || payslip.employee_id}_${payslip.month}_${payslip.year}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      let msg = 'Download failed.';
-      try {
-        const text = await err.response?.data?.text?.();
-        if (text) msg = JSON.parse(text).error || msg;
-      } catch { /* blob wasn't JSON */ }
+      let msg;
+      if (!err.response) {
+        // Request never got a response at all — network error, timed-out
+        // LibreOffice conversion, backend not reachable, etc.
+        msg = 'Download failed: could not reach the server. Check that the backend is running.';
+      } else {
+        try {
+          const text = await err.response.data.text();
+          msg = JSON.parse(text).error;
+        } catch {
+          // Body wasn't JSON — an unhandled server error returned an HTML
+          // page instead. Still surface the HTTP status so it's actionable.
+        }
+        if (!msg) msg = `Download failed (server returned ${err.response.status}).`;
+      }
       alert(msg);
     }
   };
@@ -793,6 +911,7 @@ export default function PayslipManagementPage() {
                     <PayslipActions
                       payslip={ps}
                       userRole={user?.role}
+                      onGenerate={handleGenerate}
                       onApprove={handleApprove}
                       onRelease={handleRelease}
                       onDownload={downloadPayslip}

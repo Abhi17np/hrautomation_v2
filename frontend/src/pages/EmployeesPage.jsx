@@ -450,12 +450,19 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
   const canDeactivate = canManage && isExited && relievingLetter;
 
   const TABS = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'letters', label: `Offer Letters (${offerLetters.length})` },
-    { key: 'appointments', label: `Appointment (${aoOrders.length})` },
+    { key: 'basic', label: 'Basic Info' },
+    { key: 'employment', label: 'Employment' },
+    { key: 'payment', label: 'Payment' },
+    { key: 'personal', label: 'Personal' },
+    { key: 'custom', label: 'Custom' },
     { key: 'documents', label: `Documents (${documents.length})` },
-    { key: 'exit', label: 'Exit & Relieving' },
+    { key: 'salary', label: 'Salary' },
+    { key: 'history', label: 'History' },
   ];
+
+  const step1 = emp.step1_data || {};
+  const latestOffer = offerLetters[0];
+  const breakdown = latestOffer?.breakdown || {};
 
   const sb = STATUS_BADGE[emp.status] || { cls: 'badge-gray', label: emp.status };
 
@@ -591,177 +598,150 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
         {/* ── Tab Content ── */}
         <div style={{ padding: '20px 28px 28px' }}>
 
-          {/* ── OVERVIEW ── */}
-          {activeTab === 'overview' && (
+          {/* ── BASIC INFO ── */}
+          {activeTab === 'basic' && (
+            <div>
+              <SectionHeader title="Basic" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
+                <InfoRow label="Employee ID" value={emp.employee_id} />
+                <InfoRow label="Full Name" value={emp.name} />
+                <InfoRow label="Email" value={emp.email} />
+                <InfoRow label="Phone" value={emp.phone || step1.phone} />
+                <InfoRow label="Date of Birth" value={(emp.date_of_birth || step1.dob) ? fmtDate(emp.date_of_birth || step1.dob) : null} />
+                <InfoRow label="Aadhaar Number" value={step1.aadhaar_number ? '****' + step1.aadhaar_number.replace(/\s/g, '').slice(-4) : null} />
+                <InfoRow label="Blood Group" value={step1.blood_group} />
+                <InfoRow label="Emergency Contact" value={step1.emergency_contact_phone} />
+              </div>
+              {!step1.aadhaar_number && !emp.date_of_birth && !step1.dob && (
+                <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 12 }}>
+                  Additional basic details appear once the employee submits their personal information form.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── EMPLOYMENT ── */}
+          {activeTab === 'employment' && (
             <div>
               {snapshotLoading ? (
-                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>Loading snapshot…</div>
+                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>Loading…</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 24 }}>
                   <ManagerInfoCard manager={managerInfo} />
-                  <PayslipSnapshotCard payslip={latestPayslip} />
                   <AttendanceSnapshotCard record={latestAttendance} />
                   <AssetsSnapshotCard assets={assignedAssets} />
-                  <HolidaysSnapshotCard holidays={upcomingHolidays} />
                 </div>
               )}
 
-              <SectionHeader title="Employee Details" />
+              <SectionHeader title="Employment Status and Assignments" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
-                <InfoRow label="Full Name" value={emp.name} />
-                <InfoRow label="Employee ID" value={emp.employee_id} />
                 <InfoRow label="Designation" value={emp.designation} />
                 <InfoRow label="Department" value={emp.department} />
-                <InfoRow label="Email" value={emp.email} />
-                <InfoRow label="Phone" value={emp.phone} />
-                <InfoRow label="CTC" value={emp.ctc ? `₹${emp.ctc}` : null} />
-                <InfoRow label="Joining Date" value={fmtDate(emp.joining_date)} />
-                <InfoRow label="Notice Period" value={emp.notice_period ? `${emp.notice_period} days` : null} />
-                <InfoRow label="Probation" value={emp.probation_period ? `${emp.probation_period} months` : null} />
-                <InfoRow label="Date of Birth" value={emp.date_of_birth ? fmtDate(emp.date_of_birth) : null} />
-                <InfoRow label="Father's Name" value={emp.father_name} />
-                <InfoRow label="Address" value={emp.address} />
+                <InfoRow label="Date of Join" value={fmtDate(emp.joining_date)} />
+                <InfoRow label="Employment Status" value={sb.label} />
+                <InfoRow label="Reporting To" value={emp.assigned_manager || managerInfo?.name} />
+                <InfoRow label="Manager Email" value={emp.manager_email || managerInfo?.email} />
                 <InfoRow label="Work Location" value={emp.work_location} />
-                <InfoRow label="Assigned Manager" value={emp.assigned_manager} />
-                <InfoRow label="Manager Email" value={emp.manager_email} />
-              </div>
-
-              {/* Step 1 self-reported data */}
-              {emp.step1_data && Object.keys(emp.step1_data).length > 0 && (() => {
-                const s = emp.step1_data;
-                const rows = [
-                  ['Aadhaar Number', s.aadhaar_number ? '****' + s.aadhaar_number.replace(/\s/g, '').slice(-4) : null],
-                  ['PAN Number', s.pan_number],
-                  ['Mobile Number', s.phone],
-                  ['Date of Birth', s.dob ? fmtDate(s.dob) : null],
-                  ['10th Marks / Percentage', s.degree_10_marks],
-                  ['12th Marks / Percentage', s.degree_12_marks],
-                  ['Graduation Marks / CGPA', s.graduation_marks],
-                  ['Post Graduation Marks / CGPA', s.postgrad_marks],
-                  ['Bank Name', s.bank_name],
-                  ['Bank Account Number', s.account_number],
-                  ['IFSC Code', s.ifsc_code],
-                  ['Permanent Address', s.address],
-                ].filter(([, v]) => v);
-                return (
-                  <>
-                    <SectionHeader title="Personal Details (Self-Reported)" />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
-                      {rows.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* Quick stats */}
-              <SectionHeader title="Record Summary" />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-                {[
-                  ['Offer Letters', offerLetters.length, 'var(--accent)'],
-                  ['Appointment Ord.', aoOrders.length, 'var(--amber)'],
-                  ['Documents', documents.length, 'var(--green)'],
-                  ['Relieving Letter', relievingLetter ? 1 : 0, 'var(--text-dim)'],
-                ].map(([label, count, color]) => (
-                  <div key={label} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 26, fontWeight: 800, color }}>{count}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{label}</div>
-                  </div>
-                ))}
+                <InfoRow label="Notice Period" value={emp.notice_period ? `${emp.notice_period} days` : null} />
+                <InfoRow label="Probation Period" value={emp.probation_period ? `${emp.probation_period} months` : null} />
               </div>
             </div>
           )}
 
-          {/* ── OFFER LETTERS ── */}
-          {activeTab === 'letters' && (
+          {/* ── PAYMENT ── */}
+          {activeTab === 'payment' && (
             <div>
-              {loadingData ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>Loading…</div>
-                : offerLetters.length === 0 ? (
-                  <div className="empty-state"><div style={{ fontSize: 36 }}>📄</div><div>No offer letters found</div></div>
-                ) : offerLetters.map(l => (
-                  <div key={l._id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>
-                            {l.letter_subtype === 'revised' ? 'Revised Offer Letter' : 'Offer Letter'}
-                          </span>
-                          <Badge status={l.status} map={LETTER_STATUS} />
-                          <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-dim)' }}>v{l.version}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-dim)', flexWrap: 'wrap' }}>
-                          {l.context?.designation && <span>{l.context.designation}</span>}
-                          {l.context?.ctc && <span>CTC: ₹{l.context.ctc}</span>}
-                          {l.context?.joining_date && <span>Joining: {fmtDate(l.context.joining_date)}</span>}
-                          <span>Created: {fmtDate(l.created_at)}</span>
-                        </div>
-                      </div>
-                      {!['rejected', 'withdrawn'].includes(l.status) && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => previewLetter(l._id)}>⬡ Preview</button>
-                          <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }} onClick={() => download(l._id, 'pdf', `${emp.employee_id}_offer_v${l.version}`)}>↓ PDF</button>
-                          <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => download(l._id, 'docx', `${emp.employee_id}_offer_v${l.version}`)}>↓ DOCX</button>
-                        </div>
+              <SectionHeader title="Statutory Applicability" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px', marginBottom: 8 }}>
+                <InfoRow label="PAN Number" value={step1.pan_number || emp.pan_number} />
+              </div>
+              {!(step1.pan_number || emp.pan_number) && (
+                <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 8 }}>Statutory identifiers not available yet.</div>
+              )}
 
-                      )}
-                    </div>
-                    {/* Wage breakdown if available */}
-                    {l.breakdown && Object.keys(l.breakdown).length > 0 && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, fontSize: 12 }}>
-                        {[['Basic', l.breakdown.basic], ['HRA', l.breakdown.hra], ['DA', l.breakdown.da], ['PF', l.breakdown.employer_pf]].map(([k, v]) => v ? (
-                          <div key={k}>
-                            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>{k}</div>
-                            <div style={{ fontWeight: 500 }}>₹{v}</div>
-                          </div>
-                        ) : null)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <SectionHeader title="Bank Details" />
+              {(step1.bank_name || emp.bank_account) ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
+                  <InfoRow label="Payment Mode" value="Bank" />
+                  <InfoRow label="Beneficiary Name" value={emp.name} />
+                  <InfoRow label="Bank Name" value={step1.bank_name} />
+                  <InfoRow label="IFSC Code" value={step1.ifsc_code || emp.bank_ifsc} />
+                  <InfoRow label="Account No." value={step1.account_number || emp.bank_account} />
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Bank details not submitted yet.</div>
+              )}
             </div>
           )}
 
-          {/* ── APPOINTMENT ORDERS ── */}
-          {activeTab === 'appointments' && (
+          {/* ── PERSONAL ── */}
+          {activeTab === 'personal' && (
             <div>
-              {loadingData ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>Loading…</div>
-                : aoOrders.length === 0 ? (
-                  <div className="empty-state"><div style={{ fontSize: 36 }}>📋</div><div>No appointment orders found</div></div>
-                ) : aoOrders.map(ao => {
-                  const d = ao.details || {};
-                  return (
-                    <div key={ao._id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 600, fontSize: 14 }}>Form Q — Appointment Order</span>
-                            <Badge status={ao.status} map={LETTER_STATUS} />
-                            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-dim)' }}>{ao.reference_number}</span>
-                          </div>
-                          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-dim)', flexWrap: 'wrap' }}>
-                            {d.designation && <span>{d.designation}</span>}
-                            {d.date_of_joining && <span>Joining: {fmtDate(d.date_of_joining)}</span>}
-                            {d.wage_total && <span>Total Wage: ₹{d.wage_total}</span>}
-                            <span>Submitted: {fmtDate(ao.created_at)}</span>
-                          </div>
-                          {/* Rejection reason */}
-                          {ao.status === 'rejected' && (() => {
-                            const r = (ao.approval_history || []).slice().reverse().find(h => h.action === 'reject');
-                            return r?.remarks ? (
-                              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,.07)', padding: '6px 10px', borderRadius: 6 }}>✗ {r.remarks}</div>
-                            ) : null;
-                          })()}
-                        </div>
-                        {ao.status === 'approved' && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => previewAO(ao._id)}>⬡ Preview</button>
-                            <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }} onClick={() => downloadAO(ao._id, 'pdf', ao.reference_number)}>↓ PDF</button>
-                            <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => downloadAO(ao._id, 'docx', ao.reference_number)}>↓ DOCX</button>
-                          </div>
-                        )}
+              <SectionHeader title="Personal Details" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
+                <InfoRow label="Father's Name" value={emp.father_name} />
+                <InfoRow label="Blood Group" value={step1.blood_group} />
+                <InfoRow label="Emergency Contact" value={step1.emergency_contact_phone} />
+                <InfoRow label="Address" value={emp.address || [step1.address_line1, step1.address_line2, step1.city, step1.state, step1.postal_code, step1.country].filter(Boolean).join(', ')} />
+                <InfoRow label="Additional ID" value={step1.id_type && step1.id_number ? `${step1.id_type} — ${step1.id_number}` : null} />
+              </div>
+
+              {Array.isArray(step1.education) && step1.education.filter(r => r.institute || r.degree).length > 0 && (
+                <>
+                  <SectionHeader title="Education" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {step1.education.filter(r => r.institute || r.degree).map((r, i) => (
+                      <div key={i} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, fontSize: 12 }}>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Institute</div>{r.institute || '—'}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Degree</div>{r.degree || '—'}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Marks / CGPA</div>{r.marks || '—'}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Year</div>{r.year || '—'}</div>
                       </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {Array.isArray(step1.work_experience) && step1.work_experience.filter(r => r.company).length > 0 && (
+                <>
+                  <SectionHeader title="Work Experience" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {step1.work_experience.filter(r => r.company).map((r, i) => (
+                      <div key={i} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Company</div>{r.company}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Job Title</div>{r.job_title || '—'}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Duration</div>{fmtDate(r.from_date)} – {r.to_date ? fmtDate(r.to_date) : 'Present'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {Array.isArray(step1.dependents) && step1.dependents.filter(r => r.name).length > 0 && (
+                <>
+                  <SectionHeader title="Dependents" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {step1.dependents.filter(r => r.name).map((r, i) => (
+                      <div key={i} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, fontSize: 12 }}>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Name</div>{r.name}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>Relationship</div>{r.relationship || '—'}</div>
+                        <div><div style={{ color: 'var(--text-dim)', fontSize: 10 }}>DOB</div>{r.dob ? fmtDate(r.dob) : '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── CUSTOM ── */}
+          {activeTab === 'custom' && (
+            <div className="empty-state">
+              <div style={{ fontSize: 36 }}>✳</div>
+              <div>No custom fields configured</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
+                Custom fields added for your organization will appear here.
+              </div>
             </div>
           )}
 
@@ -811,13 +791,146 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
             </div>
           )}
 
-          {/* ── EXIT & RELIEVING ── */}
-          {activeTab === 'exit' && (
+          {/* ── SALARY ── */}
+          {activeTab === 'salary' && (
             <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 24 }}>
+                <SnapshotCard title="CTC">
+                  {emp.ctc ? (
+                    <div style={{ fontSize: 22, fontWeight: 800 }}>₹{Number(emp.ctc).toLocaleString()}</div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>CTC not set.</div>
+                  )}
+                </SnapshotCard>
+                <PayslipSnapshotCard payslip={latestPayslip} />
+              </div>
+
+              {Object.keys(breakdown).length > 0 && (
+                <>
+                  <SectionHeader title="Salary Breakdown" />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 8 }}>
+                    {[['Basic', breakdown.basic], ['HRA', breakdown.hra], ['DA', breakdown.da], ['Employer PF', breakdown.employer_pf]].filter(([, v]) => v).map(([k, v]) => (
+                      <div key={k} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)', marginBottom: 4 }}>{k}</div>
+                        <div style={{ fontSize: 16, fontWeight: 700 }}>₹{Number(v).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <SectionHeader title={`Offer Letters (${offerLetters.length})`} />
+              {loadingData ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>Loading…</div>
+                : offerLetters.length === 0 ? (
+                  <div className="empty-state"><div style={{ fontSize: 36 }}>📄</div><div>No offer letters found</div></div>
+                ) : offerLetters.map(l => (
+                  <div key={l._id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>
+                            {l.letter_subtype === 'revised' ? 'Revised Offer Letter' : 'Offer Letter'}
+                          </span>
+                          <Badge status={l.status} map={LETTER_STATUS} />
+                          <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-dim)' }}>v{l.version}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-dim)', flexWrap: 'wrap' }}>
+                          {l.context?.designation && <span>{l.context.designation}</span>}
+                          {l.context?.ctc && <span>CTC: ₹{l.context.ctc}</span>}
+                          {l.context?.joining_date && <span>Joining: {fmtDate(l.context.joining_date)}</span>}
+                          <span>Created: {fmtDate(l.created_at)}</span>
+                        </div>
+                      </div>
+                      {!['rejected', 'withdrawn'].includes(l.status) && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => previewLetter(l._id)}>⬡ Preview</button>
+                          <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }} onClick={() => download(l._id, 'pdf', `${emp.employee_id}_offer_v${l.version}`)}>↓ PDF</button>
+                          <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => download(l._id, 'docx', `${emp.employee_id}_offer_v${l.version}`)}>↓ DOCX</button>
+                        </div>
+                      )}
+                    </div>
+                    {l.breakdown && Object.keys(l.breakdown).length > 0 && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, fontSize: 12 }}>
+                        {[['Basic', l.breakdown.basic], ['HRA', l.breakdown.hra], ['DA', l.breakdown.da], ['PF', l.breakdown.employer_pf]].map(([k, v]) => v ? (
+                          <div key={k}>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>{k}</div>
+                            <div style={{ fontWeight: 500 }}>₹{v}</div>
+                          </div>
+                        ) : null)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* ── HISTORY ── */}
+          {activeTab === 'history' && (
+            <div>
+              <SectionHeader title="Record Summary" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 8 }}>
+                {[
+                  ['Offer Letters', offerLetters.length, 'var(--accent)'],
+                  ['Appointment Ord.', aoOrders.length, 'var(--amber)'],
+                  ['Documents', documents.length, 'var(--green)'],
+                  ['Relieving Letter', relievingLetter ? 1 : 0, 'var(--text-dim)'],
+                ].map(([label, count, color]) => (
+                  <div key={label} style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color }}>{count}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <SectionHeader title={`Appointment Orders (${aoOrders.length})`} />
+              {loadingData ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>Loading…</div>
+                : aoOrders.length === 0 ? (
+                  <div className="empty-state"><div style={{ fontSize: 36 }}>📋</div><div>No appointment orders found</div></div>
+                ) : aoOrders.map(ao => {
+                  const d = ao.details || {};
+                  return (
+                    <div key={ao._id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600, fontSize: 14 }}>Form Q — Appointment Order</span>
+                            <Badge status={ao.status} map={LETTER_STATUS} />
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-dim)' }}>{ao.reference_number}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-dim)', flexWrap: 'wrap' }}>
+                            {d.designation && <span>{d.designation}</span>}
+                            {d.date_of_joining && <span>Joining: {fmtDate(d.date_of_joining)}</span>}
+                            {d.wage_total && <span>Total Wage: ₹{d.wage_total}</span>}
+                            <span>Submitted: {fmtDate(ao.created_at)}</span>
+                          </div>
+                          {/* Rejection reason */}
+                          {ao.status === 'rejected' && (() => {
+                            const r = (ao.approval_history || []).slice().reverse().find(h => h.action === 'reject');
+                            return r?.remarks ? (
+                              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,.07)', padding: '6px 10px', borderRadius: 6 }}>✗ {r.remarks}</div>
+                            ) : null;
+                          })()}
+                        </div>
+                        {ao.status === 'approved' && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => previewAO(ao._id)}>⬡ Preview</button>
+                            <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }} onClick={() => downloadAO(ao._id, 'pdf', ao.reference_number)}>↓ PDF</button>
+                            <button className="btn btn-sm btn-secondary" style={{ fontSize: 11 }} onClick={() => downloadAO(ao._id, 'docx', ao.reference_number)}>↓ DOCX</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
               {!['resignation_pending', 'notice_period', 'clearance_pending', 'clearance_complete', 'exited'].includes(emp.status) ? (
-                <div className="empty-state"><div style={{ fontSize: 36 }}>📋</div><div>No exit process started</div><div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Employee is currently active.</div></div>
+                <>
+                  <SectionHeader title="Exit & Relieving" />
+                  <div className="empty-state"><div style={{ fontSize: 36 }}>📋</div><div>No exit process started</div><div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Employee is currently active.</div></div>
+                </>
               ) : (
                 <>
+                  <SectionHeader title="Exit & Relieving" />
                   {/* Exit details */}
                   <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 18px', marginBottom: 16 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 24px' }}>

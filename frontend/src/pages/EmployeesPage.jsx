@@ -133,6 +133,150 @@ function EmployeeCard({ emp, onClick }) {
   );
 }
 
+// ─── Snapshot cards (Overview tab) ─────────────────────────────────────────
+const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function SnapshotAvatar({ name, size = 38 }) {
+  const ini = name?.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: 'var(--accent)', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontWeight: 700, fontSize: size * 0.4,
+    }}>{ini}</div>
+  );
+}
+
+function SnapshotCard({ title, action, children }) {
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)' }}>{title}</div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ManagerInfoCard({ manager }) {
+  return (
+    <SnapshotCard title="Manager">
+      {!manager ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No manager assigned.</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <SnapshotAvatar name={manager.name} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>{manager.name}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{manager.designation || 'No designation on file'}</div>
+            {manager.email && <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{manager.email}</div>}
+          </div>
+        </div>
+      )}
+    </SnapshotCard>
+  );
+}
+
+function PayslipSnapshotCard({ payslip }) {
+  return (
+    <SnapshotCard title="Latest Payslip" action={payslip && (
+      <a href="#/payslip-management" style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>View all →</a>
+    )}>
+      {!payslip ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No payslips generated yet.</div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{MONTH_NAMES[payslip.month]} {payslip.year}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, marginBottom: 8 }}>
+            <div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>Gross</div>
+              <div style={{ fontWeight: 700 }}>₹{Number(payslip.gross_salary || 0).toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>Net Pay</div>
+              <div style={{ fontWeight: 700 }}>₹{Number(payslip.net_salary || 0).toLocaleString()}</div>
+            </div>
+          </div>
+          <span className={`badge ${payslip.status === 'released' ? 'badge-green' : 'badge-amber'}`}>{payslip.status}</span>
+        </div>
+      )}
+    </SnapshotCard>
+  );
+}
+
+function AttendanceSnapshotCard({ record }) {
+  const fmtTime = t => {
+    if (!t) return '--';
+    const d = new Date(t);
+    return isNaN(d) ? '--' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  return (
+    <SnapshotCard title="Latest Attendance">
+      {!record ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No attendance records yet.</div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{fmtDate(record.date)}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+            <div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>Log In</div>
+              <div style={{ fontWeight: 700 }}>{fmtTime(record.login_time)}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>Log Out</div>
+              <div style={{ fontWeight: 700 }}>{fmtTime(record.logout_time)}</div>
+            </div>
+          </div>
+          {record.hours_worked != null && (
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>{record.hours_worked}h worked</div>
+          )}
+        </div>
+      )}
+    </SnapshotCard>
+  );
+}
+
+function AssetsSnapshotCard({ assets }) {
+  return (
+    <SnapshotCard title={`Assigned Assets${assets.length ? ` (${assets.length})` : ''}`}>
+      {assets.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No assets currently assigned.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {assets.slice(0, 3).map(a => (
+            <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.category}{a.brand ? ` — ${a.brand}` : ''}</span>
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-dim)', flexShrink: 0 }}>{a.asset_tag}</span>
+            </div>
+          ))}
+          {assets.length > 3 && <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>+{assets.length - 3} more</div>}
+        </div>
+      )}
+    </SnapshotCard>
+  );
+}
+
+function HolidaysSnapshotCard({ holidays }) {
+  return (
+    <SnapshotCard title="Upcoming Holidays">
+      {holidays.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>None scheduled.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {holidays.map(h => (
+            <div key={h._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span>{h.name}</span>
+              <span style={{ color: 'var(--text-dim)' }}>{fmtDate(h.date)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </SnapshotCard>
+  );
+}
+
 // ─── Employee Profile Modal ───────────────────────────────────────────────────
 function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
   const { user } = useAuth();
@@ -144,6 +288,13 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
   const [documents, setDocuments] = useState([]);
   const [exitStatus, setExitStatus] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
+
+  const [managerInfo, setManagerInfo] = useState(null);
+  const [latestPayslip, setLatestPayslip] = useState(null);
+  const [latestAttendance, setLatestAttendance] = useState(null);
+  const [assignedAssets, setAssignedAssets] = useState([]);
+  const [upcomingHolidays, setUpcomingHolidays] = useState([]);
+  const [snapshotLoading, setSnapshotLoading] = useState(true);
 
   // const [showEdit, setShowEdit] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
@@ -175,6 +326,43 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
       }).catch(() => { });
     }
   }, [emp._id]);
+
+  // ── Snapshot cards (Overview tab): manager, latest payslip, latest
+  // attendance, assigned assets, upcoming holidays — all reused from
+  // endpoints other modules already built, no new backend routes.
+  useEffect(() => {
+    setSnapshotLoading(true);
+    const noop = Promise.resolve({ data: null });
+    const managerCall = emp.manager_id
+      ? axios.get(`/api/employees/${emp.manager_id}`).catch(() => noop)
+      : noop;
+
+    Promise.allSettled([
+      managerCall,
+      axios.get('/api/payslips/', { params: { employee_id: emp._id } }).catch(() => ({ data: [] })),
+      axios.get(`/api/attendance/employee/${emp._id}`).catch(() => ({ data: [] })),
+      axios.get(`/api/assets/employee/${emp._id}`).catch(() => ({ data: [] })),
+      axios.get('/api/holidays/').catch(() => ({ data: [] })),
+    ]).then(([mgrRes, psRes, attRes, assetRes, holRes]) => {
+      setManagerInfo(mgrRes.status === 'fulfilled' ? mgrRes.value.data : null);
+
+      const payslips = psRes.status === 'fulfilled' ? (psRes.value.data || []) : [];
+      setLatestPayslip(payslips[0] || null); // already sorted year/month desc by the API
+
+      const attendance = attRes.status === 'fulfilled' ? (attRes.value.data || []) : [];
+      setLatestAttendance(attendance[0] || null); // already sorted date desc by the API
+
+      setAssignedAssets(assetRes.status === 'fulfilled' ? (assetRes.value.data || []) : []);
+
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const holidays = holRes.status === 'fulfilled' ? (holRes.value.data || []) : [];
+      const upcoming = holidays
+        .filter(h => new Date(h.date + 'T00:00:00') >= today)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 3);
+      setUpcomingHolidays(upcoming);
+    }).finally(() => setSnapshotLoading(false));
+  }, [emp._id, emp.manager_id]);
 
   const deactivate = async () => {
     setDeactivating(true); setError('');
@@ -406,6 +594,19 @@ function EmployeeProfile({ emp, onClose, onRefresh, onEdit }) {
           {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
             <div>
+              {snapshotLoading ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>Loading snapshot…</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 24 }}>
+                  <ManagerInfoCard manager={managerInfo} />
+                  <PayslipSnapshotCard payslip={latestPayslip} />
+                  <AttendanceSnapshotCard record={latestAttendance} />
+                  <AssetsSnapshotCard assets={assignedAssets} />
+                  <HolidaysSnapshotCard holidays={upcomingHolidays} />
+                </div>
+              )}
+
+              <SectionHeader title="Employee Details" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
                 <InfoRow label="Full Name" value={emp.name} />
                 <InfoRow label="Employee ID" value={emp.employee_id} />

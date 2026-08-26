@@ -60,6 +60,7 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
   const [error, setError] = useState('');
   const [autoFilled, setAutoFilled] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
+  const [autoFillError, setAutoFillError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,6 +74,7 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
   useEffect(() => {
     if (!formData.employee_id || !formData.month || !formData.year) return;
     setAutoFilling(true);
+    setAutoFillError('');
     axios.get('/api/payslips/auto-fill', {
       params: { employee_id: formData.employee_id, month: formData.month, year: formData.year },
     })
@@ -80,7 +82,14 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
         setFormData(prev => ({ ...prev, ...res.data }));
         setAutoFilled(true);
       })
-      .catch(() => {})
+      .catch(err => {
+        setAutoFilled(false);
+        setAutoFillError(
+          err.response?.status === 404
+            ? 'Auto-fill isn\'t available yet — the backend may need to be restarted after the update.'
+            : (err.response?.data?.error || 'Could not load suggested values — you can still enter them manually.')
+        );
+      })
       .finally(() => setAutoFilling(false));
   }, [formData.employee_id, formData.month, formData.year]);
 
@@ -151,8 +160,9 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               ))}
             </select>
             {formData.employee_id && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 5 }}>
+              <div style={{ fontSize: 11.5, marginTop: 5, color: autoFillError ? '#d97706' : 'var(--text-secondary)' }}>
                 {autoFilling ? 'Loading salary structure and attendance…'
+                  : autoFillError ? `⚠ ${autoFillError}`
                   : autoFilled ? '✓ Earnings and attendance below are auto-filled from this employee\'s CTC and actual attendance — review and adjust before saving.'
                   : null}
               </div>

@@ -145,7 +145,17 @@ def compute_payslip_defaults(db, employee, year, month):
 
     working_days = att['working_days'] or 1
     payable_days = att['present_days'] + att['leave_days']
-    proration = min(payable_days / working_days, 1.0) if working_days else 1.0
+
+    # No attendance signal at all for this employee this period (nothing
+    # swiped, no approved leave on file) reads identically to "fully
+    # absent" under present+leave counting — but it almost always just
+    # means attendance isn't being synced/tracked for them yet, not that
+    # they worked zero days. Don't zero out pay on a data gap; only
+    # prorate once there's actual attendance evidence to prorate against.
+    if payable_days == 0 and att['absent_days'] == working_days:
+        proration = 1.0
+    else:
+        proration = min(payable_days / working_days, 1.0) if working_days else 1.0
 
     if bd:
         basic = round(bd['basic_monthly'] * proration)

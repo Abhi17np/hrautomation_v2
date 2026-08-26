@@ -82,7 +82,6 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
       })
       .catch(() => {})
       .finally(() => setAutoFilling(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.employee_id, formData.month, formData.year]);
 
   const handleSubmit = async (e) => {

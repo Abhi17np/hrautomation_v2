@@ -430,7 +430,8 @@ function PayslipActions({ payslip, onGenerate, onApprove, onRelease, onDownload,
   return (
     <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
       <button
-        onClick={() => onDownload(payslip)}
+        onClick={() => onDownload(payslip, 'pdf')}
+        title="Requires LibreOffice on the server — use DOCX if this fails"
         style={{
           padding: '6px 12px', background: 'white', color: '#374151',
           border: '1px solid var(--border)', borderRadius: '4px', fontSize: 12, fontWeight: 600,
@@ -438,6 +439,17 @@ function PayslipActions({ payslip, onGenerate, onApprove, onRelease, onDownload,
         }}
       >
         ⬇ PDF
+      </button>
+      <button
+        onClick={() => onDownload(payslip, 'docx')}
+        title="Word document — works even without PDF conversion on the server"
+        style={{
+          padding: '6px 12px', background: 'white', color: '#374151',
+          border: '1px solid var(--border)', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        ⬇ DOCX
       </button>
       {canGenerate && (
         <button
@@ -678,16 +690,19 @@ export default function PayslipManagementPage() {
     fetchPayslips();
   };
 
-  const downloadPayslip = async (payslip) => {
+  const downloadPayslip = async (payslip, format = 'pdf') => {
     try {
       const res = await axios.get(`/api/payslips/${payslip._id}/download`, {
-        params: { format: 'pdf' },
+        params: { format },
         responseType: 'blob',
       });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const mime = format === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+      const url = URL.createObjectURL(new Blob([res.data], { type: mime }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `payslip_${payslip.employee_code || payslip.employee_id}_${payslip.month}_${payslip.year}.pdf`;
+      a.download = `payslip_${payslip.employee_code || payslip.employee_id}_${payslip.month}_${payslip.year}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

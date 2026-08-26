@@ -133,7 +133,7 @@ export default function HolidaysPage() {
           <div style={{
             width: 52, height: 52, borderRadius: 12, background: 'var(--accent-dim)', color: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
-          }}>📅</div>
+          }}>⊡</div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
               Next holiday

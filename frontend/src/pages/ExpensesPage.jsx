@@ -108,7 +108,8 @@ function ExpenseTable({ expenses, showEmployee, actions }) {
               <td style={{ fontWeight: 600 }}>{money(e.currency, e.amount)}</td>
               <td>
                 {e.receipt_filename
-                  ? <a href={`/api/expenses/${e._id}/receipt`} target="_blank" rel="noreferrer" className="btn-link">View</a>
+                  ? <a href={`/api/expenses/${e._id}/receipt`} target="_blank" rel="noreferrer"
+                       style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 12.5, textDecoration: 'none' }}>View</a>
                   : '—'}
               </td>
               <td><StatusPill status={e.status} /></td>

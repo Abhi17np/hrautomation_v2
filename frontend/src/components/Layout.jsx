@@ -13,12 +13,12 @@ const NAV_HR = [
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/leave-management', icon: '▤' , label: 'Leave Management' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip-management', icon: '💰', label: 'Payslips' },
-  { to: '/expenses', icon: '🧾', label: 'Expenses' },
-  { to: '/assets', icon: '💻', label: 'Assets' },
-  { to: '/holidays', icon: '📅', label: 'Holidays' },
-  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
-  { to: '/reports', icon: '📊', label: 'Reports' },
+  { to: '/payslip-management', icon: '₹', label: 'Payslips' },
+  { to: '/expenses', icon: '◧', label: 'Expenses' },
+  { to: '/assets', icon: '▥', label: 'Assets' },
+  { to: '/holidays', icon: '⊡', label: 'Holidays' },
+  { to: '/org-chart', icon: '⌬', label: 'Org Chart' },
+  { to: '/reports', icon: '◨', label: 'Reports' },
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
@@ -28,11 +28,11 @@ const NAV_EMPLOYEE = [
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip', icon: '💰', label: 'Payslips' },
-  { to: '/expenses', icon: '🧾', label: 'Expenses' },
-  { to: '/assets', icon: '💻', label: 'My Assets' },
-  { to: '/holidays', icon: '📅', label: 'Holidays' },
-  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
+  { to: '/payslip', icon: '₹', label: 'Payslips' },
+  { to: '/expenses', icon: '◧', label: 'Expenses' },
+  { to: '/assets', icon: '▥', label: 'My Assets' },
+  { to: '/holidays', icon: '⊡', label: 'Holidays' },
+  { to: '/org-chart', icon: '⌬', label: 'Org Chart' },
 ];
 
 const NAV_MANAGER = [
@@ -44,12 +44,12 @@ const NAV_MANAGER = [
   { to: '/approvals', icon: '✓', label: 'Approvals' },
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip-management', icon: '💰', label: 'Payslips' },
-  { to: '/expenses', icon: '🧾', label: 'Expenses' },
-  { to: '/assets', icon: '💻', label: 'Assets' },
-  { to: '/holidays', icon: '📅', label: 'Holidays' },
-  { to: '/org-chart', icon: '⛓', label: 'Org Chart' },
-  { to: '/reports', icon: '📊', label: 'Reports' },
+  { to: '/payslip-management', icon: '₹', label: 'Payslips' },
+  { to: '/expenses', icon: '◧', label: 'Expenses' },
+  { to: '/assets', icon: '▥', label: 'Assets' },
+  { to: '/holidays', icon: '⊡', label: 'Holidays' },
+  { to: '/org-chart', icon: '⌬', label: 'Org Chart' },
+  { to: '/reports', icon: '◨', label: 'Reports' },
 ];
 
 const ROLE_COLOR = {

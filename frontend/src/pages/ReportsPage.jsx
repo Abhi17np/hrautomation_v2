@@ -5,20 +5,20 @@ import {
   CartesianGrid, Tooltip, Legend, Cell,
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { StatCard, SectionTitle, Card } from '../components/ui';
+import { StatCard, SectionTitle } from '../components/ui';
 
 const DEPT_COLORS = ['#3E7BFA', '#27AE60', '#7C6FE0', '#F2994A', '#E4574B', '#0E9F94', '#DB2777', '#8A94A6'];
 
 function ChartCard({ title, children, empty }) {
   return (
-    <Card style={{ padding: 20, marginBottom: 20 }}>
+    <div className="card" style={{ padding: 20, marginBottom: 20 }}>
       <SectionTitle>{title}</SectionTitle>
       {empty ? (
         <div className="empty-state" style={{ padding: '32px 16px' }}><p style={{ margin: 0 }}>Not enough data yet.</p></div>
       ) : (
         <div style={{ width: '100%', height: 260 }}>{children}</div>
       )}
-    </Card>
+    </div>
   );
 }
 

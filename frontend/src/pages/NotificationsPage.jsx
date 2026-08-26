@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const TYPE_ICON = {
-  leave: '▤', document: '⬡', payslip: '💰', exit: '⇥',
-  appointment_order: '◈', expense: '🧾', asset: '💻', system: '🔔',
+  leave: '▤', document: '⬡', payslip: '₹', exit: '⇥',
+  appointment_order: '◈', expense: '◧', asset: '▥', system: '❖',
 };
 
 const TYPE_LABEL = {

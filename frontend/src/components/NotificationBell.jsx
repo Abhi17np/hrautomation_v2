@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { ICONS } from './ui';
 
 const TYPE_ICON = {
-  leave: '▤', document: '⬡', payslip: '💰', exit: '⇥',
-  appointment_order: '◈', expense: '🧾', asset: '💻', system: '🔔',
+  leave: '▤', document: '⬡', payslip: '₹', exit: '⇥',
+  appointment_order: '◈', expense: '◧', asset: '▥', system: '❖',
 };
 
 export default function NotificationBell() {
@@ -45,9 +46,9 @@ export default function NotificationBell() {
         className="btn btn-secondary"
         onClick={togglePanel}
         aria-label="Notifications"
-        style={{ width: 36, height: 36, padding: 0, borderRadius: 9, position: 'relative', fontSize: 15 }}
+        style={{ width: 36, height: 36, padding: 0, borderRadius: 9, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        🔔
+        {ICONS.bell('var(--text-dim)')}
         {data.unread_count > 0 && (
           <span style={{
             position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 'var(--radius-full)',
@@ -68,8 +69,7 @@ export default function NotificationBell() {
           }}>
             <span style={{ fontWeight: 700, fontSize: 13 }}>Notifications</span>
             <button
-              className="btn-link"
-              style={{ fontSize: 11.5, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0 }}
+              style={{ fontSize: 11.5, fontWeight: 600, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0 }}
               onClick={() => { setOpen(false); window.location.hash = '/notifications'; }}
             >
               View all

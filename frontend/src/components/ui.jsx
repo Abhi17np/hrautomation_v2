@@ -3,6 +3,15 @@
  * so new pages (Reports, Assets, Expenses, Holidays, ...) don't have to
  * re-implement the same stat-tile / card / section-header markup.
  */
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+
+// Validated categorical/status palette (dataviz skill — fixed order, never
+// cycled; run through scripts/validate_palette.js). Slot 1 sits close to the
+// app's own accent blue so charts feel native rather than bolted on. Shared
+// across Reports and Org Chart so both pages draw from the same source.
+export const CATEGORICAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+export const STATUS = { good: '#0ca30c', warning: '#fab219', serious: '#ec835a', critical: '#d03b3b' };
+export const NEUTRAL_GRAY = '#AEB7C4';
 
 const ACCENT_COLORS = {
   blue: { bg: '#ECF2FE', icon: '#3E7BFA' },
@@ -151,5 +160,55 @@ export function Card({ children, style = {}, onClick }) {
     >
       {children}
     </div>
+  );
+}
+
+// ─── Donut with a centered total + legend ──────────────────────────────────
+// Part-to-whole composition (dataviz skill): "no data" slices must always be
+// passed in as a distinct neutral gray by the caller, never a categorical hue
+// competing as if it were a real category.
+export function DonutCard({ title, data, centerLabel }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const empty = total === 0;
+  return (
+    <Card style={{ padding: 20 }}>
+      <SectionTitle>{title}</SectionTitle>
+      {empty ? (
+        <div className="empty-state" style={{ padding: '32px 16px' }}><p style={{ margin: 0 }}>Not enough data yet.</p></div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ width: 150, height: 150, position: 'relative', flexShrink: 0 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" innerRadius={48} outerRadius={70}
+                     paddingAngle={data.length > 1 ? 2 : 0} strokeWidth={0}>
+                  {data.map((d) => <Cell key={d.name} fill={d.color} />)}
+                </Pie>
+                <Tooltip formatter={(v, n) => [`${v} (${Math.round((v / total) * 100)}%)`, n]} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+            }}>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--display)' }}>{total}</div>
+              {centerLabel && <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{centerLabel}</div>}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, flex: 1 }}>
+            {data.map(d => (
+              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                <span style={{ fontWeight: 700, fontFamily: 'var(--mono)' }}>{d.value}</span>
+                <span style={{ color: 'var(--text-faint)', fontSize: 11, width: 34, textAlign: 'right' }}>
+                  {Math.round((d.value / total) * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }

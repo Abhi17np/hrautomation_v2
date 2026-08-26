@@ -7,12 +7,13 @@ org_chart_bp = Blueprint('org_chart', __name__)
 
 def _s(emp):
     return {
-        '_id':         str(emp['_id']),
-        'name':        emp.get('name', ''),
-        'designation': emp.get('designation', ''),
-        'department':  emp.get('department', ''),
-        'manager_id':  emp.get('manager_id') or None,
-        'status':      emp.get('status', 'active'),
+        '_id':          str(emp['_id']),
+        'name':         emp.get('name', ''),
+        'employee_id':  emp.get('employee_id', ''),
+        'designation':  emp.get('designation', ''),
+        'department':   emp.get('department', ''),
+        'manager_id':   emp.get('manager_id') or None,
+        'status':       emp.get('status', 'active'),
     }
 
 

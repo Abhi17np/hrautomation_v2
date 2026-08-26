@@ -459,6 +459,11 @@ def run_payroll():
             continue
 
         defaults = compute_payslip_defaults(db, emp, year, month)
+        # UI-only hints for the create-payslip form (has_salary_source, the
+        # unprorated CTC-derived figures, proration) aren't payslip fields —
+        # drop them before they get persisted onto the stored document.
+        for _k in ('has_salary_source', 'ctc_annual', 'basic_monthly_full', 'hra_monthly_full', 'da_monthly_full', 'proration'):
+            defaults.pop(_k, None)
         payslip = {
             'employee_id': emp_id,
             'month': month,

@@ -61,6 +61,7 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
   const [autoFilled, setAutoFilled] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
   const [autoFillError, setAutoFillError] = useState('');
+  const [salaryInfo, setSalaryInfo] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -79,11 +80,17 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
       params: { employee_id: formData.employee_id, month: formData.month, year: formData.year },
     })
       .then(res => {
-        setFormData(prev => ({ ...prev, ...res.data }));
+        // has_salary_source/ctc_annual/*_monthly_full/proration are UI-only
+        // hints, not payslip fields — pull them out before merging the rest
+        // (basic/hra/da/attendance) into the editable form.
+        const { has_salary_source, ctc_annual, basic_monthly_full, hra_monthly_full, da_monthly_full, proration, ...fields } = res.data;
+        setFormData(prev => ({ ...prev, ...fields }));
+        setSalaryInfo({ has_salary_source, ctc_annual, basic_monthly_full, hra_monthly_full, da_monthly_full, proration });
         setAutoFilled(true);
       })
       .catch(err => {
         setAutoFilled(false);
+        setSalaryInfo(null);
         setAutoFillError(
           err.response?.status === 404
             ? 'Auto-fill isn\'t available yet — the backend may need to be restarted after the update.'
@@ -160,13 +167,38 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               ))}
             </select>
             {formData.employee_id && (
-              <div style={{ fontSize: 11.5, marginTop: 5, color: (autoFillError || (autoFilled && !Number(formData.basic))) ? '#d97706' : 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 11.5, marginTop: 5, color: (autoFillError || (autoFilled && salaryInfo && !salaryInfo.has_salary_source)) ? '#d97706' : 'var(--text-secondary)' }}>
                 {autoFilling ? 'Loading salary structure and attendance…'
                   : autoFillError ? `⚠ ${autoFillError}`
-                  : autoFilled && !Number(formData.basic)
+                  : autoFilled && salaryInfo && !salaryInfo.has_salary_source
                     ? '⚠ No CTC or offer letter on file for this employee — enter Basic/HRA/DA manually below.'
                   : autoFilled ? '✓ Earnings and attendance below are auto-filled from this employee\'s CTC and actual attendance — review and adjust before saving.'
                   : null}
+              </div>
+            )}
+
+            {/* CTC breakdown — the salary structure the Basic/HRA/DA fields
+                below were derived from, so HR can see where the numbers
+                came from instead of just the filled-in totals. Refreshes
+                automatically whenever employee/month/year changes. */}
+            {autoFilled && salaryInfo?.has_salary_source && (
+              <div style={{
+                marginTop: 8, padding: '10px 12px', background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12,
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  CTC Breakdown — {formatCurrency(salaryInfo.ctc_annual)} / year
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>Basic /mo</div>{formatCurrency(salaryInfo.basic_monthly_full)}</div>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>HRA /mo</div>{formatCurrency(salaryInfo.hra_monthly_full)}</div>
+                  <div><div style={{ color: 'var(--text-secondary)' }}>DA /mo</div>{formatCurrency(salaryInfo.da_monthly_full)}</div>
+                </div>
+                {salaryInfo.proration < 1 && (
+                  <div style={{ marginTop: 6, color: '#d97706' }}>
+                    ⚠ Prorated to {Math.round(salaryInfo.proration * 100)}% for this month's attendance — the amounts below are lower than the full monthly figures above.
+                  </div>
+                )}
               </div>
             )}
           </div>

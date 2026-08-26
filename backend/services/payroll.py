@@ -195,4 +195,13 @@ def compute_payslip_defaults(db, employee, year, month):
         'present_days': att['present_days'],
         'leave_days': att['leave_days'],
         'absent_days': att['absent_days'],
+        # Lets the UI tell "no salary structure on file" apart from "salary
+        # structure found, but attendance/proration legitimately zeroed the
+        # numbers" — both used to look identical (basic == 0) to the caller.
+        'has_salary_source': bool(bd),
+        'ctc_annual': bd['ctc'] if bd else 0,
+        'basic_monthly_full': bd['basic_monthly'] if bd else 0,
+        'hra_monthly_full': bd['hra_monthly'] if bd else 0,
+        'da_monthly_full': bd['da_monthly'] if bd else 0,
+        'proration': proration,
     }

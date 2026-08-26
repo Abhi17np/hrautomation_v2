@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
-import os, tempfile
+import os, tempfile, logging
 
 from services.notify import notify_employee
 from services.payroll import compute_payslip_defaults
@@ -20,6 +20,7 @@ from services.payslip_generator import generate_payslip_docx
 from services.letter_generator import generate_letter_pdf
 
 payslips_bp = Blueprint('payslips', __name__)
+log = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,7 +262,14 @@ def download_payslip(payslip_id):
     tmp_dir = tempfile.mkdtemp()
     base_name = f"payslip_{payslip.get('employee_code') or payslip['employee_id']}_{payslip.get('month')}_{payslip.get('year')}"
     docx_path = os.path.join(tmp_dir, base_name + '.docx')
-    generate_payslip_docx(payslip, docx_path)
+    try:
+        generate_payslip_docx(payslip, docx_path)
+    except Exception as e:
+        # Without this, a bad field on the payslip document turns into an
+        # unhandled 500 with an HTML body, which the frontend (expecting
+        # JSON) can't parse — it just shows a blank "Download failed."
+        log.error(f'Payslip DOCX generation failed for {payslip_id}: {e}')
+        return jsonify({'error': f'Could not generate payslip document: {e}'}), 500
 
     if fmt == 'docx':
         return send_file(

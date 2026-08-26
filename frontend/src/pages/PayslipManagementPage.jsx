@@ -422,7 +422,8 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
 }
 
 // Payslip Action Buttons
-function PayslipActions({ payslip, onApprove, onRelease, onDownload, userRole }) {
+function PayslipActions({ payslip, onGenerate, onApprove, onRelease, onDownload, userRole }) {
+  const canGenerate = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'draft';
   const canApprove = ['hr_head', 'admin'].includes(userRole) && payslip.status === 'generated';
   const canRelease = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'approved';
 
@@ -438,6 +439,20 @@ function PayslipActions({ payslip, onApprove, onRelease, onDownload, userRole })
       >
         ⬇ PDF
       </button>
+      {canGenerate && (
+        <button
+          onClick={() => onGenerate(payslip._id)}
+          style={{
+            padding: '6px 12px', background: '#2563eb', color: 'white',
+            border: 'none', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.target.style.background = '#1d4ed8'}
+          onMouseLeave={e => e.target.style.background = '#2563eb'}
+        >
+          Generate
+        </button>
+      )}
       {canApprove && (
         <button
           onClick={() => onApprove(payslip._id)}
@@ -622,6 +637,19 @@ export default function PayslipManagementPage() {
     }
   };
 
+  const handleGenerate = async (payslipId) => {
+    try {
+      // PUT with no field changes still recalculates totals from what's
+      // already stored and moves status from 'draft' to 'generated' — the
+      // step that was missing from the UI, so payslips could be created
+      // but never actually advanced past Draft.
+      const res = await axios.put(`/api/payslips/${payslipId}`, {});
+      setPayslips(payslips.map(p => p._id === payslipId ? res.data : p));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to generate');
+    }
+  };
+
   const handleApprove = async (payslipId) => {
     try {
       const res = await axios.post(`/api/payslips/${payslipId}/approve`);
@@ -663,11 +691,21 @@ export default function PayslipManagementPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      let msg = 'Download failed.';
-      try {
-        const text = await err.response?.data?.text?.();
-        if (text) msg = JSON.parse(text).error || msg;
-      } catch { /* blob wasn't JSON */ }
+      let msg;
+      if (!err.response) {
+        // Request never got a response at all — network error, timed-out
+        // LibreOffice conversion, backend not reachable, etc.
+        msg = 'Download failed: could not reach the server. Check that the backend is running.';
+      } else {
+        try {
+          const text = await err.response.data.text();
+          msg = JSON.parse(text).error;
+        } catch {
+          // Body wasn't JSON — an unhandled server error returned an HTML
+          // page instead. Still surface the HTTP status so it's actionable.
+        }
+        if (!msg) msg = `Download failed (server returned ${err.response.status}).`;
+      }
       alert(msg);
     }
   };
@@ -858,6 +896,7 @@ export default function PayslipManagementPage() {
                     <PayslipActions
                       payslip={ps}
                       userRole={user?.role}
+                      onGenerate={handleGenerate}
                       onApprove={handleApprove}
                       onRelease={handleRelease}
                       onDownload={downloadPayslip}

@@ -36,9 +36,35 @@ function formatCurrency(value) {
 }
 
 function PayslipModal({ payslip, onClose }) {
+  const [downloading, setDownloading] = useState(false);
   if (!payslip) return null;
 
   const monthName = MONTH_NAMES[payslip.month - 1];
+
+  const onDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await axios.get(`/api/payslips/${payslip._id}/download`, {
+        params: { format: 'pdf' },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payslip_${monthName}_${payslip.year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      let msg = 'Download failed.';
+      try {
+        const text = await err.response?.data?.text?.();
+        if (text) msg = JSON.parse(text).error || msg;
+      } catch { /* blob wasn't JSON */ }
+      alert(msg);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div style={{
@@ -235,20 +261,34 @@ function PayslipModal({ payslip, onClose }) {
           )}
         </div>
 
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%', marginTop: 25, padding: '12px 20px',
-            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600,
-            cursor: 'pointer', color: 'var(--text-primary)',
-          }}
-          onMouseEnter={e => e.target.style.background = 'var(--border)'}
-          onMouseLeave={e => e.target.style.background = 'var(--bg-secondary)'}
-        >
-          Close
-        </button>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 25 }}>
+          <button
+            onClick={onDownload}
+            disabled={downloading}
+            style={{
+              flex: 1, padding: '12px 20px',
+              background: '#2563eb', border: 'none', color: 'white',
+              borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600,
+              cursor: downloading ? 'not-allowed' : 'pointer', opacity: downloading ? 0.7 : 1,
+            }}
+          >
+            {downloading ? 'Preparing…' : '⬇ Download PDF'}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '12px 20px',
+              background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer', color: 'var(--text-primary)',
+            }}
+            onMouseEnter={e => e.target.style.background = 'var(--border)'}
+            onMouseLeave={e => e.target.style.background = 'var(--bg-secondary)'}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

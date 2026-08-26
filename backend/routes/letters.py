@@ -27,6 +27,7 @@ from docx import Document as DocxDocument
 from html.parser import HTMLParser
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
 from services.gridfs_storage import save_file_to_gridfs, serve_from_gridfs, delete_from_gridfs
+from services.payroll import calculate_ctc_breakdown
 
 letters_bp = Blueprint('letters', __name__)
 log = logging.getLogger(__name__)
@@ -37,31 +38,9 @@ DELETABLE_STATUSES = {'draft', 'rejected'}
 DELETE_ROLES       = {'admin', 'hr_head'}
 
 
-def calculate_ctc_breakdown(annual_ctc, avail_pf=True, ghi_annual=0.0, metro=False):
-    ctc          = float(annual_ctc)
-    basic_a      = round(ctc * 0.50)
-    basic_m      = round(basic_a / 12)
-    hra_a        = round(basic_a * (0.50 if metro else 0.40))
-    hra_m        = round(hra_a / 12)
-    da_a         = round(basic_a * 0.20)
-    da_m         = round(da_a / 12)
-    pf_m         = 1800 if avail_pf else 0
-    pf_a         = pf_m * 12
-    ghi_a        = round(float(ghi_annual or 0))
-    ghi_m        = round(ghi_a / 12)
-    other_a      = max(0, int(ctc) - basic_a - hra_a - da_a - pf_a - ghi_a)
-    other_m      = round(other_a / 12)
-    gross_m      = basic_m + hra_m + da_m + other_m
-    net_a        = basic_a + hra_a + da_a + other_a
-    return {
-        'ctc': ctc, 'basic': basic_a, 'hra': hra_a, 'da': da_a,
-        'employer_pf': pf_a, 'ghi': ghi_a, 'other_allowances': other_a,
-        'net_annual': net_a, 'gross_monthly': gross_m,
-        'basic_monthly': basic_m, 'hra_monthly': hra_m, 'da_monthly': da_m,
-        'employer_pf_monthly': pf_m, 'ghi_monthly': ghi_m,
-        'other_allowances_monthly': other_m,
-        'avail_pf': avail_pf, 'metro': metro,
-    }
+# CTC breakup formula lives in services/payroll.py — the payslip module
+# uses the exact same calculation so a payslip's earnings line up with what
+# the employee was actually offered, instead of two divergent copies.
 
 
 def _inr(n):

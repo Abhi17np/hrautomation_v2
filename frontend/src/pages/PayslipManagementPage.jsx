@@ -58,11 +58,32 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [autoFilled, setAutoFilled] = useState(false);
+  const [autoFilling, setAutoFilling] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  // Suggest real earnings + attendance for this employee/month — the
+  // employee's salary structure (from CTC) and actual attendance, so HR
+  // reviews real numbers instead of typing from memory. Any field HR
+  // edits afterward is respected; this only fills the starting point.
+  useEffect(() => {
+    if (!formData.employee_id || !formData.month || !formData.year) return;
+    setAutoFilling(true);
+    axios.get('/api/payslips/auto-fill', {
+      params: { employee_id: formData.employee_id, month: formData.month, year: formData.year },
+    })
+      .then(res => {
+        setFormData(prev => ({ ...prev, ...res.data }));
+        setAutoFilled(true);
+      })
+      .catch(() => {})
+      .finally(() => setAutoFilling(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.employee_id, formData.month, formData.year]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -130,6 +151,13 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
                 </option>
               ))}
             </select>
+            {formData.employee_id && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 5 }}>
+                {autoFilling ? 'Loading salary structure and attendance…'
+                  : autoFilled ? '✓ Earnings and attendance below are auto-filled from this employee\'s CTC and actual attendance — review and adjust before saving.'
+                  : null}
+              </div>
+            )}
           </div>
 
           {/* Month/Year */}
@@ -318,14 +346,22 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
 }
 
 // Payslip Action Buttons
-function PayslipActions({ payslip, onUpdate, onApprove, onRelease, userRole }) {
-  const [updating, setUpdating] = useState(false);
-
-  const canApprove = userRole in ['hr_head', 'admin'] && payslip.status === 'generated';
-  const canRelease = userRole in ['hr', 'hr_head', 'admin'] && payslip.status === 'approved';
+function PayslipActions({ payslip, onApprove, onRelease, onDownload, userRole }) {
+  const canApprove = ['hr_head', 'admin'].includes(userRole) && payslip.status === 'generated';
+  const canRelease = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'approved';
 
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
+    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+      <button
+        onClick={() => onDownload(payslip)}
+        style={{
+          padding: '6px 12px', background: 'white', color: '#374151',
+          border: '1px solid var(--border)', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        ⬇ PDF
+      </button>
       {canApprove && (
         <button
           onClick={() => onApprove(payslip._id)}
@@ -358,6 +394,110 @@ function PayslipActions({ payslip, onUpdate, onApprove, onRelease, userRole }) {
   );
 }
 
+// Run Payroll Modal — generates the whole month for every active employee
+// in one action, the way an actual payroll cycle works, instead of
+// creating payslips one employee at a time.
+function RunPayrollModal({ onClose, onRun }) {
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
+  const submit = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await axios.post('/api/payslips/run', { month, year });
+      onRun(res.data);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Payroll run failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', zIndex: 1000, padding: 20,
+    }} onClick={onClose}>
+      <div style={{
+        background: 'white', borderRadius: 'var(--radius)', padding: 30,
+        maxWidth: 420, width: '100%',
+      }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>Run Payroll</h2>
+        <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+          Generates a draft payslip for every active employee for the selected month, using each
+          employee's salary structure and actual attendance. Employees who already have a payslip
+          for that month are skipped, not overwritten.
+        </p>
+
+        {error && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+            borderRadius: 'var(--radius)', padding: 12, marginBottom: 16,
+            color: '#dc2626', fontSize: 13,
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 20 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Month</label>
+            <select
+              value={month}
+              onChange={e => setMonth(Number(e.target.value))}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 14 }}
+            >
+              {MONTH_NAMES.map((m, i) => (<option key={i} value={i + 1}>{m}</option>))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Year</label>
+            <select
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 14 }}
+            >
+              {yearOptions.map(y => (<option key={y} value={y}>{y}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{
+              flex: 1, padding: '10px 16px', background: '#2563eb', color: 'white',
+              border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? 'Running…' : 'Run Payroll'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '10px 16px', background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+              fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PayslipManagementPage() {
   const { user } = useAuth();
   const [payslips, setPayslips] = useState([]);
@@ -365,6 +505,7 @@ export default function PayslipManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showRunPayroll, setShowRunPayroll] = useState(false);
 
   // Filters
   const [filterEmployee, setFilterEmployee] = useState('');
@@ -428,6 +569,33 @@ export default function PayslipManagementPage() {
     fetchPayslips();
   };
 
+  const handlePayrollRun = (result) => {
+    alert(result.message);
+    fetchPayslips();
+  };
+
+  const downloadPayslip = async (payslip) => {
+    try {
+      const res = await axios.get(`/api/payslips/${payslip._id}/download`, {
+        params: { format: 'pdf' },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payslip_${payslip.employee_code || payslip.employee_id}_${payslip.month}_${payslip.year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      let msg = 'Download failed.';
+      try {
+        const text = await err.response?.data?.text?.();
+        if (text) msg = JSON.parse(text).error || msg;
+      } catch { /* blob wasn't JSON */ }
+      alert(msg);
+    }
+  };
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
@@ -439,18 +607,30 @@ export default function PayslipManagementPage() {
             Create and manage employee payslips
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          style={{
-            padding: '10px 20px', background: '#2563eb', color: 'white',
-            border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
-            cursor: 'pointer', fontSize: 14,
-          }}
-          onMouseEnter={e => e.target.style.background = '#1d4ed8'}
-          onMouseLeave={e => e.target.style.background = '#2563eb'}
-        >
-          + Create Payslip
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setShowRunPayroll(true)}
+            style={{
+              padding: '10px 20px', background: 'white', color: '#2563eb',
+              border: '1.5px solid #2563eb', borderRadius: 'var(--radius)', fontWeight: 600,
+              cursor: 'pointer', fontSize: 14,
+            }}
+          >
+            ▶ Run Payroll
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            style={{
+              padding: '10px 20px', background: '#2563eb', color: 'white',
+              border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
+              cursor: 'pointer', fontSize: 14,
+            }}
+            onMouseEnter={e => e.target.style.background = '#1d4ed8'}
+            onMouseLeave={e => e.target.style.background = '#2563eb'}
+          >
+            + Create Payslip
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -604,6 +784,7 @@ export default function PayslipManagementPage() {
                       userRole={user?.role}
                       onApprove={handleApprove}
                       onRelease={handleRelease}
+                      onDownload={downloadPayslip}
                     />
                   </td>
                 </tr>
@@ -629,6 +810,14 @@ export default function PayslipManagementPage() {
           employees={employees}
           onClose={() => setShowCreateModal(false)}
           onCreated={handlePayslipCreated}
+        />
+      )}
+
+      {/* Run Payroll Modal */}
+      {showRunPayroll && (
+        <RunPayrollModal
+          onClose={() => setShowRunPayroll(false)}
+          onRun={handlePayrollRun}
         />
       )}
     </div>

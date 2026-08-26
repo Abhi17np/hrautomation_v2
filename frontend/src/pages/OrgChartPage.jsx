@@ -70,40 +70,56 @@ function ancestorIds(employees, startId) {
 
 const LINE_COLOR = '#d7dce2';
 
-// ─── One row in the vertical tree ──────────────────────────────────────────
-function OrgNodeRow({ node, isSelf, isOnChain, reportCount, totalCount, deptColor, onClick }) {
+// Cards per connector row. The old layout put every sibling in one
+// `flexWrap: 'wrap'` row with a single shared top border as the horizontal
+// bar — correct only while everything fits on one line. Once it wrapped,
+// each wrapped-down card's stub (position: absolute, centered on itself)
+// had nothing under it but the row above, so it visually read as hanging
+// off whichever sibling happened to sit there instead of off the shared
+// bar. Capping rows and giving each its own bar removes that ambiguity
+// outright, at any window width or zoom level.
+const MAX_PER_ROW = 4;
+
+function chunkRows(items, size) {
+  const rows = [];
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size));
+  return rows;
+}
+
+// ─── One card in the tree/grid ────────────────────────────────────────────
+function OrgNodeCard({ node, isSelf, isOnChain, reportCount, totalCount, deptColor, onClick }) {
   const designation = hasValue(node.designation) ? node.designation : null;
   const department = hasValue(node.department) ? node.department : null;
   return (
     <div
       onClick={onClick}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-        background: 'var(--surface)', borderRadius: 10, padding: '10px 14px',
+        width: 190, background: 'var(--surface)', borderRadius: 12, padding: '14px 14px 12px',
         border: `1.5px solid ${isSelf ? 'var(--accent)' : 'var(--border)'}`,
-        borderLeft: `3px solid ${isSelf ? 'var(--accent)' : deptColor || 'var(--border)'}`,
+        borderTop: `3px solid ${isSelf ? 'var(--accent)' : deptColor || 'var(--border)'}`,
         boxShadow: isSelf ? '0 0 0 3px var(--accent-dim)' : isOnChain ? '0 0 0 2px var(--surface-2)' : 'none',
-        transition: 'background .15s',
+        cursor: 'pointer', textAlign: 'center', transition: 'transform .15s, box-shadow .15s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-2)'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface)'; }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(62,123,250,.15)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isSelf ? '0 0 0 3px var(--accent-dim)' : isOnChain ? '0 0 0 2px var(--surface-2)' : 'none'; }}
     >
-      <Avatar name={node.name} size={36} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {node.name}{isSelf && <span style={{ color: 'var(--accent)' }}> (You)</span>}
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>{designation || 'No designation on file'}</span>
-          {department && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-faint)' }}>
-              · <span style={{ width: 6, height: 6, borderRadius: '50%', background: deptColor || NEUTRAL_GRAY, flexShrink: 0 }} />{department}
-            </span>
-          )}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+        <Avatar name={node.name} size={44} />
       </div>
+      <div style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {node.name}{isSelf && <span style={{ color: 'var(--accent)' }}> (You)</span>}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {designation || 'No designation on file'}
+      </div>
+      {department && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-faint)', marginTop: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: deptColor || NEUTRAL_GRAY, flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{department}</span>
+        </div>
+      )}
       {reportCount > 0 && (
-        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+        <div style={{ marginTop: 8, display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
           <span className="badge badge-blue">{reportCount} direct</span>
           {totalCount > reportCount && (
             <span className="badge badge-gray">{totalCount} in team</span>
@@ -114,27 +130,39 @@ function OrgNodeRow({ node, isSelf, isOnChain, reportCount, totalCount, deptColo
   );
 }
 
-// ─── Recursive vertical tree — every person on their own row, children
-// nested underneath with indentation, never side by side. The indent rail
-// (borderLeft) is what shows the reporting relationship, so there's no
-// ambiguity about who reports to whom regardless of how many siblings a
-// manager has or how wide/narrow the window is. ───────────────────────────
-function OrgTreeNode({ node, highlightIds, selfId, deptColorMap, onSelect }) {
+// ─── Recursive connector-line tree ─────────────────────────────────────────
+function TreeBranch({ node, highlightIds, selfId, deptColorMap, onSelect }) {
   const hasChildren = node.children.length > 0;
   return (
-    <div>
-      <OrgNodeRow
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <OrgNodeCard
         node={node} isSelf={node._id === selfId} isOnChain={highlightIds.has(node._id)}
         reportCount={node.children.length} totalCount={countDescendants(node)}
         deptColor={hasValue(node.department) ? deptColorMap[node.department] : null}
         onClick={() => onSelect(node)}
       />
       {hasChildren && (
-        <div style={{ marginLeft: 17, paddingLeft: 23, borderLeft: `2px solid ${LINE_COLOR}`, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {node.children.map(c => (
-            <OrgTreeNode key={c._id} node={c} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={onSelect} />
+        <>
+          <div style={{ width: 2, height: 22, background: LINE_COLOR }} />
+          {chunkRows(node.children, MAX_PER_ROW).map((row, ri) => (
+            <div key={ri} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {ri > 0 && <div style={{ width: 2, height: 28, background: LINE_COLOR }} />}
+              <div style={{
+                display: 'flex', gap: 28, flexWrap: 'nowrap', justifyContent: 'center', paddingTop: 22,
+                borderTop: row.length > 1 ? `2px solid ${LINE_COLOR}` : 'none',
+              }}>
+                {row.map(c => (
+                  <div key={c._id} style={{ position: 'relative', flexShrink: 0 }}>
+                    {row.length > 1 && (
+                      <div style={{ position: 'absolute', top: -22, left: '50%', width: 2, height: 22, background: LINE_COLOR }} />
+                    )}
+                    <TreeBranch node={c} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={onSelect} />
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );
@@ -383,11 +411,11 @@ export default function OrgChartPage() {
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 14 }}>
                 Reporting Structure
               </div>
-              <div className="card" style={{ padding: '22px 24px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+              <div className="card" style={{ padding: '28px 20px', overflowX: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 32, alignItems: 'center' }}>
                   {filteredTree.map((n, i) => (
-                    <div key={n._id} style={{ paddingTop: i > 0 ? 22 : 0, borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                      <OrgTreeNode node={n} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={setSelected} />
+                    <div key={n._id} style={{ width: '100%', paddingTop: i > 0 ? 28 : 0, borderTop: i > 0 ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'center' }}>
+                      <TreeBranch node={n} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={setSelected} />
                     </div>
                   ))}
                 </div>

@@ -70,6 +70,22 @@ function ancestorIds(employees, startId) {
 
 const LINE_COLOR = '#d7dce2';
 
+// Cards per connector row. The old layout put every sibling in one
+// `flexWrap: 'wrap'` row with a single shared top border as the horizontal
+// bar — correct only while everything fits on one line. Once it wrapped,
+// each wrapped-down card's stub (position: absolute, centered on itself)
+// had nothing under it but the row above, so it visually read as hanging
+// off whichever sibling happened to sit there instead of off the shared
+// bar. Capping rows and giving each its own bar removes that ambiguity
+// outright, at any window width or zoom level.
+const MAX_PER_ROW = 4;
+
+function chunkRows(items, size) {
+  const rows = [];
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size));
+  return rows;
+}
+
 // ─── One card in the tree/grid ────────────────────────────────────────────
 function OrgNodeCard({ node, isSelf, isOnChain, reportCount, totalCount, deptColor, onClick }) {
   const designation = hasValue(node.designation) ? node.designation : null;
@@ -128,19 +144,24 @@ function TreeBranch({ node, highlightIds, selfId, deptColorMap, onSelect }) {
       {hasChildren && (
         <>
           <div style={{ width: 2, height: 22, background: LINE_COLOR }} />
-          <div style={{
-            display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center', paddingTop: 22,
-            borderTop: node.children.length > 1 ? `2px solid ${LINE_COLOR}` : 'none',
-          }}>
-            {node.children.map(c => (
-              <div key={c._id} style={{ position: 'relative' }}>
-                {node.children.length > 1 && (
-                  <div style={{ position: 'absolute', top: -22, left: '50%', width: 2, height: 22, background: LINE_COLOR }} />
-                )}
-                <TreeBranch node={c} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={onSelect} />
+          {chunkRows(node.children, MAX_PER_ROW).map((row, ri) => (
+            <div key={ri} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {ri > 0 && <div style={{ width: 2, height: 28, background: LINE_COLOR }} />}
+              <div style={{
+                display: 'flex', gap: 28, flexWrap: 'nowrap', justifyContent: 'center', paddingTop: 22,
+                borderTop: row.length > 1 ? `2px solid ${LINE_COLOR}` : 'none',
+              }}>
+                {row.map(c => (
+                  <div key={c._id} style={{ position: 'relative', flexShrink: 0 }}>
+                    {row.length > 1 && (
+                      <div style={{ position: 'absolute', top: -22, left: '50%', width: 2, height: 22, background: LINE_COLOR }} />
+                    )}
+                    <TreeBranch node={c} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={onSelect} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </>
       )}
     </div>

@@ -36,6 +36,10 @@ function MiniStat({ value, label, accent }) {
   );
 }
 
+function countDescendants(node) {
+  return node.children.reduce((sum, c) => sum + 1 + countDescendants(c), 0);
+}
+
 function buildTree(employees, connectedIds) {
   const byId = {};
   employees.forEach(e => { if (connectedIds.has(e._id)) byId[e._id] = { ...e, children: [] }; });
@@ -67,14 +71,16 @@ function ancestorIds(employees, startId) {
 const LINE_COLOR = '#d7dce2';
 
 // ─── One card in the tree/grid ────────────────────────────────────────────
-function OrgNodeCard({ node, isSelf, isOnChain, reportCount, onClick }) {
+function OrgNodeCard({ node, isSelf, isOnChain, reportCount, totalCount, deptColor, onClick }) {
   const designation = hasValue(node.designation) ? node.designation : null;
+  const department = hasValue(node.department) ? node.department : null;
   return (
     <div
       onClick={onClick}
       style={{
         width: 190, background: 'var(--surface)', borderRadius: 12, padding: '14px 14px 12px',
         border: `1.5px solid ${isSelf ? 'var(--accent)' : 'var(--border)'}`,
+        borderTop: `3px solid ${isSelf ? 'var(--accent)' : deptColor || 'var(--border)'}`,
         boxShadow: isSelf ? '0 0 0 3px var(--accent-dim)' : isOnChain ? '0 0 0 2px var(--surface-2)' : 'none',
         cursor: 'pointer', textAlign: 'center', transition: 'transform .15s, box-shadow .15s',
       }}
@@ -90,9 +96,18 @@ function OrgNodeCard({ node, isSelf, isOnChain, reportCount, onClick }) {
       <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {designation || 'No designation on file'}
       </div>
+      {department && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-faint)', marginTop: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: deptColor || NEUTRAL_GRAY, flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{department}</span>
+        </div>
+      )}
       {reportCount > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <span className="badge badge-blue">{reportCount} report{reportCount === 1 ? '' : 's'}</span>
+        <div style={{ marginTop: 8, display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <span className="badge badge-blue">{reportCount} direct</span>
+          {totalCount > reportCount && (
+            <span className="badge badge-gray">{totalCount} in team</span>
+          )}
         </div>
       )}
     </div>
@@ -100,13 +115,15 @@ function OrgNodeCard({ node, isSelf, isOnChain, reportCount, onClick }) {
 }
 
 // ─── Recursive connector-line tree ─────────────────────────────────────────
-function TreeBranch({ node, highlightIds, selfId, onSelect }) {
+function TreeBranch({ node, highlightIds, selfId, deptColorMap, onSelect }) {
   const hasChildren = node.children.length > 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <OrgNodeCard
         node={node} isSelf={node._id === selfId} isOnChain={highlightIds.has(node._id)}
-        reportCount={node.children.length} onClick={() => onSelect(node)}
+        reportCount={node.children.length} totalCount={countDescendants(node)}
+        deptColor={hasValue(node.department) ? deptColorMap[node.department] : null}
+        onClick={() => onSelect(node)}
       />
       {hasChildren && (
         <>
@@ -120,7 +137,7 @@ function TreeBranch({ node, highlightIds, selfId, onSelect }) {
                 {node.children.length > 1 && (
                   <div style={{ position: 'absolute', top: -22, left: '50%', width: 2, height: 22, background: LINE_COLOR }} />
                 )}
-                <TreeBranch node={c} highlightIds={highlightIds} selfId={selfId} onSelect={onSelect} />
+                <TreeBranch node={c} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={onSelect} />
               </div>
             ))}
           </div>
@@ -130,15 +147,48 @@ function TreeBranch({ node, highlightIds, selfId, onSelect }) {
   );
 }
 
-function EmployeeChip({ emp, onClick }) {
+function EmployeeChip({ emp, onClick, canAssign, managerOptions, onAssigned }) {
   const designation = hasValue(emp.designation) ? emp.designation : null;
+  const [saving, setSaving] = useState(false);
+
+  const assign = async (managerId) => {
+    if (!managerId) return;
+    setSaving(true);
+    try {
+      await axios.put(`/api/employees/${emp._id}`, { manager_id: managerId });
+      onAssigned();
+    } catch {
+      alert('Could not assign manager. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="card" onClick={onClick} style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-      <Avatar name={emp.name} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5 }}>{emp.name}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{designation || 'No designation on file'}</div>
+    <div className="card" style={{ padding: '14px 16px' }}>
+      <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+        <Avatar name={emp.name} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{emp.name}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{designation || 'No designation on file'}</div>
+        </div>
       </div>
+      {canAssign && (
+        <select
+          value=""
+          disabled={saving}
+          onClick={e => e.stopPropagation()}
+          onChange={e => assign(e.target.value)}
+          style={{ marginTop: 10, width: '100%', fontSize: 11.5, padding: '5px 8px' }}
+        >
+          <option value="">{saving ? 'Saving…' : '+ Assign manager…'}</option>
+          {managerOptions.map(m => (
+            <option key={m._id} value={m._id}>
+              {m.name}{m.designation ? ` — ${m.designation}` : ''}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
@@ -216,10 +266,14 @@ export default function OrgChartPage() {
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState(null);
 
+  const refresh = () => axios.get('/api/org-chart/').then(r => setEmployees(r.data));
+
   useEffect(() => {
-    axios.get('/api/org-chart/').then(r => setEmployees(r.data)).finally(() => setLoading(false));
+    setLoading(true);
+    refresh().finally(() => setLoading(false));
   }, []);
 
+  const canAssign = user?.role === 'admin';
   const selfId = user?.employee_ref || null;
 
   // "Connected" = has a real edge to someone else (a resolvable manager, or
@@ -261,6 +315,15 @@ export default function OrgChartPage() {
     return groups;
   }, [isolated]);
 
+  // Shared department → color mapping so the donut, the tree nodes, and the
+  // "No Manager Assigned" section headers all draw from the same palette.
+  const deptColorMap = useMemo(() => {
+    const depts = Array.from(new Set(employees.filter(e => hasValue(e.department)).map(e => e.department))).sort();
+    const map = {};
+    depts.forEach((d, i) => { map[d] = CATEGORICAL[i % CATEGORICAL.length]; });
+    return map;
+  }, [employees]);
+
   const deptDonutData = useMemo(() => {
     const counts = {};
     employees.forEach(e => {
@@ -268,12 +331,10 @@ export default function OrgChartPage() {
       counts[key] = (counts[key] || 0) + 1;
     });
     const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    let idx = 0;
-    return entries.map(([name, value]) => {
-      if (name === 'Not Set') return { name, value, color: NEUTRAL_GRAY };
-      return { name, value, color: CATEGORICAL[idx++ % CATEGORICAL.length] };
-    });
-  }, [employees]);
+    return entries.map(([name, value]) => ({
+      name, value, color: name === 'Not Set' ? NEUTRAL_GRAY : deptColorMap[name],
+    }));
+  }, [employees, deptColorMap]);
 
   const term = q.trim().toLowerCase();
 
@@ -332,7 +393,7 @@ export default function OrgChartPage() {
               <div className="card" style={{ padding: '28px 20px', overflowX: 'auto' }}>
                 <div style={{ display: 'flex', gap: 48, justifyContent: filteredTree.length > 1 ? 'flex-start' : 'center', width: 'fit-content', minWidth: '100%' }}>
                   {filteredTree.map(n => (
-                    <TreeBranch key={n._id} node={n} highlightIds={highlightIds} selfId={selfId} onSelect={setSelected} />
+                    <TreeBranch key={n._id} node={n} highlightIds={highlightIds} selfId={selfId} deptColorMap={deptColorMap} onSelect={setSelected} />
                   ))}
                 </div>
               </div>
@@ -345,20 +406,29 @@ export default function OrgChartPage() {
                 No Manager Assigned
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 14 }}>
-                Grouped by department — set a manager on the Employees page to move someone into the reporting structure above.
+                {canAssign
+                  ? 'Grouped by department — pick a manager right on a card below, or set one on the Employees page.'
+                  : "Grouped by department — set a manager on the Employees page to move someone into the reporting structure above."}
               </div>
-              {deptEntries.map(([dept, list], i) => (
+              {deptEntries.map(([dept, list]) => (
                 <div key={dept} style={{ marginBottom: 20 }}>
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
-                    borderLeft: `4px solid ${dept === 'Unassigned Department' ? NEUTRAL_GRAY : CATEGORICAL[i % CATEGORICAL.length]}`,
+                    borderLeft: `4px solid ${dept === 'Unassigned Department' ? NEUTRAL_GRAY : deptColorMap[dept]}`,
                     paddingLeft: 10,
                   }}>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{dept}</span>
                     <span style={{ fontSize: 11, background: 'var(--surface-2)', borderRadius: 20, padding: '1px 8px', color: 'var(--text-dim)' }}>{list.length}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                    {list.map(e => <EmployeeChip key={e._id} emp={e} onClick={() => openIsolated(e)} />)}
+                    {list.map(e => (
+                      <EmployeeChip
+                        key={e._id} emp={e} onClick={() => openIsolated(e)}
+                        canAssign={canAssign}
+                        managerOptions={employees.filter(m => m._id !== e._id)}
+                        onAssigned={refresh}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}

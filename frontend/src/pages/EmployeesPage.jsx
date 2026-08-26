@@ -1095,10 +1095,15 @@ function EditModal({ emp, onClose, onDone }) {
   const [managers, setManagers] = useState([]);
 
   useEffect(() => {
-    axios.get('/api/auth/users?role=manager')
-      .then(r => setManagers(r.data))
+    // Any active employee can be someone's manager — not just accounts with
+    // a 'manager' login role — so the reporting tree isn't limited to that
+    // small set. manager_id must reference an *employee* record (matching
+    // what the Org Chart and leave-approval routes expect), so we source
+    // options from /api/employees/, not /api/auth/users.
+    axios.get('/api/employees/?status=active')
+      .then(r => setManagers((r.data || []).filter(m => m._id !== emp._id)))
       .catch(() => setManagers([]));
-  }, []);
+  }, [emp._id]);
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
@@ -1175,17 +1180,19 @@ function EditModal({ emp, onClose, onDone }) {
             </div>
           </div>
 
-          {/* Manager assignment */}
+          {/* Manager assignment — manager_id must reference the manager's
+              *employee* record so it lines up with the Org Chart and leave
+              approval routes. */}
           <div className="form-group">
-            <label className="form-label">Assigned Manager</label>
+            <label className="form-label">Reporting Manager</label>
             {managers.length > 0 ? (
               <select
-                value={form.assigned_manager_id || ''}
+                value={form.manager_id || ''}
                 onChange={e => {
                   const selected = managers.find(m => m._id === e.target.value);
                   setForm({
                     ...form,
-                    assigned_manager_id: e.target.value,
+                    manager_id: e.target.value,
                     assigned_manager: selected?.name || '',
                     manager_email: selected?.email || '',
                   });
@@ -1194,7 +1201,7 @@ function EditModal({ emp, onClose, onDone }) {
                 <option value="">— No Manager —</option>
                 {managers.map(m => (
                   <option key={m._id} value={m._id}>
-                    {m.name} ({m.email})
+                    {m.name}{m.designation ? ` — ${m.designation}` : ''}
                   </option>
                 ))}
               </select>

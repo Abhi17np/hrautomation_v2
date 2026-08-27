@@ -100,6 +100,32 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
       .finally(() => setAutoFilling(false));
   }, [formData.employee_id, formData.month, formData.year]);
 
+  // Keep Basic/HRA/DA/PF in sync when HR edits attendance by hand — same
+  // proration formula the backend used for the initial auto-fill (payable
+  // days ÷ working days against the full monthly figures), applied live so
+  // editing days doesn't leave stale pay sitting in the earnings fields.
+  useEffect(() => {
+    if (!salaryInfo?.has_salary_source) return;
+    const workingDays = Number(formData.working_days) || 0;
+    if (!workingDays) return;
+    const payableDays = Number(formData.present_days || 0) + Number(formData.leave_days || 0);
+    const proration = Math.min(payableDays / workingDays, 1);
+    const basic = Math.round(salaryInfo.basic_monthly_full * proration);
+    const hra = Math.round(salaryInfo.hra_monthly_full * proration);
+    const da = Math.round(salaryInfo.da_monthly_full * proration);
+    const pf = Math.round(basic * 0.12);
+    setFormData(prev => (
+      Number(prev.basic) === basic && Number(prev.hra) === hra
+        && Number(prev.da) === da && Number(prev.pf_deduction) === pf
+        ? prev
+        : { ...prev, basic, hra, da, pf_deduction: pf }
+    ));
+  }, [
+    formData.working_days, formData.present_days, formData.leave_days,
+    salaryInfo?.has_salary_source, salaryInfo?.basic_monthly_full,
+    salaryInfo?.hra_monthly_full, salaryInfo?.da_monthly_full,
+  ]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.employee_id) {
@@ -194,11 +220,16 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
                   <div><div style={{ color: 'var(--text-secondary)' }}>HRA /mo</div>{formatCurrency(salaryInfo.hra_monthly_full)}</div>
                   <div><div style={{ color: 'var(--text-secondary)' }}>DA /mo</div>{formatCurrency(salaryInfo.da_monthly_full)}</div>
                 </div>
-                {salaryInfo.proration < 1 && (
-                  <div style={{ marginTop: 6, color: '#d97706' }}>
-                    ⚠ Prorated to {Math.round(salaryInfo.proration * 100)}% for this month's attendance — the amounts below are lower than the full monthly figures above.
-                  </div>
-                )}
+                {(() => {
+                  const workingDays = Number(formData.working_days) || 0;
+                  const payableDays = Number(formData.present_days || 0) + Number(formData.leave_days || 0);
+                  const liveProration = workingDays ? Math.min(payableDays / workingDays, 1) : 1;
+                  return liveProration < 1 && (
+                    <div style={{ marginTop: 6, color: '#d97706' }}>
+                      ⚠ Prorated to {Math.round(liveProration * 100)}% based on attendance ({formData.present_days || 0} present + {formData.leave_days || 0} leave of {workingDays} working days) — the amounts below are lower than the full monthly figures above. Editing the attendance fields recalculates this automatically.
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

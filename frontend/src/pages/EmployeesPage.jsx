@@ -1124,10 +1124,24 @@ function EditModal({ emp, onClose, onDone }) {
       .catch(() => setManagers([]));
   }, [emp._id]);
 
+  // Only the fields this form actually edits — `form` also carries the
+  // rest of the original record (spread in from `merged` above) so the
+  // inputs can be pre-filled, but resubmitting that whole blob sends back
+  // server-managed fields like created_at in a re-serialized shape the
+  // schema validator rejects. Send exactly what changed here, nothing more.
+  const EDITABLE_FIELDS = [
+    'name', 'email', 'designation', 'department', 'phone', 'ctc',
+    'joining_date', 'date_of_birth', 'address',
+    'notice_period', 'probation_period',
+    'manager_id', 'assigned_manager', 'manager_email',
+  ];
+
   const submit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      await axios.put(`/api/employees/${emp._id}`, form);
+      const payload = {};
+      EDITABLE_FIELDS.forEach(f => { payload[f] = form[f]; });
+      await axios.put(`/api/employees/${emp._id}`, payload);
       onDone('Employee updated.');
     } catch (err) {
       const status = err.response?.status;

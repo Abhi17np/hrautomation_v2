@@ -154,7 +154,14 @@ def update_employee(emp_id):
         return jsonify({'error': 'Only Admin can edit employee records'}), 403
 
     data = request.json or {}
-    data.pop('_id', None)
+    # Never accept immutable/system-managed fields from the client. The
+    # frontend edit form pre-fills from a GET of this same record, so a
+    # naive resubmit carries these straight back — created_at in
+    # particular comes back JSON-serialized as a string, and the
+    # collection's $jsonSchema validator requires it to stay a real BSON
+    # date, so passing it through here 500s the whole update.
+    for field in ('_id', 'created_at', 'employee_id', 'status'):
+        data.pop(field, None)
     data['updated_at'] = datetime.utcnow()
     db.employees.update_one({'_id': ObjectId(emp_id)}, {'$set': data})
     return jsonify({'message': 'Updated'})

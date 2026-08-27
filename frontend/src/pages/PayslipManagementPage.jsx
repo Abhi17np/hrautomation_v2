@@ -252,19 +252,22 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               { label: 'DA', name: 'da' },
               { label: 'Allowances', name: 'allowances' },
             ].map(field => (
-              <input
-                key={field.name}
-                type="number"
-                name={field.name}
-                placeholder={field.label}
-                value={formData[field.name]}
-                onChange={handleChange}
-                step="0.01"
-                style={{
-                  width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 8,
-                }}
-              />
+              <div key={field.name} style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                  {field.label}
+                </label>
+                <input
+                  type="number"
+                  name={field.name}
+                  value={formData[field.name]}
+                  onChange={handleChange}
+                  step="0.01"
+                  style={{
+                    width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', fontSize: 13,
+                  }}
+                />
+              </div>
             ))}
           </div>
 
@@ -277,19 +280,22 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
               { label: 'Income Tax', name: 'income_tax' },
               { label: 'Other Deductions', name: 'other_deductions' },
             ].map(field => (
-              <input
-                key={field.name}
-                type="number"
-                name={field.name}
-                placeholder={field.label}
-                value={formData[field.name]}
-                onChange={handleChange}
-                step="0.01"
-                style={{
-                  width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 8,
-                }}
-              />
+              <div key={field.name} style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                  {field.label}
+                </label>
+                <input
+                  type="number"
+                  name={field.name}
+                  value={formData[field.name]}
+                  onChange={handleChange}
+                  step="0.01"
+                  style={{
+                    width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', fontSize: 13,
+                  }}
+                />
+              </div>
             ))}
           </div>
 
@@ -330,50 +336,28 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
           <div style={{ background: 'var(--bg-secondary)', padding: 15, borderRadius: 'var(--radius)', marginBottom: 15 }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: 13, fontWeight: 600 }}>Attendance</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <input
-                type="number"
-                name="working_days"
-                placeholder="Working Days"
-                value={formData.working_days}
-                onChange={handleChange}
-                style={{
-                  padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13,
-                }}
-              />
-              <input
-                type="number"
-                name="present_days"
-                placeholder="Present Days"
-                value={formData.present_days}
-                onChange={handleChange}
-                style={{
-                  padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13,
-                }}
-              />
-              <input
-                type="number"
-                name="absent_days"
-                placeholder="Absent Days"
-                value={formData.absent_days}
-                onChange={handleChange}
-                style={{
-                  padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13,
-                }}
-              />
-              <input
-                type="number"
-                name="leave_days"
-                placeholder="Leave Days"
-                value={formData.leave_days}
-                onChange={handleChange}
-                style={{
-                  padding: '8px 10px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', fontSize: 13,
-                }}
-              />
+              {[
+                { label: 'Working Days', name: 'working_days' },
+                { label: 'Present Days', name: 'present_days' },
+                { label: 'Absent Days', name: 'absent_days' },
+                { label: 'Leave Days', name: 'leave_days' },
+              ].map(field => (
+                <div key={field.name}>
+                  <label style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                    {field.label}
+                  </label>
+                  <input
+                    type="number"
+                    name={field.name}
+                    value={formData[field.name]}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', fontSize: 13,
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 

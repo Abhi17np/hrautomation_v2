@@ -1,7 +1,9 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, send_file
 from flask_jwt_extended import get_jwt_identity
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from bson import ObjectId
+from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 import csv, io
 
 from auth_utils import tenant_scoped, require_role
@@ -10,6 +12,24 @@ from tenant_scope import get_db
 employees_bp = Blueprint('employees', __name__)
 
 DELETE_ROLES = {'admin', 'hr_head'}
+
+BULK_UPLOAD_COLUMNS = [
+    ('name',             'Name', True),
+    ('designation',      'Designation', True),
+    ('department',       'Department', False),
+    ('email',            'Email', False),
+    ('phone',            'Phone', False),
+    ('address',          'Address', False),
+    ('joining_date',     'Joining Date (DD-MM-YYYY)', False),
+    ('date_of_birth',    'Date of Birth (DD-MM-YYYY)', False),
+    ('ctc',              'CTC', False),
+    ('basic',            'Basic', False),
+    ('hra',              'HRA', False),
+    ('da',               'DA', False),
+    ('allowances',       'Allowances', False),
+    ('probation_period', 'Probation Period (months)', False),
+    ('notice_period',    'Notice Period (days)', False),
+]
 
 def serialize(emp):
     emp['_id'] = str(emp['_id'])
@@ -107,25 +127,100 @@ def save_step1():
 
 
 
+@employees_bp.route('/bulk-upload/template', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head')
+def bulk_upload_template():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Employees'
+    headers = [label for _, label, _ in BULK_UPLOAD_COLUMNS]
+    ws.append(headers)
+    for col_idx, (_, _, required) in enumerate(BULK_UPLOAD_COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = cell.font.copy(bold=True)
+    ws.append([
+        'Jane Doe', 'Software Engineer', 'Engineering', 'jane.doe@example.com',
+        '9876543210', '123 Main St, City', '01-06-2026', '15-03-1995',
+        800000, 40000, 15000, 5000, 10000, 6, 30,
+    ])
+    for col_idx in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 22
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='employee_bulk_upload_template.xlsx',
+    )
+
+
 @employees_bp.route('/bulk-upload', methods=['POST'])
-@tenant_scoped
+@require_role('admin', 'hr', 'hr_head')
 def bulk_upload():
     db   = get_db()
     file = request.files.get('file')
     if not file:
         return jsonify({'error': 'No file provided'}), 400
-    content = file.stream.read().decode('utf-8-sig', errors='replace')
-    stream  = io.StringIO(content)
-    reader  = csv.DictReader(stream)
-    employees = []
-    for row in reader:
-        row['employee_id'] = row.get('employee_id') or _next_emp_id(db)
-        row['created_at']  = datetime.utcnow()
-        row['status']      = row.get('status', 'active')
-        employees.append(row)
-    if employees:
-        db.employees.insert_many(employees)
-    return jsonify({'message': f'{len(employees)} employees imported'})
+
+    filename = (file.filename or '').lower()
+    rows = []  # list of dicts keyed by our internal field names
+
+    if filename.endswith('.xlsx'):
+        try:
+            wb = load_workbook(file.stream, data_only=True)
+        except Exception:
+            return jsonify({'error': 'Could not read the Excel file. Please use the downloadable template.'}), 400
+        ws = wb.active
+        header_row = [str(c.value).strip() if c.value is not None else '' for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        label_to_field = {label: field for field, label, _ in BULK_UPLOAD_COLUMNS}
+        field_by_col = [label_to_field.get(h) for h in header_row]
+        for excel_row in ws.iter_rows(min_row=2, values_only=True):
+            if all(v is None or str(v).strip() == '' for v in excel_row):
+                continue
+            row = {}
+            for col_idx, value in enumerate(excel_row):
+                field = field_by_col[col_idx] if col_idx < len(field_by_col) else None
+                if field and value is not None:
+                    row[field] = str(value).strip() if not isinstance(value, (int, float)) else value
+            rows.append(row)
+    elif filename.endswith('.csv'):
+        content = file.stream.read().decode('utf-8-sig', errors='replace')
+        stream  = io.StringIO(content)
+        reader  = csv.DictReader(stream)
+        rows = [dict(r) for r in reader]
+    else:
+        return jsonify({'error': 'Unsupported file type. Please upload the .xlsx template or a .csv file.'}), 400
+
+    if not rows:
+        return jsonify({'error': 'No employee rows found in the file.'}), 400
+
+    imported, errors = [], []
+    for i, row in enumerate(rows, start=2):  # row 1 is the header
+        name = str(row.get('name', '')).strip()
+        designation = str(row.get('designation', '')).strip()
+        if not name or not designation:
+            errors.append({'row': i, 'error': 'Name and Designation are required.'})
+            continue
+
+        doc = {k: v for k, v in row.items() if v not in (None, '')}
+        doc['name'] = name
+        doc['designation'] = designation
+        doc['employee_id'] = doc.get('employee_id') or _next_emp_id(db)
+        doc['created_at']  = datetime.utcnow()
+        doc['status']      = doc.get('status', 'active')
+        imported.append(doc)
+
+    if imported:
+        db.employees.insert_many(imported)
+
+    return jsonify({
+        'message': f'{len(imported)} employee(s) imported' + (f', {len(errors)} row(s) skipped' if errors else ''),
+        'imported': len(imported),
+        'errors': errors,
+    })
 
 
 @employees_bp.route('/<emp_id>', methods=['GET'])
@@ -333,3 +428,93 @@ def update_clearance(emp_id):
         }}
     )
     return jsonify({'message': 'Clearance updated', 'all_cleared': all_cleared, 'status': new_status})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Birthdays & work anniversaries — in-app widget data. Mirrors the date
+# matching scheduler.py uses for its email job, but computed live here for
+# display rather than as a side-effecting daily job.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_wish_date(d_str):
+    if not d_str or not isinstance(d_str, str):
+        return None
+    d_str = d_str.strip()
+    for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(d_str, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _next_occurrence(month, day, today):
+    """Days until the next time (month, day) occurs, treating today as 0."""
+    try:
+        this_year = date(today.year, month, day)
+    except ValueError:
+        this_year = date(today.year, month, min(day, 28))  # Feb 29 in a non-leap year
+    if this_year >= today:
+        return (this_year - today).days
+    try:
+        next_year = date(today.year + 1, month, day)
+    except ValueError:
+        next_year = date(today.year + 1, month, min(day, 28))
+    return (next_year - today).days
+
+
+@employees_bp.route('/wishes', methods=['GET'])
+@tenant_scoped
+def wishes():
+    db = get_db()
+    try:
+        days_ahead = int(request.args.get('days', 7))
+    except ValueError:
+        days_ahead = 7
+    days_ahead = max(0, min(days_ahead, 60))
+
+    today = date.today()
+
+    users_by_empref = {
+        u['employee_ref']: u for u in db.users.find({
+            'employee_ref': {'$exists': True, '$ne': ''},
+            'is_active': {'$ne': False},
+        })
+    }
+    employees = list(db.employees.find({'status': 'active'}))
+
+    items = []
+    for emp in employees:
+        emp_id = str(emp['_id'])
+        user = users_by_empref.get(emp_id, {})
+        name = user.get('name') or emp.get('name', 'Team Member')
+
+        bday_str = user.get('birthday') or emp.get('birthday') or emp.get('date_of_birth', '')
+        bday = _parse_wish_date(bday_str)
+        if bday:
+            days_until = _next_occurrence(bday.month, bday.day, today)
+            if days_until <= days_ahead:
+                items.append({
+                    'employee_id': emp_id, 'name': name, 'type': 'birthday',
+                    'days_until': days_until, 'month': bday.month, 'day': bday.day,
+                })
+
+        join_str = emp.get('joining_date', '')
+        join_dt = _parse_wish_date(join_str)
+        if join_dt:
+            years = today.year - join_dt.year
+            days_until = _next_occurrence(join_dt.month, join_dt.day, today)
+            occurrence_year = today.year if days_until == 0 or (today + timedelta(days=days_until)).year == today.year else today.year + 1
+            years_completing = occurrence_year - join_dt.year
+            if years_completing >= 1 and days_until <= days_ahead:
+                items.append({
+                    'employee_id': emp_id, 'name': name, 'type': 'anniversary',
+                    'days_until': days_until, 'years': years_completing,
+                    'month': join_dt.month, 'day': join_dt.day,
+                })
+
+    items.sort(key=lambda i: i['days_until'])
+    return jsonify({
+        'today': [i for i in items if i['days_until'] == 0],
+        'upcoming': [i for i in items if i['days_until'] > 0],
+    })

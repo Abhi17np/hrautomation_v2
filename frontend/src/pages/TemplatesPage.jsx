@@ -165,7 +165,7 @@ export default function TemplatesPage() {
 
       {/* Type tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4, width: 'fit-content' }}>
-        {[['offer', 'Offer Letter Templates'], ['relieving', 'Relieving Letter Templates'], ['appointment_order', 'Appointment Order Templates']].map(([type, label]) => (
+        {[['offer', 'Offer Letter Templates'], ['relieving', 'Relieving Letter Templates'], ['appointment_order', 'Appointment Order Templates'], ['payslip', 'Payslip Templates']].map(([type, label]) => (
           <button key={type}
             className={`btn btn-sm ${activeType === type ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setActiveType(type)} style={{ fontSize: 12 }}>
@@ -230,7 +230,7 @@ export default function TemplatesPage() {
       {showModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal">
-            <h2 className="modal-title">Upload {{ offer: 'Offer Letter', relieving: 'Relieving Letter', appointment_order: 'Appointment Order' }[form.templateType]} Template</h2>
+            <h2 className="modal-title">Upload {{ offer: 'Offer Letter', relieving: 'Relieving Letter', appointment_order: 'Appointment Order', payslip: 'Payslip' }[form.templateType]} Template</h2>
             {error && <div className="alert alert-error">{error}</div>}
             <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
               Create a <strong style={{ color: 'var(--text)' }}>.docx</strong> Word document and use{' '}
@@ -243,7 +243,8 @@ export default function TemplatesPage() {
                 <select value={form.templateType} onChange={e => setForm({ ...form, templateType: e.target.value })}>
                   <option value="offer">Offer Letter</option>
                   <option value="relieving">Relieving Letter</option>
-                  <option value="appointment_order">Appointment Order</option>   {/* ← add this */}
+                  <option value="appointment_order">Appointment Order</option>
+                  <option value="payslip">Payslip</option>
                 </select>
               </div>
               <div className="form-group">

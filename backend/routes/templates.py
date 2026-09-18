@@ -52,7 +52,7 @@ def get_template(tid):
 
 
 @templates_bp.route('/upload', methods=['POST'])
-@tenant_scoped
+@require_role('admin', 'hr', 'hr_head')
 def upload():
     db   = get_db()
     uid  = get_jwt_identity()
@@ -62,8 +62,8 @@ def upload():
 
     name      = request.form.get('name') or file.filename
     tmpl_type = request.form.get('type', 'offer')
-    if tmpl_type not in ('offer', 'relieving', 'appointment_order'):
-        return jsonify({'error': "type must be 'offer', 'relieving', or 'appointment_order'"}), 400
+    if tmpl_type not in ('offer', 'relieving', 'appointment_order', 'payslip'):
+        return jsonify({'error': "type must be 'offer', 'relieving', 'appointment_order', or 'payslip'"}), 400
 
     latest  = db.templates.find_one({'type': tmpl_type}, sort=[('version', -1)])
     version = (latest['version'] + 1) if latest else 1

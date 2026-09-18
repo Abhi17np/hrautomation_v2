@@ -208,7 +208,7 @@ SCHEMAS = {
                     "name":        {"bsonType": "string", "description": "Display name e.g. 'Standard Offer 2026'"},
                     "type": {
                         "bsonType": "string",
-                        "enum": ["offer", "relieving", "appointment_order", "experience", "other"],
+                        "enum": ["offer", "relieving", "appointment_order", "payslip", "experience", "other"],
                         "description": "Letter type this template is used for"
                     },
                     "file_path":   {"bsonType": "string", "description": "Absolute path to .docx file on server"},
@@ -423,6 +423,9 @@ SCHEMAS = {
                     "approved_at":      {"bsonType": "date", "description": "Approval timestamp"},
                     "released_by":      {"bsonType": "string", "description": "User who released payslip"},
                     "released_at":      {"bsonType": "date", "description": "Release timestamp"},
+                    "docx_gridfs_id":   {"bsonType": ["string", "null"], "description": "Generated payslip document, GridFS id"},
+                    "pdf_gridfs_id":    {"bsonType": ["string", "null"], "description": "Generated payslip PDF, GridFS id"},
+                    "generated_at":     {"bsonType": ["date", "null"], "description": "When the document was last generated"},
                     "created_at":       {"bsonType": "date"},
                     "updated_at":       {"bsonType": "date"},
                 }

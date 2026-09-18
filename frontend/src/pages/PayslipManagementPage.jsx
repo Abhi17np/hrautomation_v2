@@ -36,6 +36,34 @@ function formatCurrency(value) {
   });
 }
 
+// Formats an ISO period_start/period_end pair into a short human range,
+// e.g. "26 Sep – 25 Oct 2026".
+function formatPeriodRange(periodStart, periodEnd) {
+  if (!periodStart || !periodEnd) return null;
+  const start = new Date(periodStart + 'T00:00:00');
+  const end = new Date(periodEnd + 'T00:00:00');
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  const startStr = start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const endStr = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${startStr} – ${endStr}`;
+}
+
+// Downloads the generated payslip document (PDF if available, else DOCX)
+// via an authenticated axios request and triggers a browser save, mirroring
+// the blob-download pattern used elsewhere in the app (see TemplatesPage.jsx).
+async function downloadPayslipDocument(payslipId, fallbackName) {
+  const res = await axios.get(`/api/payslips/${payslipId}/download`, { responseType: 'blob' });
+  const cd = res.headers && res.headers['content-disposition'];
+  const match = cd && cd.match(/filename="?([^"]+)"?/);
+  const filename = (match && match[1]) || fallbackName || 'payslip';
+  const url = URL.createObjectURL(res.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Create Payslip Modal
 function CreatePayslipModal({ employees, onClose, onCreated }) {
   const [formData, setFormData] = useState({
@@ -318,14 +346,48 @@ function CreatePayslipModal({ employees, onClose, onCreated }) {
 }
 
 // Payslip Action Buttons
-function PayslipActions({ payslip, onUpdate, onApprove, onRelease, userRole }) {
+function PayslipActions({
+  payslip, onUpdate, onApprove, onRelease, userRole,
+  onGenerate, onDownload, generating,
+}) {
   const [updating, setUpdating] = useState(false);
 
-  const canApprove = userRole in ['hr_head', 'admin'] && payslip.status === 'generated';
-  const canRelease = userRole in ['hr', 'hr_head', 'admin'] && payslip.status === 'approved';
+  const canApprove = ['hr_head', 'admin'].includes(userRole) && payslip.status === 'generated';
+  const canRelease = ['hr', 'hr_head', 'admin'].includes(userRole) && payslip.status === 'approved';
+  const canGenerate = ['hr', 'hr_head', 'admin'].includes(userRole);
+  const hasDoc = !!(payslip.docx_gridfs_id || payslip.pdf_gridfs_id);
 
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+      {canGenerate && (
+        <button
+          onClick={() => onGenerate(payslip._id)}
+          disabled={generating}
+          style={{
+            padding: '6px 12px', background: '#6366f1', color: 'white',
+            border: 'none', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+            cursor: generating ? 'not-allowed' : 'pointer', opacity: generating ? 0.6 : 1,
+          }}
+          onMouseEnter={e => !generating && (e.target.style.background = '#4f46e5')}
+          onMouseLeave={e => !generating && (e.target.style.background = '#6366f1')}
+        >
+          {generating ? 'Generating...' : hasDoc ? 'Regenerate' : 'Generate'}
+        </button>
+      )}
+      {hasDoc && (
+        <button
+          onClick={() => onDownload(payslip)}
+          style={{
+            padding: '6px 12px', background: '#0ea5e9', color: 'white',
+            border: 'none', borderRadius: '4px', fontSize: 12, fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.target.style.background = '#0284c7'}
+          onMouseLeave={e => e.target.style.background = '#0ea5e9'}
+        >
+          Download
+        </button>
+      )}
       {canApprove && (
         <button
           onClick={() => onApprove(payslip._id)}
@@ -364,7 +426,18 @@ export default function PayslipManagementPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [generatingId, setGeneratingId] = useState(null);
+
+  // Payroll settings (pay-cycle policy)
+  const canManagePolicy = ['admin', 'hr_head'].includes(user?.role);
+  const [showSettings, setShowSettings] = useState(false);
+  const [policy, setPolicy] = useState(null);
+  const [policyDraft, setPolicyDraft] = useState(1);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policySaving, setPolicySaving] = useState(false);
+  const [policyError, setPolicyError] = useState('');
 
   // Filters
   const [filterEmployee, setFilterEmployee] = useState('');
@@ -428,6 +501,73 @@ export default function PayslipManagementPage() {
     fetchPayslips();
   };
 
+  const showSuccess = (msg) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleGenerate = async (payslipId) => {
+    try {
+      setGeneratingId(payslipId);
+      const res = await axios.post(`/api/payslips/${payslipId}/generate`);
+      setPayslips(prev => prev.map(p => p._id === payslipId ? res.data : p));
+      showSuccess('Payslip document generated successfully.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to generate payslip document');
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
+  const handleDownload = async (payslip) => {
+    try {
+      const fallback = `payslip_${payslip.year}_${String(payslip.month).padStart(2, '0')}`;
+      await downloadPayslipDocument(payslip._id, fallback);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to download payslip document. It may not have been generated yet.');
+    }
+  };
+
+  const fetchPolicy = async () => {
+    try {
+      setPolicyLoading(true);
+      setPolicyError('');
+      const res = await axios.get('/api/payslips/policy');
+      setPolicy(res.data);
+      setPolicyDraft(res.data.pay_cycle_start_day);
+    } catch (err) {
+      setPolicyError(err.response?.data?.error || 'Failed to load payroll settings');
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
+
+  const toggleSettings = () => {
+    const next = !showSettings;
+    setShowSettings(next);
+    if (next) fetchPolicy();
+  };
+
+  const handleSavePolicy = async () => {
+    const day = parseInt(policyDraft, 10);
+    if (!day || day < 1 || day > 31) {
+      setPolicyError('Please enter a valid day between 1 and 31.');
+      return;
+    }
+    try {
+      setPolicySaving(true);
+      setPolicyError('');
+      const res = await axios.put('/api/payslips/policy', { pay_cycle_start_day: day });
+      setPolicy(res.data);
+      setPolicyDraft(res.data.pay_cycle_start_day);
+      showSuccess('Payroll settings updated.');
+    } catch (err) {
+      setPolicyError(err.response?.data?.error || 'Failed to save payroll settings');
+    } finally {
+      setPolicySaving(false);
+    }
+  };
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
@@ -439,19 +579,100 @@ export default function PayslipManagementPage() {
             Create and manage employee payslips
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          style={{
-            padding: '10px 20px', background: '#2563eb', color: 'white',
-            border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
-            cursor: 'pointer', fontSize: 14,
-          }}
-          onMouseEnter={e => e.target.style.background = '#1d4ed8'}
-          onMouseLeave={e => e.target.style.background = '#2563eb'}
-        >
-          + Create Payslip
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {canManagePolicy && (
+            <button
+              onClick={toggleSettings}
+              style={{
+                padding: '10px 20px', background: showSettings ? 'var(--border)' : 'var(--bg-secondary)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontWeight: 600,
+                cursor: 'pointer', fontSize: 14,
+              }}
+            >
+              ⚙ Payroll Settings
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            style={{
+              padding: '10px 20px', background: '#2563eb', color: 'white',
+              border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
+              cursor: 'pointer', fontSize: 14,
+            }}
+            onMouseEnter={e => e.target.style.background = '#1d4ed8'}
+            onMouseLeave={e => e.target.style.background = '#2563eb'}
+          >
+            + Create Payslip
+          </button>
+        </div>
       </div>
+
+      {/* Payroll Settings Panel */}
+      {showSettings && canManagePolicy && (
+        <div style={{
+          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: 20, marginBottom: 25,
+        }}>
+          <h3 style={{ margin: '0 0 6px 0', fontSize: 16, fontWeight: 700 }}>Payroll Settings</h3>
+          <p style={{ margin: '0 0 15px 0', fontSize: 13, color: 'var(--text-secondary)', maxWidth: 640 }}>
+            Set the day of the month the pay cycle starts on. Day 1 means a standard calendar
+            month (1st to the last day). Any other day — e.g. 26 — means the pay period runs
+            from that day of one month to one day before that same day the next month
+            (e.g. 26 Sep – 25 Oct).
+          </p>
+          {policyLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading...</div>
+          ) : (
+            <>
+              {policyError && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+                  borderRadius: 'var(--radius)', padding: 10, marginBottom: 12,
+                  color: '#dc2626', fontSize: 13,
+                }}>
+                  {policyError}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                    Pay cycle starts on day
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={policyDraft}
+                    onChange={e => setPolicyDraft(e.target.value)}
+                    style={{
+                      width: 100, padding: '8px 10px', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', fontSize: 14,
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleSavePolicy}
+                  disabled={policySaving}
+                  style={{
+                    padding: '9px 18px', background: '#2563eb', color: 'white',
+                    border: 'none', borderRadius: 'var(--radius)', fontWeight: 600,
+                    cursor: policySaving ? 'not-allowed' : 'pointer', opacity: policySaving ? 0.6 : 1,
+                    fontSize: 13,
+                  }}
+                >
+                  {policySaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              {policy && (
+                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Current setting: day {policy.pay_cycle_start_day}
+                  {policy.pay_cycle_start_day === 1 ? ' (calendar month)' : ''}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{
@@ -549,6 +770,17 @@ export default function PayslipManagementPage() {
         </div>
       )}
 
+      {/* Success */}
+      {successMsg && (
+        <div style={{
+          background: 'rgba(34, 197, 94, 0.1)', border: '1px solid #22c55e',
+          borderRadius: 'var(--radius)', padding: 15, marginBottom: 20,
+          color: '#16a34a', fontSize: 14,
+        }}>
+          ✓ {successMsg}
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
@@ -585,6 +817,11 @@ export default function PayslipManagementPage() {
                   </td>
                   <td style={{ padding: '12px 15px' }}>
                     {MONTH_NAMES[ps.month - 1]} {ps.year}
+                    {formatPeriodRange(ps.period_start, ps.period_end) && (
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        {formatPeriodRange(ps.period_start, ps.period_end)}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '12px 15px', textAlign: 'right', fontWeight: 600 }}>
                     {formatCurrency(ps.gross_salary)}
@@ -604,6 +841,9 @@ export default function PayslipManagementPage() {
                       userRole={user?.role}
                       onApprove={handleApprove}
                       onRelease={handleRelease}
+                      onGenerate={handleGenerate}
+                      onDownload={handleDownload}
+                      generating={generatingId === ps._id}
                     />
                   </td>
                 </tr>

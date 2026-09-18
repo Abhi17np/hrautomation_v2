@@ -35,10 +35,56 @@ function formatCurrency(value) {
   });
 }
 
+// Formats an ISO period_start/period_end pair into a short human range,
+// e.g. "26 Sep – 25 Oct 2026".
+function formatPeriodRange(periodStart, periodEnd) {
+  if (!periodStart || !periodEnd) return null;
+  const start = new Date(periodStart + 'T00:00:00');
+  const end = new Date(periodEnd + 'T00:00:00');
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  const startStr = start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const endStr = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${startStr} – ${endStr}`;
+}
+
+// Downloads the generated payslip document (PDF if available, else DOCX)
+// via an authenticated axios request, mirroring the blob-download pattern
+// used elsewhere in the app (see TemplatesPage.jsx).
+async function downloadPayslipDocument(payslipId, fallbackName) {
+  const res = await axios.get(`/api/payslips/${payslipId}/download`, { responseType: 'blob' });
+  const cd = res.headers && res.headers['content-disposition'];
+  const match = cd && cd.match(/filename="?([^"]+)"?/);
+  const filename = (match && match[1]) || fallbackName || 'payslip';
+  const url = URL.createObjectURL(res.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function PayslipModal({ payslip, onClose }) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+
   if (!payslip) return null;
 
   const monthName = MONTH_NAMES[payslip.month - 1];
+  const periodRange = formatPeriodRange(payslip.period_start, payslip.period_end);
+  const hasDoc = !!(payslip.docx_gridfs_id || payslip.pdf_gridfs_id);
+
+  const handleDownload = async () => {
+    try {
+      setDownloading(true);
+      setDownloadError('');
+      const fallback = `payslip_${payslip.year}_${String(payslip.month).padStart(2, '0')}`;
+      await downloadPayslipDocument(payslip._id, fallback);
+    } catch (err) {
+      setDownloadError(err.response?.data?.error || 'Failed to download payslip document.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div style={{
@@ -58,8 +104,43 @@ function PayslipModal({ payslip, onClose }) {
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 13 }}>
               {monthName} {payslip.year}
             </p>
+            {periodRange && (
+              <p style={{ margin: '2px 0 0 0', color: 'var(--text-secondary)', fontSize: 11 }}>
+                Pay period: {periodRange}
+              </p>
+            )}
           </div>
           <StatusBadge status={payslip.status} />
+        </div>
+
+        {/* Document Download */}
+        <div style={{ marginBottom: 25 }}>
+          {downloadError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+              borderRadius: 'var(--radius)', padding: 10, marginBottom: 12,
+              color: '#dc2626', fontSize: 13,
+            }}>
+              {downloadError}
+            </div>
+          )}
+          {hasDoc ? (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              style={{
+                width: '100%', padding: '10px 16px', background: '#0ea5e9', color: 'white',
+                border: 'none', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 14,
+                cursor: downloading ? 'not-allowed' : 'pointer', opacity: downloading ? 0.6 : 1,
+              }}
+            >
+              {downloading ? 'Downloading...' : '⬇ Download Payslip'}
+            </button>
+          ) : (
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              The document for this payslip has not been generated yet.
+            </p>
+          )}
         </div>
 
         {/* Employee Info */}
@@ -379,6 +460,11 @@ export default function PayslipPage() {
                   <h3 style={{ margin: '0 0 5px 0', fontSize: 16, fontWeight: 600 }}>
                     {monthName}
                   </h3>
+                  {ps && formatPeriodRange(ps.period_start, ps.period_end) && (
+                    <p style={{ margin: '0 0 6px 0', fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {formatPeriodRange(ps.period_start, ps.period_end)}
+                    </p>
+                  )}
                   {ps && <StatusBadge status={ps.status} />}
                   {!ps && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Not available</span>}
                 </div>

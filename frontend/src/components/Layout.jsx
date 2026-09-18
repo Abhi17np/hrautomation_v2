@@ -24,6 +24,7 @@ const NAV_HR = [
   { group: 'Payroll', icon: '💰', items: [
       { to: '/payslip-management', label: 'Payslips' },
   ] },
+  { to: '/support', icon: '☎', label: 'HRM Support' },
   { group: 'Organization', icon: '▣', items: [
       { to: '/organization/assets', label: 'Assets' },
       { to: '/organization/org-chart', label: 'Org Chart' },
@@ -39,6 +40,7 @@ const NAV_EMPLOYEE = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip', icon: '💰', label: 'Payslips' },
+  { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
 const NAV_MANAGER = [
@@ -51,6 +53,7 @@ const NAV_MANAGER = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip-management', icon: '💰', label: 'Payslips' },
+  { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
 const ROLE_COLOR = {

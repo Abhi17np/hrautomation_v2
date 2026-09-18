@@ -98,7 +98,7 @@ def me():
 
 
 @auth_bp.route('/users', methods=['GET'])
-@require_role('admin', 'hr_head')
+@require_role('admin', 'hr', 'hr_head')
 def list_users():
     db    = get_db()
     role  = request.args.get('role')

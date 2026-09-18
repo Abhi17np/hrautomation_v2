@@ -20,6 +20,7 @@ import PlatformAdminPage     from './pages/PlatformAdminPage';
 import AssetsPage    from './pages/AssetsPage';
 import OrgChartPage  from './pages/OrgChartPage';
 import ReportsPage   from './pages/ReportsPage';
+import HRMSupportPage from './pages/HRMSupportPage';
 
 
 import './App.css';
@@ -59,6 +60,7 @@ const PAGES = {
   '/organization/assets':    AssetsPage,
   '/organization/org-chart': OrgChartPage,
   '/organization/reports':   ReportsPage,
+  '/support': HRMSupportPage,
 };
 
 // FIX #5 (App.jsx L41): proper 404 page for unknown routes

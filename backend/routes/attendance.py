@@ -14,6 +14,27 @@ from tenant_scope import get_db
 
 attendance_bp = Blueprint('attendance', __name__)
 
+DEFAULT_ATTENDANCE_CONFIG = {'grace_minutes': 10, 'half_day_hours': 4, 'full_day_hours': 8}
+
+
+def _get_attendance_config():
+    """Same bypass as leaves.py's _get_leave_policy / payslips.py's
+    _get_payroll_policy — `companies` documents aren't tenant-scoped data
+    themselves (a company IS a tenant), so looking them up through get_db()
+    would auto-merge a tenant_id filter no company doc can ever match."""
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)}) or {}
+    config = company.get('attendance_config') or {}
+    return {
+        'grace_minutes': config.get('grace_minutes') if config.get('grace_minutes') is not None else DEFAULT_ATTENDANCE_CONFIG['grace_minutes'],
+        'half_day_hours': config.get('half_day_hours') if config.get('half_day_hours') is not None else DEFAULT_ATTENDANCE_CONFIG['half_day_hours'],
+        'full_day_hours': config.get('full_day_hours') if config.get('full_day_hours') is not None else DEFAULT_ATTENDANCE_CONFIG['full_day_hours'],
+    }
+
+
+def _parse_hhmm(s):
+    h, m = str(s).split(':')
+    return int(h), int(m)
+
 
 def _serialize(doc):
     doc['_id'] = str(doc['_id'])
@@ -542,3 +563,407 @@ def regularize_attendance(emp_id):
     )
 
     return jsonify({'message': f"Attendance regularized for {emp.get('name', 'employee')} on {date_str}"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Attendance > Configuration: policy + shifts
+# ─────────────────────────────────────────────────────────────────────────────
+
+@attendance_bp.route('/config', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head')
+def get_attendance_config():
+    return jsonify(_get_attendance_config())
+
+
+@attendance_bp.route('/config', methods=['PUT'])
+@require_role('admin', 'hr_head')
+def update_attendance_config():
+    data = request.json or {}
+    updates = {}
+    for key, (lo, hi) in (
+        ('grace_minutes', (0, 180)),
+        ('half_day_hours', (0, 24)),
+        ('full_day_hours', (0, 24)),
+    ):
+        if key in data:
+            try:
+                val = float(data[key]) if key != 'grace_minutes' else int(data[key])
+            except (TypeError, ValueError):
+                return jsonify({'error': f'{key} must be numeric'}), 400
+            if not (lo <= val <= hi):
+                return jsonify({'error': f'{key} must be between {lo} and {hi}'}), 400
+            updates[f'attendance_config.{key}'] = val
+
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+    updates['updated_at'] = datetime.utcnow()
+    current_app.db.companies.update_one({'_id': ObjectId(g.tenant_id)}, {'$set': updates})
+    return jsonify(_get_attendance_config())
+
+
+def _serialize_shift(shift):
+    shift['_id'] = str(shift['_id'])
+    return shift
+
+
+@attendance_bp.route('/shifts', methods=['GET'])
+@tenant_scoped
+def list_shifts():
+    db = get_db()
+    shifts = list(db.shifts.find({}).sort('name', 1))
+    return jsonify([_serialize_shift(s) for s in shifts])
+
+
+@attendance_bp.route('/shifts', methods=['POST'])
+@require_role('admin', 'hr', 'hr_head')
+def create_shift():
+    db = get_db()
+    data = request.json or {}
+    name = str(data.get('name', '')).strip()
+    start_time = str(data.get('start_time', '')).strip()
+    end_time = str(data.get('end_time', '')).strip()
+    if not name or not start_time or not end_time:
+        return jsonify({'error': 'name, start_time (HH:MM) and end_time (HH:MM) are required'}), 400
+    try:
+        _parse_hhmm(start_time)
+        _parse_hhmm(end_time)
+    except (ValueError, AttributeError):
+        return jsonify({'error': 'start_time and end_time must be in HH:MM format'}), 400
+
+    if db.shifts.find_one({'name': name}):
+        return jsonify({'error': f'A shift named "{name}" already exists'}), 409
+
+    grace_minutes = data.get('grace_minutes')
+    if grace_minutes is not None:
+        try:
+            grace_minutes = int(grace_minutes)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'grace_minutes must be an integer'}), 400
+
+    now = datetime.utcnow()
+    doc = {
+        'name': name,
+        'start_time': start_time,
+        'end_time': end_time,
+        'grace_minutes': grace_minutes,
+        'is_active': True,
+        'created_at': now,
+        'updated_at': now,
+    }
+    result = db.shifts.insert_one(doc)
+    doc['_id'] = result.inserted_id
+    return jsonify(_serialize_shift(doc)), 201
+
+
+@attendance_bp.route('/shifts/<shift_id>', methods=['PUT'])
+@require_role('admin', 'hr', 'hr_head')
+def update_shift(shift_id):
+    db = get_db()
+    shift = db.shifts.find_one({'_id': ObjectId(shift_id)})
+    if not shift:
+        return jsonify({'error': 'Shift not found'}), 404
+
+    data = request.json or {}
+    updates = {}
+    if 'name' in data:
+        name = str(data['name']).strip()
+        if not name:
+            return jsonify({'error': 'name cannot be empty'}), 400
+        existing = db.shifts.find_one({'name': name, '_id': {'$ne': ObjectId(shift_id)}})
+        if existing:
+            return jsonify({'error': f'A shift named "{name}" already exists'}), 409
+        updates['name'] = name
+    for key in ('start_time', 'end_time'):
+        if key in data:
+            val = str(data[key]).strip()
+            try:
+                _parse_hhmm(val)
+            except (ValueError, AttributeError):
+                return jsonify({'error': f'{key} must be in HH:MM format'}), 400
+            updates[key] = val
+    if 'grace_minutes' in data:
+        if data['grace_minutes'] is None:
+            updates['grace_minutes'] = None
+        else:
+            try:
+                updates['grace_minutes'] = int(data['grace_minutes'])
+            except (TypeError, ValueError):
+                return jsonify({'error': 'grace_minutes must be an integer'}), 400
+    if 'is_active' in data:
+        updates['is_active'] = bool(data['is_active'])
+
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+    updates['updated_at'] = datetime.utcnow()
+    db.shifts.update_one({'_id': ObjectId(shift_id)}, {'$set': updates})
+    return jsonify(_serialize_shift(db.shifts.find_one({'_id': ObjectId(shift_id)})))
+
+
+@attendance_bp.route('/shifts/<shift_id>', methods=['DELETE'])
+@require_role('admin', 'hr', 'hr_head')
+def delete_shift(shift_id):
+    db = get_db()
+    if not db.shifts.find_one({'_id': ObjectId(shift_id)}):
+        return jsonify({'error': 'Shift not found'}), 404
+
+    assigned_count = db.employees.count_documents({'shift_id': shift_id})
+    if assigned_count:
+        return jsonify({'error': f'{assigned_count} employee(s) are still assigned to this shift. Reassign them first.'}), 409
+
+    db.shifts.delete_one({'_id': ObjectId(shift_id)})
+    return jsonify({'message': 'Shift removed'})
+
+
+@attendance_bp.route('/shifts/assign-bulk', methods=['POST'])
+@require_role('admin', 'hr', 'hr_head')
+def assign_shift_bulk():
+    db = get_db()
+    data = request.json or {}
+    shift_id = data.get('shift_id')
+    employee_ids = data.get('employee_ids') or []
+    if not employee_ids:
+        return jsonify({'error': 'employee_ids array is required'}), 400
+
+    if shift_id:
+        if not db.shifts.find_one({'_id': ObjectId(shift_id)}):
+            return jsonify({'error': 'Shift not found'}), 404
+
+    updated, not_found = [], []
+    for emp_id in employee_ids:
+        try:
+            result = db.employees.update_one(
+                {'_id': ObjectId(emp_id)},
+                {'$set': {'shift_id': shift_id, 'updated_at': datetime.utcnow()}},
+            )
+            if result.matched_count:
+                updated.append(emp_id)
+            else:
+                not_found.append(emp_id)
+        except Exception:
+            not_found.append(emp_id)
+
+    return jsonify({'updated': len(updated), 'not_found': not_found})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Incident History — computed on the fly from attendance_daily + shift config
+# (late arrival, early departure, missed punch, absent). Nothing here is
+# separately stored; re-deriving it keeps it always consistent with
+# attendance_daily and shift/config edits made after the fact.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@attendance_bp.route('/incidents', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head', 'manager')
+def list_incidents():
+    db = get_db()
+
+    from_date_str = request.args.get('from')
+    to_date_str = request.args.get('to')
+    today = date.today()
+    try:
+        from_date = date.fromisoformat(from_date_str) if from_date_str else today.replace(day=1)
+        to_date = date.fromisoformat(to_date_str) if to_date_str else today
+    except ValueError:
+        return jsonify({'error': 'from/to must be YYYY-MM-DD'}), 400
+    if to_date > today:
+        to_date = today
+    if from_date > to_date:
+        return jsonify({'error': 'from must be before to'}), 400
+
+    incident_type_filter = request.args.get('type')  # late_arrival|early_departure|missed_punch|absent
+    employee_id_filter = request.args.get('employee_id')
+
+    config = _get_attendance_config()
+    default_grace = config['grace_minutes']
+
+    employees = list(db.employees.find({'status': 'active'}))
+    if employee_id_filter:
+        employees = [e for e in employees if str(e['_id']) == employee_id_filter]
+    shifts_by_id = {str(s['_id']): s for s in db.shifts.find({})}
+
+    holiday_dates = {
+        h['date'] for h in db.holidays.find({
+            'date': {'$gte': from_date.isoformat(), '$lte': to_date.isoformat()},
+        })
+    }
+
+    incidents = []
+    for emp in employees:
+        emp_id = str(emp['_id'])
+        shift = shifts_by_id.get(emp.get('shift_id'))
+
+        leaves = list(db.leave_requests.find({
+            'employee_id': emp_id,
+            'status': 'approved',
+            'from_date': {'$lte': to_date.isoformat()},
+            'to_date': {'$gte': from_date.isoformat()},
+        }))
+        leave_dates = set()
+        for lv in leaves:
+            lf = max(date.fromisoformat(lv['from_date']), from_date)
+            lt = min(date.fromisoformat(lv['to_date']), to_date)
+            cur = lf
+            while cur <= lt:
+                leave_dates.add(cur.isoformat())
+                cur += timedelta(days=1)
+
+        daily_records = {
+            r['date']: r for r in db.attendance_daily.find({
+                'employee_id': emp_id,
+                'date': {'$gte': from_date.isoformat(), '$lte': to_date.isoformat()},
+            })
+        }
+
+        cur = from_date
+        while cur <= to_date:
+            iso = cur.isoformat()
+            if cur.weekday() >= 5 or iso in holiday_dates or iso in leave_dates:
+                cur += timedelta(days=1)
+                continue
+
+            rec = daily_records.get(iso)
+            login_time = rec.get('login_time') if rec else None
+            logout_time = rec.get('logout_time') if rec else None
+
+            if not login_time and not logout_time:
+                incidents.append({
+                    'employee_id': emp_id, 'employee_name': emp.get('name'),
+                    'employee_code': emp.get('employee_id'), 'date': iso,
+                    'type': 'absent', 'detail': 'No punches recorded',
+                })
+            elif login_time and not logout_time:
+                incidents.append({
+                    'employee_id': emp_id, 'employee_name': emp.get('name'),
+                    'employee_code': emp.get('employee_id'), 'date': iso,
+                    'type': 'missed_punch', 'detail': 'Login recorded, no logout',
+                })
+            elif shift:
+                grace = shift.get('grace_minutes')
+                grace = grace if grace is not None else default_grace
+                sh, sm = _parse_hhmm(shift['start_time'])
+                eh, em = _parse_hhmm(shift['end_time'])
+                expected_start = datetime.combine(cur, datetime.min.time()).replace(hour=sh, minute=sm)
+                expected_end = datetime.combine(cur, datetime.min.time()).replace(hour=eh, minute=em)
+
+                if isinstance(login_time, datetime) and login_time > expected_start + timedelta(minutes=grace):
+                    late_by = int((login_time - expected_start).total_seconds() // 60)
+                    incidents.append({
+                        'employee_id': emp_id, 'employee_name': emp.get('name'),
+                        'employee_code': emp.get('employee_id'), 'date': iso,
+                        'type': 'late_arrival', 'detail': f'{late_by} min late (shift starts {shift["start_time"]})',
+                    })
+                if isinstance(logout_time, datetime) and logout_time < expected_end:
+                    early_by = int((expected_end - logout_time).total_seconds() // 60)
+                    incidents.append({
+                        'employee_id': emp_id, 'employee_name': emp.get('name'),
+                        'employee_code': emp.get('employee_id'), 'date': iso,
+                        'type': 'early_departure', 'detail': f'{early_by} min early (shift ends {shift["end_time"]})',
+                    })
+
+            cur += timedelta(days=1)
+
+    if incident_type_filter:
+        incidents = [i for i in incidents if i['type'] == incident_type_filter]
+
+    incidents.sort(key=lambda i: i['date'], reverse=True)
+    return jsonify({
+        'from': from_date.isoformat(),
+        'to': to_date.isoformat(),
+        'total': len(incidents),
+        'incidents': incidents,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shift Summary — per-shift adherence report for a given month
+# ─────────────────────────────────────────────────────────────────────────────
+
+@attendance_bp.route('/shift-summary', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head')
+def shift_summary():
+    db = get_db()
+
+    try:
+        year = int(request.args.get('year', date.today().year))
+        month = int(request.args.get('month', date.today().month))
+    except ValueError:
+        return jsonify({'error': 'year and month must be integers'}), 400
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    month_start = date(year, month, 1)
+    month_end = date(year, month, days_in_month)
+    today = date.today()
+    effective_end = min(month_end, today) if (year, month) <= (today.year, today.month) else month_start - timedelta(days=1)
+
+    config = _get_attendance_config()
+    default_grace = config['grace_minutes']
+
+    shifts = list(db.shifts.find({}))
+    employees = list(db.employees.find({'status': 'active', 'shift_id': {'$exists': True, '$ne': None}}))
+    employees_by_shift = {}
+    for emp in employees:
+        employees_by_shift.setdefault(emp.get('shift_id'), []).append(emp)
+
+    holiday_dates = {
+        h['date'] for h in db.holidays.find({
+            'date': {'$gte': month_start.isoformat(), '$lte': month_end.isoformat()},
+        })
+    }
+    working_dates = []
+    d = month_start
+    while d <= effective_end:
+        if d.weekday() < 5 and d.isoformat() not in holiday_dates:
+            working_dates.append(d.isoformat())
+        d += timedelta(days=1)
+
+    summary = []
+    for shift in shifts:
+        shift_id = str(shift['_id'])
+        shift_employees = employees_by_shift.get(shift_id, [])
+        grace = shift.get('grace_minutes')
+        grace = grace if grace is not None else default_grace
+        sh, sm = _parse_hhmm(shift['start_time'])
+
+        on_time, late, absent, total_slots = 0, 0, 0, 0
+        for emp in shift_employees:
+            emp_id = str(emp['_id'])
+            daily_records = {
+                r['date']: r for r in db.attendance_daily.find({
+                    'employee_id': emp_id,
+                    'date': {'$in': working_dates},
+                })
+            }
+            for wd in working_dates:
+                total_slots += 1
+                rec = daily_records.get(wd)
+                login_time = rec.get('login_time') if rec else None
+                if not login_time:
+                    absent += 1
+                elif isinstance(login_time, datetime):
+                    wd_date = date.fromisoformat(wd)
+                    expected_start = datetime.combine(wd_date, datetime.min.time()).replace(hour=sh, minute=sm)
+                    if login_time > expected_start + timedelta(minutes=grace):
+                        late += 1
+                    else:
+                        on_time += 1
+
+        summary.append({
+            'shift_id': shift_id,
+            'shift_name': shift['name'],
+            'start_time': shift['start_time'],
+            'end_time': shift['end_time'],
+            'assigned_employees': len(shift_employees),
+            'on_time': on_time,
+            'late': late,
+            'absent': absent,
+            'adherence_pct': round((on_time / total_slots) * 100, 1) if total_slots else None,
+        })
+
+    return jsonify({
+        'year': year,
+        'month': month,
+        'working_days': len(working_dates),
+        'shifts': summary,
+    })

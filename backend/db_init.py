@@ -107,6 +107,15 @@ SCHEMAS = {
                             "pay_cycle_start_day": {"bsonType": ["int", "null"]},
                         }
                     },
+                    "attendance_config": {
+                        "bsonType": "object",
+                        "description": "Per-tenant attendance policy used to compute incidents/adherence",
+                        "properties": {
+                            "grace_minutes":    {"bsonType": ["int", "null"], "description": "Minutes after shift start still counted on-time, defaults to 10"},
+                            "half_day_hours":   {"bsonType": ["double", "int", "null"], "description": "Hours worked below this counts as a half day, defaults to 4"},
+                            "full_day_hours":   {"bsonType": ["double", "int", "null"], "description": "Hours worked at/above this counts as a full day, defaults to 8"},
+                        }
+                    },
                     "contact_name":  {"bsonType": ["string", "null"]},
                     "contact_email": {"bsonType": ["string", "null"]},
                     "contact_phone": {"bsonType": ["string", "null"]},
@@ -185,6 +194,7 @@ SCHEMAS = {
                         "enum": ["active", "notice_period", "clearance_pending", "clearance_complete", "exited", "inactive"],
                         "description": "Employment lifecycle status"
                     },
+                    "shift_id":         {"bsonType": ["string", "null"], "description": "Assigned shift's ObjectId as a string; null = no shift assigned"},
                     "exit_date":        {"bsonType": ["string", "null"]},
                     "deactivated_by":   {"bsonType": ["string", "null"]},
                     "deactivated_at":   {"bsonType": ["string", "null"]},
@@ -648,6 +658,28 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── shifts ─────────────────────────────────────────────────────────────
+    # Attendance > Configuration: named work shifts assignable to employees
+    "shifts": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "name", "start_time", "end_time", "created_at"],
+                "properties": {
+                    "tenant_id":     {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "name":          {"bsonType": "string", "description": "e.g. 'General Shift', 'Night Shift'"},
+                    "start_time":    {"bsonType": "string", "description": "HH:MM, 24-hour"},
+                    "end_time":      {"bsonType": "string", "description": "HH:MM, 24-hour"},
+                    "grace_minutes": {"bsonType": ["int", "null"], "description": "Overrides company-wide default when set"},
+                    "is_active":     {"bsonType": "bool"},
+                    "created_at":    {"bsonType": "date"},
+                    "updated_at":    {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
 }
 
 
@@ -699,6 +731,10 @@ INDEXES = {
         {"keys": [("tenant_id", ASCENDING), ("code", ASCENDING)], "unique": True, "name": "idx_leavetypes_tenant_code_unique"},
         {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_leavetypes_tenant_active"},
     ],
+    "shifts": [
+        {"keys": [("tenant_id", ASCENDING), ("name", ASCENDING)], "unique": True, "name": "idx_shifts_tenant_name_unique"},
+        {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_shifts_tenant_active"},
+    ],
     "users": [
         {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},
         {"keys": [("role", ASCENDING)],  "name": "idx_users_role"},
@@ -710,6 +746,7 @@ INDEXES = {
         {"keys": [("email", ASCENDING)],  "sparse": True, "name": "idx_employees_email"},
         {"keys": [("name", ASCENDING)],   "name": "idx_employees_name"},
         {"keys": [("created_at", DESCENDING)], "name": "idx_employees_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("shift_id", ASCENDING)], "sparse": True, "name": "idx_employees_tenant_shift"},
     ],
     "templates": [
         {"keys": [("type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_templates_type_active"},

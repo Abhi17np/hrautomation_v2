@@ -564,7 +564,7 @@ SCHEMAS = {
     },
 
     # ── attendance_punches ─────────────────────────────────────────────────
-    # Raw biometric punch events, deduped by employee+timestamp
+    # Raw punch events (biometric or web login), deduped by employee+timestamp
     "attendance_punches": {
         "validator": {
             "$jsonSchema": {
@@ -573,7 +573,40 @@ SCHEMAS = {
                 "properties": {
                     "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id": {"bsonType": "string"},
+                    "source":      {"bsonType": "string", "enum": ["biometric", "web"]},
                     "timestamp":   {"bsonType": ["date", "string"]},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── assets ─────────────────────────────────────────────────────────────
+    # Organization > Assets: company equipment inventory
+    "assets": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "name", "category", "status", "created_at"],
+                "properties": {
+                    "tenant_id":     {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "name":          {"bsonType": "string"},
+                    "category": {
+                        "bsonType": "string",
+                        "enum": ["laptop", "monitor", "phone", "peripheral", "furniture", "vehicle", "other"],
+                    },
+                    "serial_number": {"bsonType": "string"},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["available", "assigned", "maintenance", "retired"],
+                    },
+                    "assigned_to":   {"bsonType": ["string", "null"], "description": "Employee ObjectId as a string"},
+                    "assigned_date": {"bsonType": ["date", "null"]},
+                    "purchase_date": {"bsonType": ["string", "null"]},
+                    "notes":         {"bsonType": "string"},
+                    "created_by":    {"bsonType": "string"},
+                    "created_at":    {"bsonType": "date"},
+                    "updated_at":    {"bsonType": "date"},
                 }
             }
         },
@@ -621,6 +654,11 @@ INDEXES = {
     ],
     "sync_state": [
         {"keys": [("tenant_id", ASCENDING), ("key", ASCENDING)], "unique": True, "name": "idx_syncstate_tenant_key_unique"},
+    ],
+    "assets": [
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)], "name": "idx_assets_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("assigned_to", ASCENDING)], "name": "idx_assets_tenant_assigned"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_assets_tenant_created_desc"},
     ],
     "users": [
         {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},

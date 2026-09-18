@@ -1,6 +1,6 @@
 # HR Automation Platform
 
-This repository contains a full-stack HR automation system for managing employee records, leave requests, approval workflows, appointment/offer letters, document handling, and biometric attendance synchronization.
+This repository contains a full-stack, **multi-tenant** HR automation system for managing employee records, leave requests, approval workflows, appointment/offer letters, document handling, attendance (web login + biometric), asset tracking, and org reporting — built to be run as a SaaS product serving multiple customer organizations ("tenants") from one deployment.
 
 The project is composed of three main parts:
 
@@ -49,14 +49,14 @@ The frontend is a React application served on port 3000 in development mode.
 It provides pages for:
 - Dashboard
 - Employees
-- Templates
-- Letters
+- Onboarding (Templates, Offer Letters, Appointment Orders)
 - Approvals
-- Exit management
-- Appointment workflow
-- Documents
+- Exit & Relieving
 - Leave tracking and management
-- Attendance
+- Attendance (Web Login self-punch, Biometric device sync, Holidays)
+- Payroll (Payslips)
+- Organization (Assets, Org Chart, Reports)
+- Platform admin (`#/platform`, separate from the tenant app — see section 10)
 
 Main frontend entry point:
 - [frontend/src/App.jsx](frontend/src/App.jsx)
@@ -99,9 +99,15 @@ Main sync entry point:
 - Submit documents for review
 - Track document-related workflows
 
-### Attendance Sync
-- Poll attendance punches from a connected biometric device
-- Store results in MySQL for downstream reporting or integration
+### Attendance
+- Self-service web login punch in/out (any employee, from the browser)
+- Biometric device sync (eSSL/ZKTeco) — polled and merged with web punches into one daily record
+- Holiday calendar management
+
+### Organization
+- Asset inventory: register equipment and assign/unassign it to employees
+- Org chart: read-only reporting-line tree built from employee records
+- Reports hub: quick-glance attendance/leave/payroll summaries linking to full detail views
 
 ---
 
@@ -178,15 +184,17 @@ Before running the project, make sure you have:
 ## 7. Environment Setup
 
 ### Backend
-Create a file named `.env` in the backend folder with values such as:
+Copy `backend/.env.example` to `backend/.env` and fill in real values:
 
 ```env
-JWT_SECRET_KEY=change-this-secret
 MONGO_URI=mongodb://localhost:27017/hr_offer_letters
+JWT_SECRET_KEY=change-this-secret
+ALLOWED_ORIGINS=http://localhost:3000
+FLASK_ENV=development
 PORT=5050
 ```
 
-You can also configure additional environment variables if needed for your deployment.
+`JWT_SECRET_KEY` and `ALLOWED_ORIGINS` (a comma-separated list of frontend origins allowed to call the API) are **required** when `FLASK_ENV=production` — the app refuses to start without them rather than falling back to an insecure default. In development, missing values fall back to permissive defaults with a startup warning.
 
 ### Biometric Sync
 The device and database settings are stored in [biometric_sync/config.py](biometric_sync/config.py). You can override them with environment variables such as:
@@ -258,28 +266,52 @@ Examples include:
 - `/api/letters` for letter generation
 - `/api/approvals` for approval workflows
 - `/api/leave`/`/api/leaves` for leave processing
-- `/api/attendance` for attendance APIs
+- `/api/attendance` for attendance APIs (including `/api/attendance/web-punch` for self-service check-in/out)
 - `/api/appointment-orders` for appointment order workflows
+- `/api/assets` for asset inventory
+- `/api/platform` for platform-admin tenant provisioning (separate auth, see section 10)
 
 ---
 
-## 10. Important Notes
+## 10. Multi-Tenancy & Platform Admin
+
+Every piece of data (employees, leave, payslips, documents, attendance, assets, etc.) is scoped to a **tenant** (a `companies` document) via a `tenant_id` field, enforced by a query wrapper (`backend/tenant_scope.py`) so route code can't accidentally leak data across tenants.
+
+**Logging in** now requires a company code in addition to email/password — `POST /api/auth/login` takes `{company, email, password}`, where `company` is the tenant's `slug`.
+
+**Provisioning a new tenant** is done by a platform (super-admin) account, not by tenant users self-signing-up:
+
+1. Bootstrap your own platform-admin account once:
+   ```bash
+   cd backend
+   python scripts/create_platform_admin.py --email you@yourcompany.com --name "Your Name"
+   ```
+2. Log in at `#/platform` in the frontend (a page outside the normal tenant app and nav) using that account.
+3. Create a new company there — it takes the company name, a login slug, and the first admin user's credentials for that tenant.
+
+**Migrating existing single-company data**: if you're upgrading a pre-multi-tenant database, run `python backend/scripts/backfill_tenant.py` once (after `python backend/db_init.py`) to turn the existing dataset into "tenant zero" and convert the relevant indexes — see the script's docstring for details.
+
+---
+
+## 11. Important Notes
 
 - The app uses JWT-based authentication, so a strong secret key should be configured in production.
 - Replace default credentials and secrets before deploying to a real environment.
 - The biometric sync service depends on the device being reachable and the MySQL schema being prepared.
 - Local file storage for templates and generated documents is under the backend storage directories.
+- `docker-compose.yml` includes a local `mongo` service for development; production deployments should point `MONGO_URI` at a managed/hosted MongoDB instead.
 
 ---
 
-## 11. Summary
+## 12. Summary
 
-This project is a practical HR automation platform covering the core needs of an HR department:
+This project is a practical, multi-tenant HR automation platform covering the core needs of an HR department, deployable as a SaaS product for multiple customer organizations:
 
-- Manage employees
+- Manage employees, onboarding, and organization structure (assets, org chart, reports)
 - Generate and review letters
 - Approve employee lifecycle workflows
 - Track leave requests
-- Monitor attendance through a connected biometric device
+- Monitor attendance via web login and a connected biometric device
+- Process payroll
 
 It is suitable for local development, internal demos, and further customization for production use.

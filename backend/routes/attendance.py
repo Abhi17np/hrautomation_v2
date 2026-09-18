@@ -70,6 +70,91 @@ def my_attendance():
     return jsonify([_serialize(r) for r in records])
 
 
+# ─── Web login punch — self-service check-in/out from the browser ───────────
+# A second punch source alongside the biometric device: every punch is stored
+# in the same attendance_punches collection (tagged source='web' vs the
+# device sync's implicit 'biometric'), and rolled into attendance_daily via
+# the same recompute logic essl_sync uses, so a day's hours reflect whichever
+# source(s) actually recorded punches for it.
+@attendance_bp.route('/web-punch', methods=['POST'])
+@tenant_scoped
+def web_punch():
+    db = get_db()
+    user = g.caller
+    if not user or not user.get('employee_ref'):
+        return jsonify({'error': 'No employee record linked to this account'}), 400
+    employee_id = user['employee_ref']
+
+    now = datetime.utcnow()
+    today_str = now.date().isoformat()
+
+    todays_punches = list(db.attendance_punches.find({
+        'employee_id': employee_id,
+        'timestamp': {'$gte': datetime.combine(now.date(), datetime.min.time())},
+    }).sort('timestamp', 1))
+    action = 'in' if len(todays_punches) % 2 == 0 else 'out'
+
+    db.attendance_punches.insert_one({
+        'employee_id': employee_id,
+        'device_uid': None,
+        'source': 'web',
+        'action': action,
+        'timestamp': now,
+        'synced_at': now,
+    })
+
+    from services.essl_sync import _recompute_day
+    _recompute_day(db, employee_id, today_str)
+
+    day = db.attendance_daily.find_one({'employee_id': employee_id, 'date': today_str})
+    return jsonify({'action': action, 'day': _serialize(day) if day else None})
+
+
+@attendance_bp.route('/web-punch/today', methods=['GET'])
+@tenant_scoped
+def web_punch_today():
+    db = get_db()
+    user = g.caller
+    if not user or not user.get('employee_ref'):
+        return jsonify({'error': 'No employee record linked to this account'}), 400
+    employee_id = user['employee_ref']
+    today_str = date.today().isoformat()
+
+    punches = list(db.attendance_punches.find({
+        'employee_id': employee_id, 'source': 'web',
+        'timestamp': {'$gte': datetime.combine(date.today(), datetime.min.time())},
+    }).sort('timestamp', 1))
+    day = db.attendance_daily.find_one({'employee_id': employee_id, 'date': today_str})
+    next_action = 'in' if len(punches) % 2 == 0 else 'out'
+    return jsonify({
+        'next_action': next_action,
+        'punches': [_serialize(p) for p in punches],
+        'day': _serialize(day) if day else None,
+    })
+
+
+@attendance_bp.route('/web-punches/today', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head')
+def web_punches_today():
+    db = get_db()
+    start_of_day = datetime.combine(date.today(), datetime.min.time())
+    punches = list(db.attendance_punches.find({
+        'source': 'web', 'timestamp': {'$gte': start_of_day},
+    }).sort('timestamp', -1))
+
+    emp_ids = list({p['employee_id'] for p in punches})
+    emps = {str(e['_id']): e for e in db.employees.find({'_id': {'$in': [ObjectId(i) for i in emp_ids]}})} if emp_ids else {}
+
+    rows = []
+    for p in punches:
+        emp = emps.get(p['employee_id'])
+        row = _serialize(p)
+        row['employee_name'] = emp.get('name', 'Unknown') if emp else 'Unknown'
+        row['employee_code'] = emp.get('employee_id', '') if emp else ''
+        rows.append(row)
+    return jsonify(rows)
+
+
 # ─── HR: one employee's history ──────────────────────────────────────────────
 @attendance_bp.route('/employee/<emp_id>', methods=['GET'])
 @require_role('admin', 'hr', 'hr_head', 'manager')

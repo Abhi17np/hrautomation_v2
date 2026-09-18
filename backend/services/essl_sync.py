@@ -181,6 +181,7 @@ def sync_now(app, full_resync=False, tenant_id=None):
         db.attendance_punches.insert_one({
             'employee_id': emp_id,
             'device_uid': device_uid,
+            'source': 'biometric',
             'timestamp': ts,
             'synced_at': datetime.utcnow(),
         })

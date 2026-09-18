@@ -17,6 +17,9 @@ import AttendancePage      from './pages/AttendancePage';
 import PayslipPage         from './pages/PayslipPage';
 import PayslipManagementPage from './pages/PayslipManagementPage';
 import PlatformAdminPage     from './pages/PlatformAdminPage';
+import AssetsPage    from './pages/AssetsPage';
+import OrgChartPage  from './pages/OrgChartPage';
+import ReportsPage   from './pages/ReportsPage';
 
 
 import './App.css';
@@ -46,8 +49,13 @@ const PAGES = {
   '/leave-tracker':   LeaveTrackerPage,      // <-- add: employee & manager
   '/leave-management': LeaveManagementPage,
   '/attendance': AttendancePage,
+  '/attendance/web-login': () => <AttendancePage initialView="weblogin" />,
+  '/attendance/holidays':  () => <AttendancePage initialView="holidays" />,
   '/payslip': PayslipPage,
   '/payslip-management': PayslipManagementPage,
+  '/organization/assets':    AssetsPage,
+  '/organization/org-chart': OrgChartPage,
+  '/organization/reports':   ReportsPage,
 };
 
 // FIX #5 (App.jsx L41): proper 404 page for unknown routes

@@ -143,6 +143,64 @@ function TodayBoard({ tab, setTab }) {
   );
 }
 
+// ─── Employee self-service punch widget (web login attendance source) ──────
+
+function PunchWidget() {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [punching, setPunching] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/attendance/web-punch/today')
+      .then(r => setStatus(r.data))
+      .catch(() => setStatus(null))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const punch = async () => {
+    setPunching(true);
+    try {
+      const r = await axios.post('/api/attendance/web-punch');
+      setToast(r.data.action === 'in' ? 'Punched in — have a great day!' : 'Punched out — see you tomorrow!');
+      setTimeout(() => setToast(''), 3500);
+      load();
+    } catch (e) {
+      setToast(e.response?.data?.error || 'Punch failed');
+      setTimeout(() => setToast(''), 3500);
+    } finally {
+      setPunching(false);
+    }
+  };
+
+  const nextAction = status?.next_action || 'in';
+
+  return (
+    <div className="card" style={{ padding: '18px 22px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Web Login Attendance</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+          {loading ? 'Loading…' : status?.day
+            ? <>Today: {fmtTime(status.day.login_time)} — {fmtTime(status.day.logout_time)} · {fmtHours(status.day.hours_worked)}</>
+            : 'No punches recorded yet today.'}
+        </div>
+        {toast && <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 4 }}>{toast}</div>}
+      </div>
+      <button
+        className={`btn ${nextAction === 'in' ? 'btn-primary' : 'btn-secondary'}`}
+        onClick={punch}
+        disabled={loading || punching}
+        style={{ padding: '11px 24px', fontSize: 13.5 }}
+      >
+        {punching ? 'Recording…' : nextAction === 'in' ? '→ Punch In' : '⇤ Punch Out'}
+      </button>
+    </div>
+  );
+}
+
 // ─── Employee view: personal history ─────────────────────────────────────────
 
 function MyAttendance() {
@@ -160,7 +218,9 @@ function MyAttendance() {
   if (loading) return <div className="page-loading"><div className="spinner" /></div>;
 
   return (
-    <div className="card">
+    <div>
+      <PunchWidget />
+      <div className="card">
       <div className="table-wrap">
         <table>
           <thead><tr>
@@ -184,6 +244,7 @@ function MyAttendance() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
@@ -566,21 +627,161 @@ function MonthlySummary({ tab, setTab }) {
   );
 }
 
-// ─── Top-level page: routes by role ──────────────────────────────────────────
+// ─── HR: Web Login board — today's self-service punches across employees ────
 
-export default function AttendancePage() {
+function WebLoginBoard() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/attendance/web-punches/today')
+      .then(r => setRows(r.data || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="card">
+      {loading ? (
+        <div className="page-loading"><div className="spinner" /></div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Action</th><th>Time</th></tr></thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr><td colSpan={3}>
+                  <div className="empty-state">
+                    <div className="empty-icon">◷</div>
+                    <p>No web check-ins yet today.</p>
+                  </div>
+                </td></tr>
+              ) : rows.map(r => (
+                <tr key={r._id}>
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{r.employee_name}</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>{r.employee_code}</div>
+                  </td>
+                  <td><span className={`badge ${r.action === 'in' ? 'badge-green' : 'badge-gray'}`}>{r.action === 'in' ? 'Punched In' : 'Punched Out'}</span></td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>{fmtTime(r.timestamp)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HR: standalone Holidays manager (reachable directly from the sidebar) ──
+
+function HolidaysBoard() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newDate, setNewDate] = useState('');
+  const [newName, setNewName] = useState('');
+  const [toast, setToast] = useState('');
+
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/attendance/holidays', { params: { year } })
+      .then(r => setHolidays(r.data || []))
+      .catch(() => setHolidays([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [year]);
+
+  const addHoliday = async () => {
+    if (!newDate || !newName.trim()) return notify('Enter both a date and a name for the holiday.');
+    try {
+      await axios.post('/api/attendance/holidays', { date: newDate, name: newName.trim() });
+      notify(`Holiday "${newName}" added.`);
+      setNewDate(''); setNewName(''); load();
+    } catch { notify('Failed to add holiday.'); }
+  };
+
+  const removeHoliday = async (id) => {
+    try {
+      await axios.delete(`/api/attendance/holidays/${id}`);
+      notify('Holiday removed.'); load();
+    } catch { notify('Failed to remove holiday.'); }
+  };
+
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i);
+
+  return (
+    <div>
+      {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+        <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ maxWidth: 110 }}>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+      <div className="card" style={{ padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Add a holiday</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={{ maxWidth: 170 }} />
+          <input placeholder="Holiday name (e.g. Independence Day)" value={newName} onChange={e => setNewName(e.target.value)} style={{ maxWidth: 260 }} />
+          <button className="btn btn-primary btn-sm" onClick={addHoliday}>+ Add Holiday</button>
+        </div>
+      </div>
+      <div className="card">
+        {loading ? (
+          <div className="page-loading"><div className="spinner" /></div>
+        ) : holidays.length === 0 ? (
+          <div className="empty-state"><div className="empty-icon">⚑</div><p>No holidays added for {year} yet.</p></div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 16 }}>
+            {holidays.map(h => (
+              <div key={h._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6 }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-dim)', width: 100 }}>{h.date}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{h.name}</span>
+                <button className="btn btn-sm btn-secondary" onClick={() => removeHoliday(h._id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Top-level page: routes by role and sidebar sub-view ────────────────────
+
+export default function AttendancePage({ initialView = 'biometric' }) {
   const { user } = useAuth();
   const isHR = ['admin', 'hr', 'hr_head'].includes(user?.role);
-  const [tab, setTab] = useState('today'); // 'today' | 'management'
+  const [tab, setTab] = useState('today'); // 'today' | 'management' (biometric view only)
+
+  const TITLES = { biometric: 'Attendance', weblogin: 'Web Login Attendance', holidays: 'Holidays' };
+
+  if (!isHR) {
+    // Employees/managers only ever land on the default route — the sidebar's
+    // Web Login/Biometric/Holidays grouping is an HR/admin view; employees
+    // self-punch directly from MyAttendance instead (see PunchWidget above).
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>My Attendance</div>
+        <MyAttendance />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>
-        {isHR ? 'Attendance' : 'My Attendance'}
-      </div>
-      {isHR
-        ? (tab === 'today' ? <TodayBoard tab={tab} setTab={setTab} /> : <MonthlySummary tab={tab} setTab={setTab} />)
-        : <MyAttendance />}
+      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>{TITLES[initialView]}</div>
+      {initialView === 'weblogin' ? <WebLoginBoard />
+        : initialView === 'holidays' ? <HolidaysBoard />
+        : (tab === 'today' ? <TodayBoard tab={tab} setTab={setTab} /> : <MonthlySummary tab={tab} setTab={setTab} />)}
     </div>
   );
 }

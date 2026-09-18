@@ -5,14 +5,27 @@ import { useAuth } from '../context/AuthContext';
 const NAV_HR = [
   { to: '/', icon: '⊞', label: 'Dashboard' },
   { to: '/employees', icon: '◎', label: 'Employees' },
-  { to: '/templates', icon: '⌘', label: 'Templates' },
-  { to: '/letters', icon: '⧉', label: 'Offer Letters' },
-  { to: '/appointment', icon: '◈', label: 'Appointment Orders' },
+  { group: 'Onboarding', icon: '⌘', items: [
+      { to: '/templates', label: 'Templates' },
+      { to: '/letters', label: 'Offer Letters' },
+      { to: '/appointment', label: 'Appointment Orders' },
+  ] },
   { to: '/approvals', icon: '✓', label: 'Approvals' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
-  { to: '/leave-management', icon: '▤' , label: 'Leave Management' },
-  { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip-management', icon: '💰', label: 'Payslips' },
+  { to: '/leave-management', icon: '▤', label: 'Leave Management' },
+  { group: 'Attendance', icon: '◷', items: [
+      { to: '/attendance/web-login', label: 'Web Login' },
+      { to: '/attendance', label: 'Biometric' },
+      { to: '/attendance/holidays', label: 'Holidays' },
+  ] },
+  { group: 'Payroll', icon: '💰', items: [
+      { to: '/payslip-management', label: 'Payslips' },
+  ] },
+  { group: 'Organization', icon: '▣', items: [
+      { to: '/organization/assets', label: 'Assets' },
+      { to: '/organization/org-chart', label: 'Org Chart' },
+      { to: '/organization/reports', label: 'Reports' },
+  ] },
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
@@ -104,6 +117,54 @@ function NavLink({ to, icon, label, currentPath, badge }) {
         </span>
       )}
     </button>
+  );
+}
+
+// ─── NavGroup — collapsible section with sub-items ─────────────────────────
+function NavGroup({ group, icon, items, currentPath }) {
+  const containsActive = items.some(it => it.to === currentPath);
+  const [open, setOpen] = useState(containsActive);
+
+  // Auto-expand when navigation lands on one of this group's items.
+  useEffect(() => { if (containsActive) setOpen(true); }, [containsActive]);
+
+  return (
+    <div style={{ marginBottom: 1 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+          padding: '11px 12px', borderRadius: 12,
+          fontSize: 13, fontWeight: containsActive ? 600 : 500,
+          color: containsActive ? '#3E7BFA' : '#8A94A6',
+          background: 'transparent', border: 'none',
+          transition: 'background .15s, color .15s', cursor: 'pointer', textAlign: 'left',
+        }}
+        onMouseEnter={e => { if (!containsActive) e.currentTarget.style.background = '#F0F5FE'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        <span style={{
+          width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 13, flexShrink: 0, opacity: containsActive ? 1 : 0.7,
+        }}>
+          {icon}
+        </span>
+        <span style={{ flex: 1 }}>{group}</span>
+        <span style={{
+          fontSize: 10, color: '#AEB7C4', flexShrink: 0,
+          transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s',
+        }}>
+          ›
+        </span>
+      </button>
+      {open && (
+        <div style={{ marginLeft: 18, borderLeft: '1.5px solid #EEF1F6', paddingLeft: 6 }}>
+          {items.map(item => (
+            <NavLink key={item.to} {...item} currentPath={currentPath} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -708,7 +769,9 @@ export default function Layout({ children, currentPath }) {
           }}>
             Menu
           </div>
-          {NAV.map(item => (
+          {NAV.map(item => item.group ? (
+            <NavGroup key={item.group} {...item} currentPath={currentPath} />
+          ) : (
             <NavLink
               key={item.to}
               {...item}

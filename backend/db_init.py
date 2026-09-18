@@ -658,6 +658,57 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── support_tickets ────────────────────────────────────────────────────
+    # HRM Support: employee-raised helpdesk queries to HR (payroll, IT,
+    # policy, leave/attendance, general), tracked through to resolution.
+    "support_tickets": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "ticket_no", "raised_by", "subject", "status", "created_at"],
+                "properties": {
+                    "tenant_id":      {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "ticket_no":      {"bsonType": "string", "description": "e.g. TCK-0001"},
+                    "raised_by":      {"bsonType": "string", "description": "User ObjectId as a string"},
+                    "raised_by_name": {"bsonType": "string"},
+                    "employee_ref":   {"bsonType": ["string", "null"]},
+                    "subject":        {"bsonType": "string"},
+                    "description":    {"bsonType": "string"},
+                    "category": {
+                        "bsonType": "string",
+                        "enum": ["payroll", "it", "hr_policy", "leave_attendance", "general"],
+                    },
+                    "priority": {
+                        "bsonType": "string",
+                        "enum": ["low", "medium", "high"],
+                    },
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["open", "in_progress", "resolved", "closed"],
+                    },
+                    "assigned_to":  {"bsonType": ["string", "null"], "description": "HR/admin user ObjectId as a string"},
+                    "comments": {
+                        "bsonType": "array",
+                        "items": {
+                            "bsonType": "object",
+                            "properties": {
+                                "user_id":    {"bsonType": "string"},
+                                "user_name":  {"bsonType": "string"},
+                                "role":       {"bsonType": "string"},
+                                "message":    {"bsonType": "string"},
+                                "created_at": {"bsonType": "date"},
+                            }
+                        }
+                    },
+                    "created_at":   {"bsonType": "date"},
+                    "updated_at":   {"bsonType": "date"},
+                    "resolved_at":  {"bsonType": ["date", "null"]},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── shifts ─────────────────────────────────────────────────────────────
     # Attendance > Configuration: named work shifts assignable to employees
     "shifts": {
@@ -734,6 +785,12 @@ INDEXES = {
     "shifts": [
         {"keys": [("tenant_id", ASCENDING), ("name", ASCENDING)], "unique": True, "name": "idx_shifts_tenant_name_unique"},
         {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_shifts_tenant_active"},
+    ],
+    "support_tickets": [
+        {"keys": [("tenant_id", ASCENDING), ("ticket_no", ASCENDING)], "unique": True, "name": "idx_supporttickets_tenant_ticketno_unique"},
+        {"keys": [("tenant_id", ASCENDING), ("raised_by", ASCENDING)], "name": "idx_supporttickets_tenant_raisedby"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)], "name": "idx_supporttickets_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_supporttickets_tenant_created_desc"},
     ],
     "users": [
         {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},

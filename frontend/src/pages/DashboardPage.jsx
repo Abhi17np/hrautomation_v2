@@ -293,6 +293,96 @@ function AlertBanner({ icon, title, sub, color, btnLabel, btnColor, onBtn }) {
   );
 }
 
+// ─── Birthdays & Anniversaries widget ──────────────────────────────────────────
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function fmtMonthDay(month, day) {
+  if (!month || !day) return '—';
+  const label = MONTH_SHORT[month - 1];
+  return label ? `${label} ${day}` : `${day}/${month}`;
+}
+
+function ordinal(n) {
+  const v = Number(n) || 0;
+  const rem100 = v % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${v}th`;
+  switch (v % 10) {
+    case 1: return `${v}st`;
+    case 2: return `${v}nd`;
+    case 3: return `${v}rd`;
+    default: return `${v}th`;
+  }
+}
+
+function WishItem({ item }) {
+  const isBirthday = item.type === 'birthday';
+  const icon = isBirthday ? '🎂' : '🎉';
+  const isToday = item.days_until === 0;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '9px 4px',
+      borderBottom: '1px solid #F5F7FA',
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 10, flexShrink: 0, fontSize: 15,
+        background: isBirthday ? '#ECF2FE' : '#F1EEFC',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#232B3A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.name}
+        </div>
+        <div style={{ fontSize: 11.5, color: '#8A94A6', marginTop: 1 }}>
+          {isBirthday ? 'Birthday' : `${ordinal(item.years)} Work Anniversary`}
+        </div>
+      </div>
+      {isToday ? (
+        <span style={{
+          fontSize: 10.5, fontWeight: 700, color: '#27AE60', background: '#E9F8F0',
+          borderRadius: 99, padding: '3px 10px', flexShrink: 0, whiteSpace: 'nowrap',
+        }}>Today!</span>
+      ) : (
+        <span style={{ fontSize: 11.5, color: '#8A94A6', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {fmtMonthDay(item.month, item.day)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BirthdaysWidget() {
+  const [wishes, setWishes] = useState({ today: [], upcoming: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get('/api/employees/wishes')
+      .then(r => setWishes({ today: r.data?.today || [], upcoming: r.data?.upcoming || [] }))
+      .catch(() => setWishes({ today: [], upcoming: [] }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const { today, upcoming } = wishes;
+  const isEmpty = !loading && today.length === 0 && upcoming.length === 0;
+
+  return (
+    <Card style={{ padding: '22px 24px' }}>
+      <SectionTitle>Birthdays &amp; Anniversaries</SectionTitle>
+      {loading ? (
+        <div style={{ fontSize: 12.5, color: '#8A94A6', padding: '10px 4px' }}>Loading…</div>
+      ) : isEmpty ? (
+        <EmptyState icon="🔔" title="Nothing coming up" sub="No birthdays or work anniversaries in the next few days." />
+      ) : (
+        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {today.map(item => <WishItem key={`${item.employee_id}-${item.type}`} item={item} />)}
+          {upcoming.map(item => <WishItem key={`${item.employee_id}-${item.type}`} item={item} />)}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HR HEAD / ADMIN DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -432,6 +522,11 @@ function HRDashboard({ user }) {
             ))}
           </div>
         </Card>
+      </div>
+
+      {/* ── Birthdays & Anniversaries ── */}
+      <div style={{ marginBottom: 20 }}>
+        <BirthdaysWidget />
       </div>
 
       {/* ── Pending Resignations ── */}
@@ -598,6 +693,11 @@ function ManagerDashboard({ user }) {
           />
         )}
       </Card>
+
+      {/* ── Birthdays & Anniversaries ── */}
+      <div style={{ marginBottom: 20 }}>
+        <BirthdaysWidget />
+      </div>
 
       {/* ── Exit Pipeline ── */}
       {exitPipeline.length > 0 && (
@@ -875,6 +975,11 @@ function EmployeeDashboard({ user }) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Birthdays & Anniversaries ── */}
+      <div style={{ marginTop: 16 }}>
+        <BirthdaysWidget />
       </div>
 
       {/* ── Quick actions ── */}

@@ -984,6 +984,112 @@ function AddModal({ onClose, onDone }) {
   );
 }
 
+// ─── Bulk Upload Employees Modal ──────────────────────────────────────────────
+function BulkUploadModal({ onClose, onDone }) {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null); // { message, imported, errors }
+
+  const downloadTemplate = async () => {
+    setDownloading(true); setError('');
+    try {
+      const r = await axios.get('/api/employees/bulk-upload/template', { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([r.data]));
+      const a = document.createElement('a'); a.href = url; a.download = 'employee_bulk_upload_template.xlsx'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Template download failed');
+    } finally { setDownloading(false); }
+  };
+
+  const upload = async () => {
+    if (!file) return;
+    setUploading(true); setError(''); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await axios.post('/api/employees/bulk-upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setResult(r.data || { imported: 0, errors: [] });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed');
+    } finally { setUploading(false); }
+  };
+
+  // Closing after a completed upload (even a partial one) should refresh the list.
+  const handleClose = () => { result ? onDone() : onClose(); };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 className="modal-title" style={{ margin: 0 }}>Bulk Upload Employees</h2>
+          <button className="btn-icon" onClick={handleClose}>✕</button>
+        </div>
+
+        {error && <div className="alert alert-error">{error}</div>}
+
+        {!result ? (
+          <>
+            <div className="form-group">
+              <label className="form-label">Step 1 — Download the template</label>
+              <div>
+                <button type="button" className="btn btn-secondary" onClick={downloadTemplate} disabled={downloading}>
+                  {downloading ? 'Preparing…' : '↓ Download Template'}
+                </button>
+              </div>
+              <small style={{ color: 'var(--text-dim)', marginTop: 6, display: 'block' }}>
+                Fill in employee rows below the example row (Name and Designation are required), then upload the file.
+              </small>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Step 2 — Upload filled file (.xlsx or .csv)</label>
+              <input type="file" accept=".xlsx,.csv" onChange={e => setFile(e.target.files?.[0] || null)} />
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={handleClose}>Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={!file || uploading} onClick={upload}>
+                {uploading ? 'Uploading…' : '⇪ Upload'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div>
+            <div className="alert alert-success" style={{ marginBottom: 12 }}>
+              {result.imported} employee{result.imported === 1 ? '' : 's'} imported.
+            </div>
+            {result.errors && result.errors.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 8, fontFamily: 'var(--mono)' }}>
+                  {result.errors.length} row{result.errors.length === 1 ? '' : 's'} skipped
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 12px', background: 'var(--surface-2)' }}>
+                  {result.errors.map((e, i) => (
+                    <div key={i} style={{
+                      fontSize: 12, padding: '8px 0',
+                      borderBottom: i < result.errors.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      Row {e.row}: {e.error}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modal-footer">
+              <button type="button" className="btn btn-primary" onClick={handleClose}>Done</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main EmployeesPage ───────────────────────────────────────────────────────
 export default function EmployeesPage() {
   const { user } = useAuth();
@@ -996,6 +1102,7 @@ export default function EmployeesPage() {
   const [filterStatus, setFilter] = useState('all');
   const [profileEmp, setProfileEmp] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editEmp, setEditEmp] = useState(null);
   const [success, setSuccess] = useState('');
 
@@ -1045,7 +1152,10 @@ export default function EmployeesPage() {
           <p className="page-subtitle">{counts.all} total · {counts.active} active{counts.exiting > 0 ? ` · ${counts.exiting} exiting` : ''}{counts.exited > 0 ? ` · ${counts.exited} left` : ''}</p>
         </div>
         {canManage && (
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Employee</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => setShowBulkUpload(true)}>⇪ Bulk Upload</button>
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Employee</button>
+          </div>
         )}
       </div>
 
@@ -1101,6 +1211,10 @@ export default function EmployeesPage() {
 
       {showAdd && (
         <AddModal onClose={() => setShowAdd(false)} onDone={(msg) => { setShowAdd(false); notify(msg); }} />
+      )}
+
+      {showBulkUpload && (
+        <BulkUploadModal onClose={() => setShowBulkUpload(false)} onDone={() => { setShowBulkUpload(false); notify('Bulk upload complete.'); }} />
       )}
 
       {editEmp && (

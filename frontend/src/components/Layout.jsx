@@ -17,6 +17,9 @@ const NAV_HR = [
       { to: '/attendance/web-login', label: 'Web Login' },
       { to: '/attendance', label: 'Biometric' },
       { to: '/attendance/holidays', label: 'Holidays' },
+      { to: '/attendance/incidents', label: 'Incident History' },
+      { to: '/attendance/configuration', label: 'Configuration' },
+      { to: '/attendance/shift-summary', label: 'Shift Summary' },
   ] },
   { group: 'Payroll', icon: '💰', items: [
       { to: '/payslip-management', label: 'Payslips' },

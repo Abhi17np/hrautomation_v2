@@ -755,6 +755,518 @@ function HolidaysBoard() {
   );
 }
 
+// ─── HR: Shift add/edit modal (used by ConfigurationBoard) ──────────────────
+
+function ShiftFormModal({ shift, onClose, onSaved, notify }) {
+  const [name, setName] = useState(shift?.name || '');
+  const [startTime, setStartTime] = useState(shift?.start_time || '');
+  const [endTime, setEndTime] = useState(shift?.end_time || '');
+  const [graceMinutes, setGraceMinutes] = useState(shift?.grace_minutes ?? '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setError('');
+    if (!name.trim()) return setError('Shift name is required.');
+    if (!startTime || !endTime) return setError('Start and end time are required.');
+    setSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        start_time: startTime,
+        end_time: endTime,
+        grace_minutes: graceMinutes === '' ? null : Number(graceMinutes),
+      };
+      if (shift) {
+        await axios.put(`/api/attendance/shifts/${shift._id}`, payload);
+        notify(`Shift "${name}" updated.`);
+      } else {
+        await axios.post('/api/attendance/shifts', payload);
+        notify(`Shift "${name}" created.`);
+      }
+      onSaved();
+    } catch (e) {
+      if (e.response?.status === 409) setError('A shift with this name already exists.');
+      else setError(e.response?.data?.error || 'Could not save shift.');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h3 className="modal-title" style={{ margin: 0 }}>{shift ? 'Edit Shift' : 'Add Shift'}</h3>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ padding: '4px 9px' }}>✕</button>
+        </div>
+
+        {error && <div className="alert alert-error" style={{ marginBottom: 14 }}>{error}</div>}
+
+        <div className="form-group">
+          <label className="form-label">Shift name *</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Morning Shift" />
+        </div>
+
+        <div className="form-row" style={{ margin: '14px 0' }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Start time *</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">End time *</label>
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Grace period override (minutes)</label>
+          <input type="number" min="0" value={graceMinutes}
+            onChange={e => setGraceMinutes(e.target.value)}
+            placeholder="Leave blank to use policy default" />
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>
+            {saving ? 'Saving…' : shift ? 'Save Changes' : 'Add Shift'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── HR: Configuration — attendance policy, shifts, bulk shift assignment ───
+
+function ConfigurationBoard() {
+  const [config, setConfig] = useState({ grace_minutes: '', half_day_hours: '', full_day_hours: '' });
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configSaving, setConfigSaving] = useState(false);
+
+  const [shifts, setShifts] = useState([]);
+  const [shiftsLoading, setShiftsLoading] = useState(true);
+  const [shiftModal, setShiftModal] = useState(null); // null | 'new' | shift object
+
+  const [employees, setEmployees] = useState([]);
+  const [assignShiftId, setAssignShiftId] = useState('');
+  const [selectedEmpIds, setSelectedEmpIds] = useState([]);
+  const [assigning, setAssigning] = useState(false);
+  const [empSearch, setEmpSearch] = useState('');
+
+  const [toast, setToast] = useState('');
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+  const loadConfig = () => {
+    setConfigLoading(true);
+    axios.get('/api/attendance/config')
+      .then(r => setConfig(r.data))
+      .catch(() => notify('Failed to load attendance policy.'))
+      .finally(() => setConfigLoading(false));
+  };
+
+  const loadShifts = () => {
+    setShiftsLoading(true);
+    axios.get('/api/attendance/shifts')
+      .then(r => setShifts(r.data || []))
+      .catch(() => setShifts([]))
+      .finally(() => setShiftsLoading(false));
+  };
+
+  const loadEmployees = () => {
+    axios.get('/api/employees/')
+      .then(r => setEmployees((r.data || []).filter(e => e.status === 'active')))
+      .catch(() => setEmployees([]));
+  };
+
+  useEffect(() => { loadConfig(); loadShifts(); loadEmployees(); }, []);
+
+  const saveConfig = async () => {
+    setConfigSaving(true);
+    try {
+      const r = await axios.put('/api/attendance/config', {
+        grace_minutes: Number(config.grace_minutes),
+        half_day_hours: Number(config.half_day_hours),
+        full_day_hours: Number(config.full_day_hours),
+      });
+      setConfig(r.data);
+      notify('Attendance policy updated.');
+    } catch (e) {
+      notify(e.response?.data?.error || 'Failed to save policy.');
+    } finally { setConfigSaving(false); }
+  };
+
+  const deleteShift = async (shift) => {
+    if (!window.confirm(`Delete shift "${shift.name}"? This cannot be undone.`)) return;
+    try {
+      await axios.delete(`/api/attendance/shifts/${shift._id}`);
+      notify(`Shift "${shift.name}" deleted.`);
+      loadShifts();
+    } catch (e) {
+      if (e.response?.status === 409) notify(e.response.data?.error || 'Employees are still assigned to this shift.');
+      else notify('Failed to delete shift.');
+    }
+  };
+
+  const toggleActive = async (shift) => {
+    try {
+      await axios.put(`/api/attendance/shifts/${shift._id}`, { is_active: !shift.is_active });
+      loadShifts();
+    } catch {
+      notify('Failed to update shift.');
+    }
+  };
+
+  const toggleEmp = (id) => {
+    setSelectedEmpIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const doAssign = async (unassign) => {
+    if (selectedEmpIds.length === 0) return notify('Select at least one employee.');
+    if (!unassign && !assignShiftId) return notify('Select a shift to assign.');
+    setAssigning(true);
+    try {
+      const r = await axios.post('/api/attendance/shifts/assign-bulk', {
+        shift_id: unassign ? null : assignShiftId,
+        employee_ids: selectedEmpIds,
+      });
+      notify(`${r.data.updated} employee(s) ${unassign ? 'unassigned' : 'assigned'}.`);
+      setSelectedEmpIds([]);
+    } catch {
+      notify('Failed to update shift assignment.');
+    } finally { setAssigning(false); }
+  };
+
+  const filteredEmployees = employees.filter(e =>
+    !empSearch ||
+    e.name?.toLowerCase().includes(empSearch.toLowerCase()) ||
+    e.employee_id?.toLowerCase().includes(empSearch.toLowerCase())
+  );
+
+  return (
+    <div>
+      {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}
+
+      {/* Attendance Policy */}
+      <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Attendance Policy</div>
+        {configLoading ? (
+          <div className="page-loading"><div className="spinner" /></div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 640 }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Grace period (minutes)</label>
+                <input type="number" min="0" value={config.grace_minutes ?? ''}
+                  onChange={e => setConfig(c => ({ ...c, grace_minutes: e.target.value }))} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Half-day threshold (hours)</label>
+                <input type="number" min="0" step="0.5" value={config.half_day_hours ?? ''}
+                  onChange={e => setConfig(c => ({ ...c, half_day_hours: e.target.value }))} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Full-day threshold (hours)</label>
+                <input type="number" min="0" step="0.5" value={config.full_day_hours ?? ''}
+                  onChange={e => setConfig(c => ({ ...c, full_day_hours: e.target.value }))} />
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={saveConfig} disabled={configSaving}>
+              {configSaving ? 'Saving…' : 'Save Policy'}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Shifts */}
+      <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Shifts</div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShiftModal('new')}>+ Add Shift</button>
+        </div>
+        {shiftsLoading ? (
+          <div className="page-loading"><div className="spinner" /></div>
+        ) : shifts.length === 0 ? (
+          <div className="empty-state"><div className="empty-icon">◷</div><p>No shifts defined yet.</p></div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Name</th><th>Time</th><th>Grace</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody>
+                {shifts.map(s => (
+                  <tr key={s._id}>
+                    <td style={{ fontWeight: 500 }}>{s.name}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>{s.start_time}–{s.end_time}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>
+                      {s.grace_minutes === null || s.grace_minutes === undefined ? 'Uses default' : `${s.grace_minutes} min`}
+                    </td>
+                    <td><span className={`badge ${s.is_active ? 'badge-green' : 'badge-gray'}`}>{s.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setShiftModal(s)}>✎ Edit</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => toggleActive(s)}>
+                          {s.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => deleteShift(s)}>✕ Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk shift assignment */}
+      <div className="card" style={{ padding: '18px 22px' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Assign Employees to a Shift</div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={assignShiftId} onChange={e => setAssignShiftId(e.target.value)} style={{ maxWidth: 220 }}>
+            <option value="">Select a shift…</option>
+            {shifts.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+          </select>
+          <input placeholder="Search employees…" value={empSearch} onChange={e => setEmpSearch(e.target.value)} style={{ maxWidth: 220 }} />
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-primary btn-sm" onClick={() => doAssign(false)} disabled={assigning}>
+            {assigning ? 'Working…' : `Assign (${selectedEmpIds.length})`}
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => doAssign(true)} disabled={assigning}>
+            Unassign Selected
+          </button>
+        </div>
+        <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+          {filteredEmployees.length === 0 ? (
+            <div className="empty-state"><div className="empty-icon">◎</div><p>No employees found.</p></div>
+          ) : filteredEmployees.map(e => (
+            <label key={e._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={selectedEmpIds.includes(e._id)} onChange={() => toggleEmp(e._id)} />
+              <span style={{ flex: 1 }}>{e.name}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>{e.employee_id}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {shiftModal && (
+        <ShiftFormModal
+          shift={shiftModal === 'new' ? null : shiftModal}
+          onClose={() => setShiftModal(null)}
+          onSaved={() => { setShiftModal(null); loadShifts(); }}
+          notify={notify}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── HR: Incident History — late arrivals, early departures, missed punches, absences ──
+
+const INCIDENT_TYPE_CFG = {
+  late_arrival: { label: 'Late Arrival', cls: 'badge-amber' },
+  early_departure: { label: 'Early Departure', cls: 'badge-amber' },
+  missed_punch: { label: 'Missed Punch', cls: 'badge-red' },
+  absent: { label: 'Absent', cls: 'badge-red' },
+};
+
+function monthStartStr() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+function IncidentHistoryBoard() {
+  const [from, setFrom] = useState(monthStartStr());
+  const [to, setTo] = useState(todayStr());
+  const [type, setType] = useState('');
+  const [data, setData] = useState({ incidents: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState('');
+
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+  const load = () => {
+    setLoading(true);
+    const params = { from, to };
+    if (type) params.type = type;
+    axios.get('/api/attendance/incidents', { params })
+      .then(r => setData(r.data || { incidents: [], total: 0 }))
+      .catch(() => notify('Failed to load incidents.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const incidents = data.incidents || [];
+
+  return (
+    <div>
+      {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div className="card" style={{ padding: '14px 20px', flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Total Incidents</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{data.total ?? 0}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ maxWidth: 170 }} />
+        <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>to</span>
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ maxWidth: 170 }} />
+        <select value={type} onChange={e => setType(e.target.value)} style={{ maxWidth: 190 }}>
+          <option value="">All Types</option>
+          <option value="late_arrival">Late Arrival</option>
+          <option value="early_departure">Early Departure</option>
+          <option value="missed_punch">Missed Punch</option>
+          <option value="absent">Absent</option>
+        </select>
+        <button className="btn btn-primary btn-sm" onClick={load}>Apply</button>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <div className="page-loading"><div className="spinner" /></div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Date</th><th>Employee</th><th>Type</th><th>Detail</th>
+              </tr></thead>
+              <tbody>
+                {incidents.length === 0 ? (
+                  <tr><td colSpan={4}>
+                    <div className="empty-state">
+                      <div className="empty-icon">◷</div>
+                      <p>No incidents in this date range.</p>
+                    </div>
+                  </td></tr>
+                ) : incidents.map((inc, i) => {
+                  const cfg = INCIDENT_TYPE_CFG[inc.type] || { label: inc.type, cls: 'badge-gray' };
+                  return (
+                    <tr key={`${inc.employee_id}-${inc.date}-${inc.type}-${i}`}>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>{inc.date}</td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{inc.employee_name}</div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>{inc.employee_code}</div>
+                      </td>
+                      <td><span className={`badge ${cfg.cls}`}>{cfg.label}</span></td>
+                      <td style={{ fontSize: 13 }}>{inc.detail || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── HR: Shift Summary — per-shift adherence for a given month ──────────────
+
+function adherenceColor(pct) {
+  if (pct === null || pct === undefined) return { bg: 'var(--surface-2)', color: 'var(--text-dim)' };
+  if (pct >= 90) return { bg: 'var(--green-dim)', color: 'var(--green)' };
+  if (pct >= 75) return { bg: '#fffbeb', color: '#d97706' };
+  return { bg: 'var(--red-dim)', color: 'var(--red)' };
+}
+
+function ShiftSummaryBoard() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState('');
+
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/attendance/shift-summary', { params: { year, month } })
+      .then(r => setData(r.data))
+      .catch(() => notify('Failed to load shift summary.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [year, month]);
+
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i);
+  const shifts = data?.shifts || [];
+
+  return (
+    <div>
+      {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div className="card" style={{ padding: '14px 20px', flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Working Days</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{data?.working_days ?? '—'}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ maxWidth: 160 }}>
+          {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+        </select>
+        <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ maxWidth: 110 }}>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="page-loading"><div className="spinner" /></div></div>
+      ) : shifts.length === 0 ? (
+        <div className="card"><div className="empty-state"><div className="empty-icon">◷</div><p>No shift data for this month.</p></div></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {shifts.map(s => {
+            const ac = adherenceColor(s.adherence_pct);
+            return (
+              <div key={s.shift_id} className="card" style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{s.shift_name}</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-dim)' }}>{s.start_time}–{s.end_time}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Assigned</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{s.assigned_employees}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>On Time</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>{s.on_time}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Late</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#d97706' }}>{s.late}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Absent</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>{s.absent}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontFamily: 'var(--mono)' }}>Adherence</div>
+                      <div style={{
+                        display: 'inline-block', padding: '2px 10px', borderRadius: 99,
+                        fontSize: 13, fontWeight: 700, background: ac.bg, color: ac.color,
+                      }}>
+                        {s.adherence_pct === null || s.adherence_pct === undefined ? '—' : `${s.adherence_pct.toFixed(1)}%`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Top-level page: routes by role and sidebar sub-view ────────────────────
 
 export default function AttendancePage({ initialView = 'biometric' }) {
@@ -762,7 +1274,10 @@ export default function AttendancePage({ initialView = 'biometric' }) {
   const isHR = ['admin', 'hr', 'hr_head'].includes(user?.role);
   const [tab, setTab] = useState('today'); // 'today' | 'management' (biometric view only)
 
-  const TITLES = { biometric: 'Attendance', weblogin: 'Web Login Attendance', holidays: 'Holidays' };
+  const TITLES = {
+    biometric: 'Attendance', weblogin: 'Web Login Attendance', holidays: 'Holidays',
+    incidents: 'Incident History', configuration: 'Configuration', shiftsummary: 'Shift Summary',
+  };
 
   if (!isHR) {
     // Employees/managers only ever land on the default route — the sidebar's
@@ -781,6 +1296,9 @@ export default function AttendancePage({ initialView = 'biometric' }) {
       <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>{TITLES[initialView]}</div>
       {initialView === 'weblogin' ? <WebLoginBoard />
         : initialView === 'holidays' ? <HolidaysBoard />
+        : initialView === 'incidents' ? <IncidentHistoryBoard />
+        : initialView === 'configuration' ? <ConfigurationBoard />
+        : initialView === 'shiftsummary' ? <ShiftSummaryBoard />
         : (tab === 'today' ? <TodayBoard tab={tab} setTab={setTab} /> : <MonthlySummary tab={tab} setTab={setTab} />)}
     </div>
   );

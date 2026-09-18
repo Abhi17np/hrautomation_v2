@@ -1,5 +1,13 @@
 version: '3.9'
 services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -7,6 +15,8 @@ services:
       - "5050:5050"
     env_file:
       - ./backend/.env
+    depends_on:
+      - mongo
     volumes:
       - ./backend/storage:/app/storage
       - ./backend:/app
@@ -18,3 +28,6 @@ services:
       - "3000:80"
     depends_on:
       - backend
+
+volumes:
+  mongo_data:

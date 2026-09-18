@@ -4,34 +4,50 @@ from flask_jwt_extended import JWTManager
 from pymongo import MongoClient
 from datetime import timedelta
 import os
-import os
-from datetime import timedelta
+import sys
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 
-
-
 app = Flask(__name__)
 app.url_map.strict_slashes = False
-CORS(app,
-     resources={r"/api/*": {"origins": "*"}},
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-app.config['JWT_SECRET_KEY']            = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-prod')
+# Multi-tenant SaaS: each customer org's frontend runs on its own origin, so
+# CORS must be an explicit allow-list, not '*' — a wildcard would let any
+# website read another tenant's API responses via the browser. Set
+# ALLOWED_ORIGINS in .env as a comma-separated list, e.g.
+#   ALLOWED_ORIGINS=https://app.example.com,http://localhost:3000
+_allowed_origins_env = os.getenv('ALLOWED_ORIGINS', '')
+ALLOWED_ORIGINS = [o.strip() for o in _allowed_origins_env.split(',') if o.strip()]
+if not ALLOWED_ORIGINS:
+    # Local dev default only — production deployments must set ALLOWED_ORIGINS.
+    ALLOWED_ORIGINS = ['http://localhost:3000']
+    if os.getenv('FLASK_ENV') == 'production':
+        print('[app.py] FATAL: ALLOWED_ORIGINS must be set in production (comma-separated origins).', flush=True)
+        sys.exit(1)
+
+CORS(app,
+     resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=True)
+
+_jwt_secret = os.getenv('JWT_SECRET_KEY')
+if not _jwt_secret:
+    if os.getenv('FLASK_ENV') == 'production':
+        print('[app.py] FATAL: JWT_SECRET_KEY must be set in production — refusing to start '
+              'with an insecure default secret.', flush=True)
+        sys.exit(1)
+    print('[app.py] WARNING: JWT_SECRET_KEY not set — using an insecure dev-only default. '
+          'Set JWT_SECRET_KEY in backend/.env before deploying.', flush=True)
+    _jwt_secret = 'dev-secret-change-in-prod'
+
+app.config['JWT_SECRET_KEY']            = _jwt_secret
 app.config['JWT_ACCESS_TOKEN_EXPIRES']  = timedelta(hours=8)
 app.config['STORAGE_ROOT']              = os.path.join(os.getcwd(), 'storage')
 app.config['UPLOAD_FOLDER']             = os.path.join(os.getcwd(), 'storage')
 app.config['MONGO_URI']                 = os.getenv('MONGO_URI', 'mongodb://localhost:27017/hr_offer_letters')
-
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
-    return response
 
 for d in ['templates', 'letters', 'documents', 'previews']:
     os.makedirs(os.path.join(app.config['STORAGE_ROOT'], d), exist_ok=True)
@@ -39,6 +55,9 @@ for d in ['templates', 'letters', 'documents', 'previews']:
 jwt    = JWTManager(app)
 client = MongoClient(app.config['MONGO_URI'])
 app.db = client.hr_offer_letters
+
+from extensions import limiter
+limiter.init_app(app)
 
 from routes.auth               import auth_bp
 from routes.employees          import employees_bp
@@ -51,6 +70,7 @@ from routes.documents          import documents_bp
 from routes.leaves             import leaves_bp
 from routes.attendance         import attendance_bp
 from routes.payslips           import payslips_bp
+from routes.platform           import platform_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
@@ -63,6 +83,7 @@ app.register_blueprint(documents_bp,          url_prefix='/api/documents')
 app.register_blueprint(leaves_bp,             url_prefix='/api/leaves')
 app.register_blueprint(attendance_bp,         url_prefix='/api/attendance')
 app.register_blueprint(payslips_bp,           url_prefix='/api/payslips')
+app.register_blueprint(platform_bp,           url_prefix='/api/platform')
 
 @app.route('/')
 def index():
@@ -77,6 +98,12 @@ def not_found(e):    return {'error': 'Not found'}, 404
 
 @app.errorhandler(500)
 def server_error(e): return {'error': 'Internal server error'}, 500
+
+from tenant_scope import TenantMismatchError
+
+@app.errorhandler(TenantMismatchError)
+def tenant_mismatch(e):
+    return {'error': 'Request referenced a different tenant than your session'}, 400
 
 # ── TEST ONLY — remove before production ─────────────────────────────────────
 # from flask import jsonify

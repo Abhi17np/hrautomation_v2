@@ -1,10 +1,13 @@
-from flask import Blueprint, request, jsonify, current_app, send_file
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, send_file, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
 from io import BytesIO
 import os, re, uuid, gridfs
 from docx import Document
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 templates_bp = Blueprint('templates', __name__)
 
@@ -30,17 +33,10 @@ def serialize(t):
     return t
 
 
-def _get_caller(db, uid):
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
-
 @templates_bp.route('/', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def list_templates():
-    db        = current_app.db
+    db        = get_db()
     tmpl_type = request.args.get('type')
     query     = {'type': tmpl_type} if tmpl_type else {}
     tmpl      = list(db.templates.find(query).sort('created_at', -1))
@@ -48,17 +44,17 @@ def list_templates():
 
 
 @templates_bp.route('/<tid>', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def get_template(tid):
-    db = current_app.db
+    db = get_db()
     t  = db.templates.find_one({'_id': ObjectId(tid)})
     return jsonify(serialize(t)) if t else (jsonify({'error': 'Not found'}), 404)
 
 
 @templates_bp.route('/upload', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def upload():
-    db   = current_app.db
+    db   = get_db()
     uid  = get_jwt_identity()
     file = request.files.get('file')
     if not file:
@@ -104,14 +100,9 @@ def upload():
 
 
 @templates_bp.route('/<tid>/toggle', methods=['POST'])
-@jwt_required()
+@require_role('admin')
 def toggle(tid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') != 'admin':
-        return jsonify({'error': 'Admin only'}), 403
+    db = get_db()
     t = db.templates.find_one({'_id': ObjectId(tid)})
     if not t:
         return jsonify({'error': 'Not found'}), 404
@@ -121,9 +112,9 @@ def toggle(tid):
 
 
 @templates_bp.route('/<tid>/download', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def download(tid):
-    db = current_app.db
+    db = get_db()
     t  = db.templates.find_one({'_id': ObjectId(tid)})
     if not t:
         return jsonify({'error': 'Not found'}), 404
@@ -145,16 +136,11 @@ def download(tid):
 
 
 @templates_bp.route('/<tid>', methods=['DELETE'])
-@jwt_required()
+@require_role(*DELETE_ROLES)
 def delete_template(tid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-
-    caller, err = _get_caller(db, uid)
-    if err: return err
-
-    if caller.get('role') not in DELETE_ROLES:
-        return jsonify({'error': 'Only Admin or HR Head can delete templates'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     t = db.templates.find_one({'_id': ObjectId(tid)})
     if not t:

@@ -1,8 +1,11 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
 import csv, io
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 employees_bp = Blueprint('employees', __name__)
 
@@ -15,7 +18,7 @@ def serialize(emp):
 
 def _next_emp_id(db):
     counter = db.counters.find_one_and_update(
-        {'_id': 'employee'},
+        {'name': 'employee_id'},
         {'$inc': {'seq': 1}},
         upsert=True,
         return_document=True,
@@ -23,17 +26,10 @@ def _next_emp_id(db):
     return f"EMP{str(counter['seq']).zfill(3)}"
 
 
-def _get_caller(db, uid):
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
-
 @employees_bp.route('/', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def list_employees():
-    db     = current_app.db
+    db     = get_db()
     status = request.args.get('status')
     query  = {}
     if status:
@@ -63,19 +59,15 @@ def list_employees():
 
 
 @employees_bp.route('/me/step1', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def save_step1():
     """
     Employee submits Step 1 personal info form.
     Saves full form under step1_data on the employee record,
     and syncs key fields to root level for the employee card.
     """
-    db  = current_app.db
-    uid = get_jwt_identity()
-
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+    db   = get_db()
+    user = g.caller
 
     emp_ref = user.get('employee_ref')
     if not emp_ref:
@@ -116,9 +108,9 @@ def save_step1():
 
 
 @employees_bp.route('/bulk-upload', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def bulk_upload():
-    db   = current_app.db
+    db   = get_db()
     file = request.files.get('file')
     if not file:
         return jsonify({'error': 'No file provided'}), 400
@@ -137,9 +129,9 @@ def bulk_upload():
 
 
 @employees_bp.route('/<emp_id>', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def get_employee(emp_id):
-    db  = current_app.db
+    db  = get_db()
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
         return jsonify({'error': 'Not found'}), 404
@@ -147,9 +139,9 @@ def get_employee(emp_id):
 
 
 @employees_bp.route('/', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def create_employee():
-    db   = current_app.db
+    db   = get_db()
     data = request.json or {}
     if not data.get('name') or not data.get('designation'):
         return jsonify({'error': 'name and designation are required'}), 400
@@ -162,15 +154,10 @@ def create_employee():
 
 
 @employees_bp.route('/<emp_id>', methods=['PUT'])
-@jwt_required()
+@require_role('admin')
 def update_employee(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') != 'admin':
-        return jsonify({'error': 'Only Admin can edit employee records'}), 403
+    db     = get_db()
+    caller = g.caller
 
     data = request.json or {}
     data.pop('_id', None)
@@ -180,16 +167,11 @@ def update_employee(emp_id):
 
 
 @employees_bp.route('/<emp_id>', methods=['DELETE'])
-@jwt_required()
+@require_role(*DELETE_ROLES)
 def delete_employee(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-
-    caller, err = _get_caller(db, uid)
-    if err: return err
-
-    if caller.get('role') not in DELETE_ROLES:
-        return jsonify({'error': 'Only Admin or HR Head can delete employee records'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -222,15 +204,11 @@ def delete_employee(emp_id):
 
 
 @employees_bp.route('/<emp_id>/deactivate', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr_head')
 def deactivate_employee(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-
-    if caller.get('role') not in ('admin', 'hr_head'):
-        return jsonify({'error': 'Only Admin or HR Head can deactivate employees'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -259,16 +237,11 @@ def deactivate_employee(emp_id):
     return jsonify({'message': 'Employee deactivated. Login access revoked.'})
 
 @employees_bp.route('/<emp_id>/activate', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr_head')
 def activate_employee(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-
-    caller, err = _get_caller(db, uid)
-    if err: return err
-
-    if caller.get('role') not in ('admin', 'hr_head'):
-        return jsonify({'error': 'Only Admin or HR Head can activate employees'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -296,9 +269,9 @@ def activate_employee(emp_id):
 # ── Exit workflow routes ──────────────────────────────────────────────────────
 
 @employees_bp.route('/<emp_id>/exit', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def record_exit(emp_id):
-    db   = current_app.db
+    db   = get_db()
     data = request.json or {}
     emp  = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -333,9 +306,9 @@ def record_exit(emp_id):
 
 
 @employees_bp.route('/<emp_id>/clearance', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def update_clearance(emp_id):
-    db   = current_app.db
+    db   = get_db()
     data = request.json or {}
     emp  = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:

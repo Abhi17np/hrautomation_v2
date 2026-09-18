@@ -33,10 +33,13 @@ Approval routing is unchanged from v1:
   HR Head / Admin: additionally decide manager-routed requests.
 """
 
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 leaves_bp = Blueprint('leaves', __name__)
 
@@ -59,13 +62,6 @@ CATEGORY_RULES = {
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _caller(db, uid):
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
 
 def _s(doc):
     doc['_id'] = str(doc['_id'])
@@ -339,11 +335,10 @@ def _this_year_summary(cat_doc, lp_used_this_year):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @leaves_bp.route('/my-summary', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def my_summary():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
     emp_ref = u.get('employee_ref')
     if not emp_ref:
         return jsonify({'error': 'No employee record linked to this account'}), 400
@@ -365,23 +360,21 @@ def my_summary():
 
 
 @leaves_bp.route('/my-requests', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def my_requests():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
     emp_ref = u.get('employee_ref', '__none__')
     reqs = list(db.leave_requests.find({'employee_id': emp_ref}).sort('created_at', -1))
     return jsonify([_enrich_request(r, db) for r in reqs])
 
 
 @leaves_bp.route('/preview', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def preview_leave():
     """Live paid/LP split preview, called by the Apply form before submit."""
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
     emp_ref = u.get('employee_ref')
     if not emp_ref:
         return jsonify({'error': 'No employee record linked to this account'}), 400
@@ -424,11 +417,11 @@ def preview_leave():
 
 
 @leaves_bp.route('/apply', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def apply_leave():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db  = get_db()
+    uid = get_jwt_identity()
+    u   = g.caller
     emp_ref = u.get('employee_ref')
     if not emp_ref:
         return jsonify({'error': 'No employee record linked to this account'}), 400
@@ -531,11 +524,11 @@ def apply_leave():
 
 
 @leaves_bp.route('/<rid>/cancel', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def cancel_request(rid):
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db  = get_db()
+    uid = get_jwt_identity()
+    u   = g.caller
     r = db.leave_requests.find_one({'_id': ObjectId(rid)})
     if not r: return jsonify({'error': 'Not found'}), 404
     if r.get('employee_id') != u.get('employee_ref'):
@@ -554,13 +547,10 @@ def cancel_request(rid):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @leaves_bp.route('/team-pending', methods=['GET'])
-@jwt_required()
+@require_role('manager', 'hr_head', 'admin')
 def team_pending():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('manager', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
+    u  = g.caller
     mgr_emp_ref = u.get('employee_ref', '')
     team_ids = [str(e['_id']) for e in db.employees.find({'manager_id': mgr_emp_ref})]
     reqs = list(db.leave_requests.find({'employee_id': {'$in': team_ids}, 'status': 'pending_manager'}).sort('created_at', -1))
@@ -579,11 +569,11 @@ def _decide_request(db, u, rid, expected_status, allow_roles):
 
 
 @leaves_bp.route('/<rid>/manager-action', methods=['POST'])
-@jwt_required()
+@require_role('manager', 'hr_head', 'admin')
 def manager_action(rid):
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db  = get_db()
+    uid = get_jwt_identity()
+    u   = g.caller
 
     r, derr = _decide_request(db, u, rid, 'pending_manager', ('manager', 'hr_head', 'admin'))
     if derr: return derr
@@ -627,13 +617,9 @@ def manager_action(rid):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @leaves_bp.route('/all', methods=['GET'])
-@jwt_required()
+@require_role('hr', 'hr_head', 'admin')
 def all_requests():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
     query = {}
     if request.args.get('status'):
         query['status'] = request.args.get('status')
@@ -644,12 +630,12 @@ def all_requests():
 
 
 @leaves_bp.route('/<rid>/hr-head-action', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def hr_head_action(rid):
     """HR Head/Admin decide requests routed to them. Plain 'hr' never approves."""
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db  = get_db()
+    uid = get_jwt_identity()
+    u   = g.caller
 
     r, derr = _decide_request(db, u, rid, 'pending_hr_head', ('hr_head', 'admin'))
     if derr: return derr
@@ -676,13 +662,9 @@ def hr_head_action(rid):
 
 
 @leaves_bp.route('/balances', methods=['GET'])
-@jwt_required()
+@require_role('hr', 'hr_head', 'admin')
 def all_balances():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
 
     year = int(request.args.get('year', datetime.now().year))
     out = []
@@ -701,13 +683,9 @@ def all_balances():
 
 
 @leaves_bp.route('/balances/<emp_id>/adjust', methods=['POST'])
-@jwt_required()
+@require_role('hr', 'hr_head', 'admin')
 def adjust_balance(emp_id):
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
 
     data = request.json or {}
     year = int(data.get('year', datetime.now().year))
@@ -746,25 +724,17 @@ def adjust_balance(emp_id):
 
 
 @leaves_bp.route('/notifications', methods=['GET'])
-@jwt_required()
+@require_role('hr', 'hr_head', 'admin')
 def notifications():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
     notes = list(db.leave_notifications.find({'target_role': 'hr'}).sort('created_at', -1).limit(100))
     unread = sum(1 for n in notes if not n.get('read'))
     return jsonify({'notifications': [_s(n) for n in notes], 'unread_count': unread})
 
 
 @leaves_bp.route('/notifications/mark-read', methods=['POST'])
-@jwt_required()
+@require_role('hr', 'hr_head', 'admin')
 def mark_notifications_read():
-    db, uid = current_app.db, get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-    if u.get('role') not in ('hr', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
     db.leave_notifications.update_many({'target_role': 'hr', 'read': False}, {'$set': {'read': True}})
     return jsonify({'message': 'Marked as read'})

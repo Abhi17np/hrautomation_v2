@@ -40,14 +40,84 @@ MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/hr_offer_letters')
 
 SCHEMAS = {
 
+    # ── platform_admins ────────────────────────────────────────────────────
+    # SaaS operator accounts. NOT tenant data — no tenant_id field, disjoint
+    # from `users`, authenticated separately via /api/platform/login.
+    "platform_admins": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["name", "email", "password", "created_at"],
+                "properties": {
+                    "name":       {"bsonType": "string"},
+                    "email":      {"bsonType": "string"},
+                    "password":   {"bsonType": "binData"},
+                    "created_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── companies ──────────────────────────────────────────────────────────
+    # Tenants of the SaaS platform. Every other collection's documents belong
+    # to exactly one company via tenant_id (= this collection's _id as a string).
+    "companies": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["name", "slug", "status", "created_at"],
+                "properties": {
+                    "name":   {"bsonType": "string", "description": "Display name"},
+                    "slug":   {"bsonType": "string", "description": "URL-safe unique identifier, used at login"},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["active", "suspended", "trial"],
+                        "description": "Tenant lifecycle state",
+                    },
+                    "plan":   {"bsonType": "string", "description": "e.g. 'basic', 'pro' — free text, no billing engine yet"},
+                    "branding": {
+                        "bsonType": "object",
+                        "properties": {
+                            "logo_url":              {"bsonType": ["string", "null"]},
+                            "primary_color":         {"bsonType": ["string", "null"]},
+                            "company_display_name":  {"bsonType": ["string", "null"]},
+                        }
+                    },
+                    "leave_policy": {
+                        "bsonType": "object",
+                        "description": "Placeholder — populated in the leave-management phase",
+                        "properties": {
+                            "leave_year_start_month": {"bsonType": ["int", "null"], "description": "1-12, defaults to 1 (Jan)"},
+                        }
+                    },
+                    "payroll_config": {
+                        "bsonType": "object",
+                        "description": "Placeholder — populated in the payroll phase",
+                        "properties": {
+                            "pay_cycle_start_day": {"bsonType": ["int", "null"]},
+                        }
+                    },
+                    "contact_name":  {"bsonType": ["string", "null"]},
+                    "contact_email": {"bsonType": ["string", "null"]},
+                    "contact_phone": {"bsonType": ["string", "null"]},
+                    "created_at":    {"bsonType": "date"},
+                    "updated_at":    {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── users ──────────────────────────────────────────────────────────────
     # Stores all login accounts: admin, hr, hr_head, manager, employee
     "users": {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["name", "email", "password", "role", "created_at"],
+                "required": ["tenant_id", "name", "email", "password", "role", "created_at"],
                 "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "name":         {"bsonType": "string", "description": "Full name"},
                     "email":        {"bsonType": "string", "description": "Login email (unique)"},
                     "password":     {"bsonType": "binData", "description": "bcrypt hashed password"},
@@ -83,8 +153,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["name", "designation", "employee_id", "created_at"],
+                "required": ["tenant_id", "name", "designation", "employee_id", "created_at"],
                 "properties": {
+                    "tenant_id":        {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id":      {"bsonType": "string", "description": "Auto-generated e.g. EMP001"},
                     "name":             {"bsonType": "string"},
                     "designation":      {"bsonType": "string"},
@@ -122,8 +193,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["name", "type", "file_path", "uploaded_by", "created_at"],
+                "required": ["tenant_id", "name", "type", "file_path", "uploaded_by", "created_at"],
                 "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "name":        {"bsonType": "string", "description": "Display name e.g. 'Standard Offer 2026'"},
                     "type": {
                         "bsonType": "string",
@@ -148,8 +220,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["employee_id", "letter_type", "status", "created_by", "created_at"],
+                "required": ["tenant_id", "employee_id", "letter_type", "status", "created_by", "created_at"],
                 "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id":  {"bsonType": "string", "description": "ObjectId of employee"},
                     "template_id":  {"bsonType": "string", "description": "ObjectId of template used"},
                     "letter_type": {
@@ -197,8 +270,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["employee_id", "status", "created_by", "created_at"],
+                "required": ["tenant_id", "employee_id", "status", "created_by", "created_at"],
                 "properties": {
+                    "tenant_id":         {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id":       {"bsonType": "string"},
                     "template_id":       {"bsonType": "string"},
                     "reference_number":  {"bsonType": "string", "description": "e.g. AO-EMP001-001"},
@@ -225,8 +299,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["employee_id", "status", "created_at"],
+                "required": ["tenant_id", "employee_id", "status", "created_at"],
                 "properties": {
+                    "tenant_id":       {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id":     {"bsonType": "string"},
                     "status": {
                         "bsonType": "string",
@@ -251,8 +326,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["user_id", "doc_type", "status", "uploaded_at"],
+                "required": ["tenant_id", "user_id", "doc_type", "status", "uploaded_at"],
                 "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "user_id":   {"bsonType": "string", "description": "JWT identity (user ObjectId string)"},
                     "doc_type": {
                         "bsonType": "string",
@@ -282,8 +358,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["user_id", "status", "submitted_at"],
+                "required": ["tenant_id", "user_id", "status", "submitted_at"],
                 "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "user_id":      {"bsonType": "string"},
                     "status": {
                         "bsonType": "string",
@@ -305,8 +382,9 @@ SCHEMAS = {
         "validator": {
             "$jsonSchema": {
                 "bsonType": "object",
-                "required": ["employee_id", "month", "year", "status", "created_at"],
+                "required": ["tenant_id", "employee_id", "month", "year", "status", "created_at"],
                 "properties": {
+                    "tenant_id":        {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
                     "employee_id":      {"bsonType": "string", "description": "ObjectId of employee"},
                     "month":            {"bsonType": "int", "description": "Month 1-12"},
                     "year":             {"bsonType": "int", "description": "Year e.g. 2025"},
@@ -344,6 +422,164 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── leave_requests ─────────────────────────────────────────────────────
+    # Employee leave applications going through the approval workflow
+    "leave_requests": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "employee_id", "status", "created_at"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id":  {"bsonType": "string"},
+                    "leave_type":   {"bsonType": "string"},
+                    "status":       {"bsonType": "string"},
+                    "from_date":    {"bsonType": "string"},
+                    "to_date":      {"bsonType": "string"},
+                    "created_at":   {"bsonType": "date"},
+                    "updated_at":   {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── leave_balances ─────────────────────────────────────────────────────
+    # Per-employee, per-year leave balance/category buckets
+    "leave_balances": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "employee_id", "year"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id":  {"bsonType": "string"},
+                    "year":         {"bsonType": "int"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── leave_notifications ────────────────────────────────────────────────
+    # In-app notifications for HR/managers about leave activity
+    "leave_notifications": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "message", "created_at"],
+                "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "target_role": {"bsonType": "string"},
+                    "message":     {"bsonType": "string"},
+                    "link":        {"bsonType": "string"},
+                    "related_id":  {"bsonType": "string"},
+                    "read":        {"bsonType": "bool"},
+                    "created_at":  {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── attendance_daily ───────────────────────────────────────────────────
+    # Computed per-employee, per-day attendance summary
+    "attendance_daily": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "employee_id", "date"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id":  {"bsonType": "string"},
+                    "date":         {"bsonType": "string"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── holidays ───────────────────────────────────────────────────────────
+    # Company holiday calendar
+    "holidays": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "date"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "date":      {"bsonType": "string"},
+                    "name":      {"bsonType": "string"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── counters ───────────────────────────────────────────────────────────
+    # Per-tenant auto-increment sequences (e.g. employee_id: EMP001, EMP002, ...)
+    "counters": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "name", "seq"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "name":      {"bsonType": "string", "description": "Sequence name, e.g. 'employee_id'"},
+                    "seq":       {"bsonType": "int"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── scheduler_log ──────────────────────────────────────────────────────
+    # Background scheduler run log (birthday/anniversary email jobs)
+    "scheduler_log": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── sync_state ─────────────────────────────────────────────────────────
+    # ESSL/ZKTeco biometric device sync bookkeeping (last-synced markers etc.)
+    "sync_state": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── attendance_punches ─────────────────────────────────────────────────
+    # Raw biometric punch events, deduped by employee+timestamp
+    "attendance_punches": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id"],
+                "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id": {"bsonType": "string"},
+                    "timestamp":   {"bsonType": ["date", "string"]},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
 }
 
 
@@ -352,13 +588,47 @@ SCHEMAS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 INDEXES = {
+    "platform_admins": [
+        {"keys": [("email", ASCENDING)], "unique": True, "name": "idx_platformadmins_email_unique"},
+    ],
+    "companies": [
+        {"keys": [("slug", ASCENDING)], "unique": True, "name": "idx_companies_slug_unique"},
+        {"keys": [("status", ASCENDING)], "name": "idx_companies_status"},
+    ],
+    "leave_requests": [
+        {"keys": [("employee_id", ASCENDING)], "name": "idx_leavereq_employee"},
+        {"keys": [("status", ASCENDING)], "name": "idx_leavereq_status"},
+        {"keys": [("created_at", DESCENDING)], "name": "idx_leavereq_created_desc"},
+    ],
+    "leave_balances": [
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING), ("year", ASCENDING)], "unique": True, "name": "idx_leavebal_tenant_emp_year_unique"},
+    ],
+    "leave_notifications": [
+        {"keys": [("target_role", ASCENDING), ("read", ASCENDING)], "name": "idx_leavenotif_role_read"},
+        {"keys": [("created_at", DESCENDING)], "name": "idx_leavenotif_created_desc"},
+    ],
+    "attendance_daily": [
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING), ("date", ASCENDING)], "unique": True, "name": "idx_attdaily_tenant_emp_date_unique"},
+    ],
+    "holidays": [
+        {"keys": [("tenant_id", ASCENDING), ("date", ASCENDING)], "name": "idx_holidays_tenant_date"},
+    ],
+    "counters": [
+        {"keys": [("tenant_id", ASCENDING), ("name", ASCENDING)], "unique": True, "name": "idx_counters_tenant_name_unique"},
+    ],
+    "attendance_punches": [
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING), ("timestamp", ASCENDING)], "name": "idx_attpunch_tenant_emp_ts"},
+    ],
+    "sync_state": [
+        {"keys": [("tenant_id", ASCENDING), ("key", ASCENDING)], "unique": True, "name": "idx_syncstate_tenant_key_unique"},
+    ],
     "users": [
-        {"keys": [("email", ASCENDING)], "unique": True, "name": "idx_users_email_unique"},
+        {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},
         {"keys": [("role", ASCENDING)],  "name": "idx_users_role"},
         {"keys": [("employee_ref", ASCENDING)], "sparse": True, "name": "idx_users_employee_ref"},
     ],
     "employees": [
-        {"keys": [("employee_id", ASCENDING)], "unique": True, "name": "idx_employees_emp_id_unique"},
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "unique": True, "name": "idx_employees_tenant_empid_unique"},
         {"keys": [("status", ASCENDING)], "name": "idx_employees_status"},
         {"keys": [("email", ASCENDING)],  "sparse": True, "name": "idx_employees_email"},
         {"keys": [("name", ASCENDING)],   "name": "idx_employees_name"},

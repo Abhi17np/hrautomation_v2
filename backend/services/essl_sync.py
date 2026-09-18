@@ -71,20 +71,36 @@ def _fetch_raw_punches_with_hard_timeout(hard_timeout=10):
 
 
 def _get_last_synced_ts(db):
-    """Return the timestamp of the newest punch we've already processed, or None."""
-    state = db.sync_state.find_one({'_id': 'essl_sync'})
+    """Return the timestamp of the newest punch we've already processed, or None.
+    Keyed on 'key' rather than a fixed _id string — with tenant_id merged in
+    by the wrapper, a fixed _id would collide across tenants (Mongo _id must
+    be unique per collection, independent of any other filter field)."""
+    state = db.sync_state.find_one({'key': 'essl_sync'})
     return state['last_synced_ts'] if state else None
 
 
 def _set_last_synced_ts(db, ts):
     db.sync_state.update_one(
-        {'_id': 'essl_sync'},
+        {'key': 'essl_sync'},
         {'$set': {'last_synced_ts': ts, 'updated_at': datetime.utcnow()}},
         upsert=True,
     )
 
 
-def sync_now(app, full_resync=False):
+def _resolve_default_tenant_id(app):
+    """DEVICE_IP above is a single hardcoded physical device, so today this
+    module can only meaningfully sync one tenant's data (multi-device,
+    per-tenant device configuration is a later feature-phase item, not a
+    tenant-isolation gap in existing code — there's genuinely one office's
+    device here). Resolves to the oldest active company (tenant zero) when
+    no explicit tenant_id is given."""
+    company = app.db.companies.find_one({'status': {'$ne': 'suspended'}}, sort=[('created_at', 1)])
+    if not company:
+        raise RuntimeError('No active company found to sync attendance for')
+    return str(company['_id'])
+
+
+def sync_now(app, full_resync=False, tenant_id=None):
     """
     Pull all punches from the device, insert any new ones, recompute
     attendance_daily for every (employee, date) touched, and return a
@@ -94,9 +110,18 @@ def sync_now(app, full_resync=False):
     the device - use this once after mapping new employees, so their
     historical punches (older than the current cursor) get picked up.
     Normal polling should leave this False for speed.
+
+    tenant_id scopes every DB read/write this run touches (see
+    _resolve_default_tenant_id's docstring for why this module supports
+    exactly one tenant's device today). Pass it explicitly from a request
+    context (g.tenant_id); the background poller resolves a default.
     """
     print('[essl_sync] sync_now: start', flush=True)
-    db = app.db
+    with app.app_context():
+        if tenant_id is None:
+            tenant_id = _resolve_default_tenant_id(app)
+        from tenant_scope import scoped_db_for
+        db = scoped_db_for(tenant_id)
 
     result = {
         'total_punches_on_device': 0,

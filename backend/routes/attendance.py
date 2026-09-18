@@ -3,15 +3,16 @@ attendance.py — Attendance module routes.
 Place at: backend/routes/attendance.py
 Register in app.py: app.register_blueprint(attendance_bp, url_prefix='/api/attendance')
 """
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, g
+from flask_jwt_extended import get_jwt_identity
 from bson import ObjectId
 from datetime import date, datetime, timedelta
 import calendar
 
-attendance_bp = Blueprint('attendance', __name__)
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
-HR_ROLES = {'admin', 'hr', 'hr_head'}
+attendance_bp = Blueprint('attendance', __name__)
 
 
 def _serialize(doc):
@@ -22,18 +23,11 @@ def _serialize(doc):
     return doc
 
 
-def _get_caller(db, uid):
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
-
 # ─── Today's attendance board (HR / Manager dashboard) ──────────────────────
 @attendance_bp.route('/today', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def today_board():
-    db = current_app.db
+    db = get_db()
     today_str = request.args.get('date', date.today().isoformat())
 
     daily = list(db.attendance_daily.find({'date': today_str}))
@@ -59,11 +53,10 @@ def today_board():
 
 # ─── Employee's own attendance history ───────────────────────────────────────
 @attendance_bp.route('/me', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def my_attendance():
-    db = current_app.db
-    uid = get_jwt_identity()
-    user = db.users.find_one({'_id': ObjectId(uid)})
+    db = get_db()
+    user = g.caller
     if not user or not user.get('employee_ref'):
         return jsonify({'error': 'No employee record linked to this account'}), 400
 
@@ -79,14 +72,9 @@ def my_attendance():
 
 # ─── HR: one employee's history ──────────────────────────────────────────────
 @attendance_bp.route('/employee/<emp_id>', methods=['GET'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head', 'manager')
 def employee_attendance(emp_id):
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES and caller.get('role') != 'manager':
-        return jsonify({'error': 'Not authorized'}), 403
+    db = get_db()
 
     from_date = request.args.get('from')
     to_date = request.args.get('to')
@@ -100,14 +88,9 @@ def employee_attendance(emp_id):
 
 # ─── Map an employee to their device user id (do this once per employee) ────
 @attendance_bp.route('/map/<emp_id>', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def map_employee(emp_id):
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can map biometric device IDs'}), 403
+    db = get_db()
 
     essl_uid = str((request.json or {}).get('essl_uid', '')).strip()
     if not essl_uid:
@@ -125,14 +108,9 @@ def map_employee(emp_id):
 
 # ─── Bulk map (map many employees to device IDs in one call) ────────────────
 @attendance_bp.route('/map-bulk', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def map_bulk():
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can map biometric device IDs'}), 403
+    db = get_db()
 
     pairs = (request.json or {}).get('mappings', [])
     if not pairs:
@@ -161,26 +139,23 @@ def map_bulk():
 
 # ─── Manual sync trigger (useful for testing / "sync now" button) ───────────
 @attendance_bp.route('/sync', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def manual_sync():
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can trigger a manual sync'}), 403
+    db = get_db()
 
     from services.essl_sync import sync_now
     full_resync = request.args.get('full', '').lower() in ('1', 'true', 'yes')
-    result = sync_now(current_app._get_current_object(), full_resync=full_resync)
+    # Explicit tenant_id: this must only ever sync the calling tenant's own
+    # data, never fall back to essl_sync's single-device default resolution.
+    result = sync_now(current_app._get_current_object(), full_resync=full_resync, tenant_id=g.tenant_id)
     return jsonify(result)
 
 
 # ─── Holiday management (dates excluded from working-day counts) ────────────
 @attendance_bp.route('/holidays', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def list_holidays():
-    db = current_app.db
+    db = get_db()
     year = request.args.get('year')
     query = {}
     if year:
@@ -192,14 +167,9 @@ def list_holidays():
 
 
 @attendance_bp.route('/holidays', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def add_holiday():
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can manage holidays'}), 403
+    db = get_db()
 
     data = request.json or {}
     hdate = str(data.get('date', '')).strip()
@@ -216,14 +186,9 @@ def add_holiday():
 
 
 @attendance_bp.route('/holidays/<holiday_id>', methods=['DELETE'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def delete_holiday(holiday_id):
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can manage holidays'}), 403
+    db = get_db()
 
     db.holidays.delete_one({'_id': ObjectId(holiday_id)})
     return jsonify({'message': 'Holiday removed'})
@@ -231,14 +196,9 @@ def delete_holiday(holiday_id):
 
 # ─── Monthly attendance summary (Attendance Management report) ──────────────
 @attendance_bp.route('/monthly-summary', methods=['GET'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def monthly_summary():
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can view attendance reports'}), 403
+    db = get_db()
 
     try:
         year = int(request.args.get('year', date.today().year))
@@ -340,14 +300,9 @@ def monthly_summary():
 
 # ─── Single employee's day-by-day calendar for a month ───────────────────────
 @attendance_bp.route('/employee/<emp_id>/calendar', methods=['GET'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head', 'manager')
 def employee_calendar(emp_id):
-    db = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES and caller.get('role') != 'manager':
-        return jsonify({'error': 'Not authorized'}), 403
+    db = get_db()
 
     try:
         year = int(request.args.get('year', date.today().year))
@@ -437,14 +392,10 @@ def employee_calendar(emp_id):
 
 # ─── HR: manually regularize one employee's attendance for a specific date ──
 @attendance_bp.route('/regularize/<emp_id>', methods=['POST'])
-@jwt_required()
+@require_role('admin', 'hr', 'hr_head')
 def regularize_attendance(emp_id):
-    db = current_app.db
+    db = get_db()
     uid = get_jwt_identity()
-    caller, err = _get_caller(db, uid)
-    if err: return err
-    if caller.get('role') not in HR_ROLES:
-        return jsonify({'error': 'Only HR/Admin can regularize attendance'}), 403
 
     data = request.json or {}
     date_str = str(data.get('date', '')).strip()

@@ -11,8 +11,8 @@ New features vs previous version:
   - GridFS storage for generated DOCX/PDF files
 """
 
-from flask import Blueprint, request, jsonify, current_app, send_file
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, send_file, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
 import os, smtplib, bcrypt, logging, base64, io, traceback, tempfile, gridfs
@@ -27,6 +27,9 @@ from docx import Document as DocxDocument
 from html.parser import HTMLParser
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
 from services.gridfs_storage import save_file_to_gridfs, serve_from_gridfs, delete_from_gridfs
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 letters_bp = Blueprint('letters', __name__)
 log = logging.getLogger(__name__)
@@ -146,11 +149,6 @@ def _enrich(letter, db):
     return letter
 
 
-def _caller(db, uid):
-    u = db.users.find_one({'_id': ObjectId(uid)})
-    return (u, None) if u else (None, (jsonify({'error': 'User not found'}), 404))
-
-
 def _next_version(db, emp_id):
     latest = db.letters.find_one({'employee_id': emp_id, 'letter_type': 'offer'}, sort=[('version', -1)])
     return (latest['version'] + 1) if latest else 1
@@ -202,11 +200,10 @@ def _gen_files(emp, tmpl, ctx, db, emp_id, app):
 
 
 @letters_bp.route('/', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def list_letters():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, _ = _caller(db, uid)
+    db     = get_db()
+    caller = g.caller
     include_relieving = request.args.get('include_relieving', 'false').lower() == 'true'
     query = {} if include_relieving else {'letter_type': 'offer'}
 
@@ -231,9 +228,9 @@ def list_letters():
 
 
 @letters_bp.route('/<lid>/preview-context', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def preview_context(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -247,9 +244,9 @@ def preview_context(lid):
 
 
 @letters_bp.route('/<lid>/preview-pdf', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def preview_pdf(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -305,9 +302,9 @@ def preview_pdf(lid):
 
 
 @letters_bp.route('/<lid>/preview-with-signatures', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def preview_with_signatures(lid):
-    db     = current_app.db
+    db     = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -343,10 +340,9 @@ def preview_with_signatures(lid):
 
 
 @letters_bp.route('/<lid>/update-draft', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def update_draft(lid):
-    db   = current_app.db
-    uid  = get_jwt_identity()
+    db   = get_db()
     data = request.json or {}
 
     letter = db.letters.find_one({'_id': ObjectId(lid)})
@@ -387,7 +383,7 @@ def update_draft(lid):
 
 
 @letters_bp.route('/ctc-breakdown', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def ctc_breakdown():
     data = request.json or {}
     try:
@@ -426,9 +422,9 @@ def _format_acceptance_date(date_str):
 
 
 @letters_bp.route('/generate-new', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def generate_new():
-    db   = current_app.db
+    db   = get_db()
     uid  = get_jwt_identity()
     data = request.json or {}
 
@@ -555,9 +551,9 @@ def generate_new():
 
 
 @letters_bp.route('/generate', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def generate():
-    db   = current_app.db
+    db   = get_db()
     uid  = get_jwt_identity()
     data = request.json or {}
 
@@ -623,9 +619,9 @@ def generate():
 
 
 @letters_bp.route('/revise', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def revise():
-    db   = current_app.db
+    db   = get_db()
     uid  = get_jwt_identity()
     data = request.json or {}
 
@@ -720,9 +716,9 @@ def revise():
 
 
 @letters_bp.route('/<lid>/docx-to-html', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def docx_to_html(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -768,9 +764,9 @@ def docx_to_html(lid):
 
 
 @letters_bp.route('/<lid>/save-html', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def save_html(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -828,9 +824,9 @@ def save_html(lid):
 
 
 @letters_bp.route('/<lid>/extract-content', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def extract_content(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -853,9 +849,9 @@ def extract_content(lid):
 
 
 @letters_bp.route('/<lid>/save-content', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def save_content(lid):
-    db = current_app.db
+    db = get_db()
     letter = db.letters.find_one({'_id': ObjectId(lid)})
     if not letter:
         return jsonify({'error': 'Not found'}), 404
@@ -912,20 +908,19 @@ def save_content(lid):
 
 
 @letters_bp.route('/<lid>', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def get_letter(lid):
-    db = current_app.db
+    db = get_db()
     l  = db.letters.find_one({'_id': ObjectId(lid)})
     return (jsonify(_enrich(l, db)) if l else (jsonify({'error': 'Not found'}), 404))
 
 
 @letters_bp.route('/<lid>/submit', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def submit(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
     if l['status'] != 'draft':
@@ -942,14 +937,11 @@ def submit(lid):
 
 
 @letters_bp.route('/<lid>/hr-action', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def hr_action(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
-    if caller.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin can take this action'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     l = db.letters.find_one({'_id': ObjectId(lid)}
     )
@@ -1094,14 +1086,11 @@ def _embed_signature_in_pdf(pdf_path: str, signature_b64: str) -> str:
 
 
 @letters_bp.route('/<lid>/send-email', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def send_email(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
-    if caller.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin can send offer letters'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
@@ -1244,9 +1233,9 @@ def send_email(lid):
 
 
 @letters_bp.route('/<lid>/confirm-join', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def confirm_join(lid):
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
     l   = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
@@ -1265,14 +1254,11 @@ def confirm_join(lid):
 
 
 @letters_bp.route('/<lid>/create-id', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def create_id(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
-    if caller.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin can create employee IDs'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
@@ -1335,14 +1321,11 @@ def create_id(lid):
 
 
 @letters_bp.route('/<lid>/send-welcome-email', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def send_welcome_email(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
-    if caller.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
@@ -1399,9 +1382,9 @@ Infopace Management Pvt Ltd - HR Team
 
 
 @letters_bp.route('/<lid>/download', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def download(lid):
-    db  = current_app.db
+    db  = get_db()
     fmt = request.args.get('format', 'docx')
     l   = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Not found'}), 404
@@ -1428,14 +1411,11 @@ def download(lid):
 
 
 @letters_bp.route('/<lid>', methods=['DELETE'])
-@jwt_required()
+@require_role(*DELETE_ROLES)
 def delete_letter(lid):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller, err = _caller(db, uid)
-    if err: return err
-    if caller.get('role') not in DELETE_ROLES:
-        return jsonify({'error': 'Only Admin or HR Head can delete letters'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
     if l.get('status') not in DELETABLE_STATUSES:

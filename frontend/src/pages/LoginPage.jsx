@@ -85,6 +85,7 @@ function HeroIllustration() {
 }
 
 export default function LoginPage() {
+  const [company, setCompany] = useState(() => localStorage.getItem('tenant_slug') || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -96,7 +97,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(company, email, password);
       window.location.hash = '/';
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
@@ -176,12 +177,20 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <input
+              type="text"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Company code"
+              required
+              autoFocus
+              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+            />
+            <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="Email Address"
               required
-              autoFocus
               style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
             />
             <input

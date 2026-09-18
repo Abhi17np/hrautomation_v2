@@ -6,12 +6,15 @@ Files stored in MongoDB GridFS (no disk dependency).
 import uuid
 import logging
 from io import BytesIO
-from flask import Blueprint, request, jsonify, current_app, send_file
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, send_file, g
+from flask_jwt_extended import get_jwt_identity
 from bson import ObjectId
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import gridfs
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 documents_bp = Blueprint('documents', __name__)
 logger = logging.getLogger(__name__)
@@ -45,9 +48,9 @@ def _submission_status(db, uid):
 # ── Upload ──────────────────────────────────────────────────────────────────
 
 @documents_bp.route('/upload', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def upload():
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
     fs  = _get_fs()
 
@@ -116,9 +119,9 @@ def upload():
 # ── My Docs ─────────────────────────────────────────────────────────────────
 
 @documents_bp.route('/my', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def my_docs():
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
 
     docs = list(db.documents.find({'user_id': uid}))
@@ -135,13 +138,13 @@ def my_docs():
 # ── Serve file from GridFS ───────────────────────────────────────────────────
 
 @documents_bp.route('/file/<uid>/<filename>', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def serve_file(uid, filename):
     caller_uid = get_jwt_identity()
-    db  = current_app.db
+    db  = get_db()
     fs  = _get_fs()
 
-    caller = db.users.find_one({'_id': ObjectId(caller_uid)})
+    caller = g.caller
     if caller and caller.get('role') not in ('hr_head', 'admin', 'hr') and caller_uid != uid:
         return jsonify({'error': 'Access denied'}), 403
 
@@ -164,9 +167,9 @@ def serve_file(uid, filename):
 # ── Delete single doc ────────────────────────────────────────────────────────
 
 @documents_bp.route('/<doc_type>', methods=['DELETE'])
-@jwt_required()
+@tenant_scoped
 def delete_doc(doc_type):
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
     fs  = _get_fs()
 
@@ -193,9 +196,9 @@ def delete_doc(doc_type):
 # ── Submit for HR review ─────────────────────────────────────────────────────
 
 @documents_bp.route('/submit', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def submit_for_review():
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
 
     if _submission_status(db, uid) == 'pending_hr':
@@ -235,13 +238,9 @@ def submit_for_review():
 # ── HR: list submissions ─────────────────────────────────────────────────────
 
 @documents_bp.route('/submissions', methods=['GET'])
-@jwt_required()
+@require_role('hr_head', 'admin', 'hr')
 def list_submissions():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller = db.users.find_one({'_id': ObjectId(uid)})
-    if not caller or caller.get('role') not in ('hr_head', 'admin', 'hr'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
 
     query = {}
     status_filter = request.args.get('status')
@@ -257,13 +256,9 @@ def list_submissions():
 # ── HR: single submission ────────────────────────────────────────────────────
 
 @documents_bp.route('/submissions/<sub_id>', methods=['GET'])
-@jwt_required()
+@require_role('hr_head', 'admin', 'hr')
 def get_submission(sub_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller = db.users.find_one({'_id': ObjectId(uid)})
-    if not caller or caller.get('role') not in ('hr_head', 'admin', 'hr'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
 
     sub = db.doc_submissions.find_one({'_id': ObjectId(sub_id)})
     if not sub:
@@ -295,13 +290,11 @@ def get_submission(sub_id):
 # ── HR: approve or reject ────────────────────────────────────────────────────
 
 @documents_bp.route('/submissions/<sub_id>/action', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin', 'hr')
 def submission_action(sub_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller = db.users.find_one({'_id': ObjectId(uid)})
-    if not caller or caller.get('role') not in ('hr_head', 'admin', 'hr'):
-        return jsonify({'error': 'Access denied'}), 403
+    db     = get_db()
+    uid    = get_jwt_identity()
+    caller = g.caller
 
     data    = request.json or {}
     action  = data.get('action')
@@ -347,13 +340,9 @@ def submission_action(sub_id):
 # ── HR: docs by employee ─────────────────────────────────────────────────────
 
 @documents_bp.route('/by-employee/<emp_id>', methods=['GET'])
-@jwt_required()
+@require_role('hr_head', 'admin', 'hr')
 def docs_by_employee(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    caller = db.users.find_one({'_id': ObjectId(uid)})
-    if not caller or caller.get('role') not in ('hr_head', 'admin', 'hr'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
 
     linked_user = db.users.find_one({'employee_ref': emp_id})
     if not linked_user:

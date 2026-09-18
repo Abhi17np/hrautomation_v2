@@ -16,6 +16,7 @@ import LeaveManagementPage from './pages/LeaveManagementPage';
 import AttendancePage      from './pages/AttendancePage';
 import PayslipPage         from './pages/PayslipPage';
 import PayslipManagementPage from './pages/PayslipManagementPage';
+import PlatformAdminPage     from './pages/PlatformAdminPage';
 
 
 import './App.css';
@@ -43,7 +44,7 @@ const PAGES = {
   '/appointment':  AppointmentPage,
   '/documents':    DocumentsPage,
   '/leave-tracker':   LeaveTrackerPage,      // <-- add: employee & manager
-      '/leave-management': LeaveManagementPage,
+  '/leave-management': LeaveManagementPage,
   '/attendance': AttendancePage,
   '/payslip': PayslipPage,
   '/payslip-management': PayslipManagementPage,
@@ -65,6 +66,11 @@ function NotFound() {
 function AppRouter() {
   const path              = useHashRoute();
   const { user, loading } = useAuth();
+
+  // Platform admin surface is outside tenant auth entirely — it has its own
+  // separate login/session (see PlatformAdminPage.jsx) and is intentionally
+  // not listed in any tenant nav.
+  if (path === '/platform') return <PlatformAdminPage />;
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
   if (!user)   return <LoginPage />;

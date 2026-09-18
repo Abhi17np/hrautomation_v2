@@ -1,7 +1,10 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 approvals_bp = Blueprint('approvals', __name__)
 
@@ -35,22 +38,12 @@ def enrich_letter(letter, db):
     return letter
 
 
-def _get_user(db, uid):
-    """Returns (user, error_tuple). Centralised null-check for all routes."""
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
-
 @approvals_bp.route('/pending', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def pending():
-    db      = current_app.db
+    db      = get_db()
     user_id = get_jwt_identity()
-    # FIX #11: null-check user
-    user, err = _get_user(db, user_id)
-    if err: return err
+    user    = g.caller
     role       = user.get('role', 'hr')
     actionable = [s for s, cfg in FLOW.items() if role in cfg['roles']]
     letters    = list(db.letters.find(
@@ -60,9 +53,9 @@ def pending():
 
 
 @approvals_bp.route('/history', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def history():
-    db = current_app.db
+    db = get_db()
     # FIX #25: include issued and withdrawn in history
     letters = list(db.letters.find(
         {'status': {'$in': ['approved', 'rejected', 'issued', 'withdrawn']},
@@ -74,13 +67,11 @@ def history():
 
 
 @approvals_bp.route('/<letter_id>/action', methods=['POST'])
-@jwt_required()
+@tenant_scoped
 def action(letter_id):
-    db      = current_app.db
+    db      = get_db()
     user_id = get_jwt_identity()
-    # FIX #11: null-check user
-    user, err = _get_user(db, user_id)
-    if err: return err
+    user    = g.caller
     role = user.get('role', 'hr')
 
     data    = request.json or {}
@@ -123,9 +114,9 @@ def action(letter_id):
 
 
 @approvals_bp.route('/stats', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def stats():
-    db = current_app.db
+    db = get_db()
     # FIX #26: filter to offer letters only so relieving letters don't pollute counts
     pipeline = [
         {'$match': {'letter_type': 'offer'}},

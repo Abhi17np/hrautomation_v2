@@ -47,10 +47,12 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const login = async (email, password) => {
-    const res = await axios.post('/api/auth/login', { email, password });
+  const login = async (company, email, password) => {
+    const slug = (company || '').trim().toLowerCase();
+    const res = await axios.post('/api/auth/login', { company: slug, email, password });
     const { token } = res.data;
     localStorage.setItem('token', token);
+    localStorage.setItem('tenant_slug', slug);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     // Fetch full profile so personal fields are available immediately
     const profile = await axios.get('/api/auth/profile');
@@ -69,7 +71,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, updateUser, tenantId: user?.tenant_id }}>
       {children}
     </AuthContext.Provider>
   );

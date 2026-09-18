@@ -14,14 +14,17 @@ exit.py — Full workflow:
 All files stored in MongoDB GridFS — no local disk dependency.
 """
 
-from flask import Blueprint, request, jsonify, current_app, send_file
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, send_file, g
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
 from io import BytesIO
 import os, re, tempfile, zipfile, gridfs, smtplib
 from email.message import EmailMessage
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
+
+from auth_utils import tenant_scoped, require_role
+from tenant_scope import get_db
 
 exit_bp = Blueprint('exit', __name__)
 
@@ -90,25 +93,14 @@ def _s(doc):
     return doc
 
 
-def _caller(db, uid):
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user:
-        return None, (jsonify({'error': 'User not found'}), 404)
-    return user, None
-
-
 # ─── Employee / Manager: submit own resignation ───────────────────────────────
 
 @exit_bp.route('/resign', methods=['POST'])
-@jwt_required()
+@require_role('employee', 'manager')
 def submit_resignation():
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-
-    if u.get('role') not in ('employee', 'manager'):
-        return jsonify({'error': 'Only employees can submit resignations via this route'}), 403
+    u = g.caller
 
     emp_ref = u.get('employee_ref')
     if not emp_ref:
@@ -152,12 +144,10 @@ def submit_resignation():
 # ─── Employee / Manager: own status ──────────────────────────────────────────
 
 @exit_bp.route('/my-status', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def my_status():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
 
     emp_ref = u.get('employee_ref')
     if not emp_ref:
@@ -195,16 +185,12 @@ def my_status():
 # ─── Manager: pending approvals ───────────────────────────────────────────────
 
 @exit_bp.route('/pending-approvals', methods=['GET'])
-@jwt_required()
+@require_role('manager', 'hr_head', 'admin')
 def pending_approvals():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
 
     role = u.get('role')
-    if role not in ('manager', 'hr_head', 'admin'):
-        return jsonify({'error': 'Access denied'}), 403
 
     if role == 'manager':
         mgr_ref = u.get('employee_ref', '')
@@ -221,16 +207,13 @@ def pending_approvals():
 # ─── Manager: approve ────────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/approve-resignation', methods=['POST'])
-@jwt_required()
+@require_role('manager', 'hr_head', 'admin')
 def approve_resignation(emp_id):
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    u   = g.caller
 
     role = u.get('role')
-    if role not in ('manager', 'hr_head', 'admin'):
-        return jsonify({'error': 'Only managers or HR can approve resignations'}), 403
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -256,16 +239,13 @@ def approve_resignation(emp_id):
 # ─── Manager: reject ─────────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/reject-resignation', methods=['POST'])
-@jwt_required()
+@require_role('manager', 'hr_head', 'admin')
 def reject_resignation(emp_id):
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    u   = g.caller
 
     role = u.get('role')
-    if role not in ('manager', 'hr_head', 'admin'):
-        return jsonify({'error': 'Only managers or HR can reject resignations'}), 403
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -296,12 +276,10 @@ def reject_resignation(emp_id):
 # ─── HR/Manager: list exit pipeline ──────────────────────────────────────────
 
 @exit_bp.route('/', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def list_exit_employees():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
 
     role = u.get('role')
 
@@ -322,15 +300,10 @@ def list_exit_employees():
 # ─── HR: clearance update ────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/clearance', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def update_clearance(emp_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-
-    if u.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin can update clearances'}), 403
+    db = get_db()
+    u  = g.caller
 
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
@@ -360,15 +333,10 @@ def update_clearance(emp_id):
 # ─── HR: preview relieving letter ────────────────────────────────────────────
 
 @exit_bp.route('/relieving/preview', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin', 'hr')
 def preview_relieving():
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-
-    if u.get('role') not in ('hr_head', 'admin', 'hr'):
-        return jsonify({'error': 'Access denied'}), 403
+    db = get_db()
+    u  = g.caller
 
     data         = request.json or {}
     emp_id       = data.get('employee_id')
@@ -464,15 +432,11 @@ def preview_relieving():
 # ─── HR: generate relieving letter ───────────────────────────────────────────
 
 @exit_bp.route('/relieving/generate', methods=['POST'])
-@jwt_required()
+@require_role('hr_head', 'admin')
 def generate_relieving():
-    db  = current_app.db
+    db  = get_db()
     uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
-
-    if u.get('role') not in ('hr_head', 'admin'):
-        return jsonify({'error': 'Only HR Head or Admin can generate relieving letters'}), 403
+    u   = g.caller
 
     data    = request.json or {}
     emp_id  = data.get('employee_id')
@@ -611,9 +575,9 @@ def generate_relieving():
 # ─── Get login email ──────────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/login-email', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def get_login_email(emp_id):
-    db = current_app.db
+    db = get_db()
     user = db.users.find_one({'employee_ref': emp_id}, {'email': 1})
     if user:
         return jsonify({'email': user.get('email', '')})
@@ -626,12 +590,10 @@ def get_login_email(emp_id):
 # ─── Download relieving letter ────────────────────────────────────────────────
 
 @exit_bp.route('/relieving/<letter_id>/download', methods=['GET'])
-@jwt_required()
+@tenant_scoped
 def download_relieving(letter_id):
-    db  = current_app.db
-    uid = get_jwt_identity()
-    u, err = _caller(db, uid)
-    if err: return err
+    db = get_db()
+    u  = g.caller
 
     letter = db.letters.find_one({'_id': ObjectId(letter_id), 'letter_type': 'relieving'})
     if not letter:

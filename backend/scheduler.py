@@ -106,9 +106,78 @@ HR Team
 """
 
 
-def run_daily_checks(app):
-    company = os.getenv('COMPANY_NAME', 'Infopace Management Pvt Ltd')
+def _run_daily_checks_for_tenant(db, company_name, today):
+    """db is a TenantScopedDB for one tenant — every query below is
+    automatically confined to that tenant's data."""
+    from bson import ObjectId
 
+    users = list(db.users.find({
+        'is_active': {'$ne': False},
+        'employee_ref': {'$exists': True, '$ne': ''},
+    }))
+
+    sent_birthday    = 0
+    sent_anniversary = 0
+
+    for user in users:
+        work_email = user.get('email', '')
+        name       = user.get('name', 'Team Member')
+        emp_ref    = user.get('employee_ref')
+
+        if not work_email:
+            continue
+
+        try:
+            emp = db.employees.find_one({'_id': ObjectId(emp_ref)})
+        except Exception:
+            emp = None
+
+        if not emp:
+            continue
+
+        # ── Birthday check ────────────────────────────────────
+        # Checks user.birthday → emp.birthday → emp.date_of_birth (set by Step 1 form)
+        bday_str = (user.get('birthday')
+                    or emp.get('birthday')
+                    or emp.get('date_of_birth', ''))
+        bday_dt = _parse_date(bday_str)
+        if bday_dt and bday_dt.month == today.month and bday_dt.day == today.day:
+            sent = _send_email(
+                to_email=work_email,
+                subject=f'Happy Birthday, {name.split()[0]}! 🎂',
+                body=_birthday_body(name, company_name),
+            )
+            if sent:
+                sent_birthday += 1
+                db.scheduler_log.insert_one({
+                    'type': 'birthday', 'user_id': str(user['_id']),
+                    'to_email': work_email, 'name': name,
+                    'sent_at': datetime.utcnow(), 'date': today.isoformat(),
+                })
+
+        # ── Work anniversary check ────────────────────────────
+        join_str = emp.get('joining_date', '')
+        join_dt  = _parse_date(join_str)
+        if join_dt and join_dt.month == today.month and join_dt.day == today.day:
+            years = _years_completed(join_dt, today)
+            if years >= 1:
+                sent = _send_email(
+                    to_email=work_email,
+                    subject=f'Happy {_ordinal(years)} Work Anniversary, {name.split()[0]}! 🎉',
+                    body=_anniversary_body(name, years, company_name),
+                )
+                if sent:
+                    sent_anniversary += 1
+                    db.scheduler_log.insert_one({
+                        'type': 'anniversary', 'user_id': str(user['_id']),
+                        'to_email': work_email, 'name': name, 'years': years,
+                        'sent_at': datetime.utcnow(), 'date': today.isoformat(),
+                    })
+
+    return sent_birthday, sent_anniversary
+
+
+def run_daily_checks(app):
     while True:
         now    = datetime.now()
         target = now.replace(hour=9, minute=0, second=0, microsecond=0)
@@ -126,74 +195,25 @@ def run_daily_checks(app):
 
         try:
             with app.app_context():
-                db = app.db
+                from tenant_scope import scoped_db_for
 
-                users = list(db.users.find({
-                    'is_active': {'$ne': False},
-                    'employee_ref': {'$exists': True, '$ne': ''},
-                }))
+                companies = list(app.db.companies.find({'status': {'$ne': 'suspended'}}))
+                total_birthday, total_anniversary = 0, 0
 
-                sent_birthday    = 0
-                sent_anniversary = 0
-
-                for user in users:
-                    work_email = user.get('email', '')
-                    name       = user.get('name', 'Team Member')
-                    emp_ref    = user.get('employee_ref')
-
-                    if not work_email:
-                        continue
-
+                for company in companies:
+                    tenant_id = str(company['_id'])
+                    company_name = (company.get('branding', {}) or {}).get('company_display_name') \
+                        or company.get('name', 'Your Company')
+                    tdb = scoped_db_for(tenant_id)
                     try:
-                        from bson import ObjectId
-                        emp = db.employees.find_one({'_id': ObjectId(emp_ref)})
-                    except Exception:
-                        emp = None
+                        b, a = _run_daily_checks_for_tenant(tdb, company_name, today)
+                        total_birthday    += b
+                        total_anniversary += a
+                    except Exception as e:
+                        log.error('Scheduler: daily check failed for tenant %s — %s', tenant_id, e)
 
-                    if not emp:
-                        continue
-
-                    # ── Birthday check ────────────────────────────────────
-                    # Checks user.birthday → emp.birthday → emp.date_of_birth (set by Step 1 form)
-                    bday_str = (user.get('birthday')
-                                or emp.get('birthday')
-                                or emp.get('date_of_birth', ''))
-                    bday_dt = _parse_date(bday_str)
-                    if bday_dt and bday_dt.month == today.month and bday_dt.day == today.day:
-                        sent = _send_email(
-                            to_email=work_email,
-                            subject=f'Happy Birthday, {name.split()[0]}! 🎂',
-                            body=_birthday_body(name, company),
-                        )
-                        if sent:
-                            sent_birthday += 1
-                            db.scheduler_log.insert_one({
-                                'type': 'birthday', 'user_id': str(user['_id']),
-                                'to_email': work_email, 'name': name,
-                                'sent_at': datetime.utcnow(), 'date': today.isoformat(),
-                            })
-
-                    # ── Work anniversary check ────────────────────────────
-                    join_str = emp.get('joining_date', '')
-                    join_dt  = _parse_date(join_str)
-                    if join_dt and join_dt.month == today.month and join_dt.day == today.day:
-                        years = _years_completed(join_dt, today)
-                        if years >= 1:
-                            sent = _send_email(
-                                to_email=work_email,
-                                subject=f'Happy {_ordinal(years)} Work Anniversary, {name.split()[0]}! 🎉',
-                                body=_anniversary_body(name, years, company),
-                            )
-                            if sent:
-                                sent_anniversary += 1
-                                db.scheduler_log.insert_one({
-                                    'type': 'anniversary', 'user_id': str(user['_id']),
-                                    'to_email': work_email, 'name': name, 'years': years,
-                                    'sent_at': datetime.utcnow(), 'date': today.isoformat(),
-                                })
-
-                log.info('Scheduler: done — %d birthday, %d anniversary emails sent',
-                         sent_birthday, sent_anniversary)
+                log.info('Scheduler: done — %d birthday, %d anniversary emails sent across %d tenant(s)',
+                         total_birthday, total_anniversary, len(companies))
 
         except Exception as e:
             log.error('Scheduler: daily check failed — %s', e)
@@ -201,46 +221,51 @@ def run_daily_checks(app):
         # Safety sleep before recalculating next target
         time.sleep(60)
 
+
 def run_checks_now(app):
-    """Test function — runs the daily check immediately and returns a summary."""
-    from datetime import date
+    """Test function — runs the daily check immediately (dry run, no emails
+    sent) and returns a summary, across all active tenants."""
     from bson import ObjectId
-    
+    from tenant_scope import scoped_db_for
+
     today = date.today()
-    company = os.getenv('COMPANY_NAME', 'Infopace Management Pvt Ltd')
     results = []
 
     with app.app_context():
-        db = app.db
-        users = list(db.users.find({
-            'is_active': {'$ne': False},
-            'employee_ref': {'$exists': True, '$ne': ''},
-        }))
+        companies = list(app.db.companies.find({'status': {'$ne': 'suspended'}}))
+        for company in companies:
+            tenant_id = str(company['_id'])
+            tdb = scoped_db_for(tenant_id)
+            users = list(tdb.users.find({
+                'is_active': {'$ne': False},
+                'employee_ref': {'$exists': True, '$ne': ''},
+            }))
 
-        for user in users:
-            work_email = user.get('email', '')
-            name = user.get('name', '')
-            emp_ref = user.get('employee_ref')
-            try:
-                emp = db.employees.find_one({'_id': ObjectId(emp_ref)})
-            except Exception:
-                emp = None
-            if not emp:
-                continue
+            for user in users:
+                work_email = user.get('email', '')
+                name = user.get('name', '')
+                emp_ref = user.get('employee_ref')
+                try:
+                    emp = tdb.employees.find_one({'_id': ObjectId(emp_ref)})
+                except Exception:
+                    emp = None
+                if not emp:
+                    continue
 
-            bday_str = user.get('birthday') or emp.get('birthday') or emp.get('date_of_birth', '')
-            bday_dt  = _parse_date(bday_str)
-            join_str = emp.get('joining_date', '')
-            join_dt  = _parse_date(join_str)
+                bday_str = user.get('birthday') or emp.get('birthday') or emp.get('date_of_birth', '')
+                bday_dt  = _parse_date(bday_str)
+                join_str = emp.get('joining_date', '')
+                join_dt  = _parse_date(join_str)
 
-            results.append({
-                'name':          name,
-                'email':         work_email,
-                'birthday':      bday_str,
-                'bday_match':    bool(bday_dt and bday_dt.month == today.month and bday_dt.day == today.day),
-                'joining_date':  join_str,
-                'anniv_match':   bool(join_dt and join_dt.month == today.month and join_dt.day == today.day),
-            })
+                results.append({
+                    'tenant':        company.get('name'),
+                    'name':          name,
+                    'email':         work_email,
+                    'birthday':      bday_str,
+                    'bday_match':    bool(bday_dt and bday_dt.month == today.month and bday_dt.day == today.day),
+                    'joining_date':  join_str,
+                    'anniv_match':   bool(join_dt and join_dt.month == today.month and join_dt.day == today.day),
+                })
 
     return {'today': today.isoformat(), 'checked': len(results), 'employees': results}
 

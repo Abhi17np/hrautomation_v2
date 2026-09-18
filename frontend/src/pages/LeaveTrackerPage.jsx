@@ -44,8 +44,12 @@ function StatusPill({ status }) {
   return <span className={`badge ${m.cls}`}>{m.label}</span>;
 }
 
+// Fallback for HR-defined custom leave types, which have no entry in the
+// hardcoded LEAVE_META map above.
+const CUSTOM_TYPE_META = { label: null, color: '#6b7280', bg: 'rgba(107,114,128,.10)', icon: '●' };
+
 function TypeChip({ type }) {
-  const meta = LEAVE_META[type];
+  const meta = LEAVE_META[type] || { ...CUSTOM_TYPE_META, label: type };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -89,13 +93,21 @@ function ApplyLeaveModal({ isFemale, summary, onClose, onSubmitted }) {
   const [fromTime, setFromTime] = useState('');
   const [toTime, setToTime]     = useState('');
 
+  // HR-defined custom leave types (beyond the built-in CL/SL/ML/LP/
+  // MATERNITY/OD/CO/PERMISSION set) — fetched once per modal open.
+  const [customTypes, setCustomTypes] = useState([]);
+  useEffect(() => {
+    axios.get('/api/leaves/types').then(r => setCustomTypes(r.data || [])).catch(() => setCustomTypes([]));
+  }, []);
+  const customType = customTypes.find(t => t.code === leaveType) || null;
+
   const debounceRef = useRef(null);
 
-  const availableTypes = isFemale
+  const builtinTypes = isFemale
     ? ['CL', 'SL', 'ML', 'MATERNITY', 'CO', 'LP', 'OD', 'PERMISSION']
     : ['CL', 'SL', 'CO', 'LP', 'OD', 'PERMISSION'];
 
-  const isBalanceTrackedType = ['CL', 'SL', 'ML'].includes(leaveType);
+  const isBalanceTrackedType = ['CL', 'SL', 'ML'].includes(leaveType) || !!customType;
   const isPermission = leaveType === 'PERMISSION';
 
   // Live preview whenever type/dates change — only for day-based, quota-tracked types
@@ -188,8 +200,11 @@ function ApplyLeaveModal({ isFemale, summary, onClose, onSubmitted }) {
           <label className="form-label">Leave type *</label>
           <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
             <option value="">Select…</option>
-            {availableTypes.map(k => (
+            {builtinTypes.map(k => (
               <option key={k} value={k}>{LEAVE_META[k].label}{k !== 'MATERNITY' && k !== 'OD' && k !== 'PERMISSION' ? ` (${k})` : ''}</option>
+            ))}
+            {customTypes.map(t => (
+              <option key={t.code} value={t.code}>{t.name} ({t.code})</option>
             ))}
           </select>
         </div>
@@ -216,6 +231,11 @@ function ApplyLeaveModal({ isFemale, summary, onClose, onSubmitted }) {
             {leaveType === 'LP' && <>This will be recorded as unpaid leave — no balance is deducted.</>}
             {leaveType === 'MATERNITY' && <>Maternity leave has no monthly cap — select your continuous date range below.</>}
             {leaveType === 'OD' && <>On Duty is not counted as leave — it marks you as Present for the selected date(s).</>}
+            {customType && (
+              customType.monthly_cap == null
+                ? <>{customType.name} has no monthly cap.</>
+                : <>{customType.name} has a free quota of <strong>{customType.monthly_cap}</strong> day(s) per month — days beyond that become Leave Without Pay.</>
+            )}
           </div>
         )}
 
@@ -344,7 +364,7 @@ function CalendarView({ requests }) {
         ))}
         {cells.map((d, i) => {
           const leave = d ? leaveDays[d] : null;
-          const meta = leave ? LEAVE_META[leave.leave_type] : null;
+          const meta = leave ? (LEAVE_META[leave.leave_type] || { ...CUSTOM_TYPE_META, label: leave.leave_type }) : null;
           return (
             <div key={i} style={{
               minHeight: 64, borderRadius: 'var(--radius)', padding: '6px 8px',
@@ -550,7 +570,7 @@ function RequestsTab({ requests, onApply, onCancel }) {
 
 // ─── Team Requests tab (manager only) ───────────────────────────────────────
 function LeaveTypeBadge({ type }) {
-  const meta = LEAVE_META[type];
+  const meta = LEAVE_META[type] || { ...CUSTOM_TYPE_META, label: type };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',

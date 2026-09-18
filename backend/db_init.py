@@ -86,9 +86,18 @@ SCHEMAS = {
                     },
                     "leave_policy": {
                         "bsonType": "object",
-                        "description": "Placeholder — populated in the leave-management phase",
+                        "description": "Per-tenant leave configuration",
                         "properties": {
-                            "leave_year_start_month": {"bsonType": ["int", "null"], "description": "1-12, defaults to 1 (Jan)"},
+                            "leave_year_start_month": {"bsonType": ["int", "null"], "description": "1-12, defaults to 1 (Jan = calendar year; e.g. 4 = Apr-Mar fiscal year)"},
+                            "category_rules": {
+                                "bsonType": ["object", "null"],
+                                "description": "Per-category monthly caps for the pooled CL/SL and ML quotas — overrides the built-in defaults",
+                                "properties": {
+                                    "regular":      {"bsonType": "object"},
+                                    "probationary": {"bsonType": "object"},
+                                    "female":       {"bsonType": "object"},
+                                }
+                            },
                         }
                     },
                     "payroll_config": {
@@ -581,6 +590,29 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── leave_types ────────────────────────────────────────────────────────
+    # HR-defined custom leave types, beyond the built-in CL/SL/ML/LP/
+    # MATERNITY/OD/CO/PERMISSION set. Each has its own flat monthly cap
+    # (not category-differentiated, unlike the built-in CL/SL/ML pools).
+    "leave_types": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "code", "name", "created_at"],
+                "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "code":        {"bsonType": "string", "description": "Short unique code, e.g. 'BEREAVEMENT'"},
+                    "name":        {"bsonType": "string", "description": "Display name, e.g. 'Bereavement Leave'"},
+                    "monthly_cap": {"bsonType": ["double", "int", "null"], "description": "Free days per month; null = uncapped (always LP-eligible tracking only)"},
+                    "is_active":   {"bsonType": "bool"},
+                    "created_at":  {"bsonType": "date"},
+                    "updated_at":  {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── assets ─────────────────────────────────────────────────────────────
     # Organization > Assets: company equipment inventory
     "assets": {
@@ -659,6 +691,10 @@ INDEXES = {
         {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)], "name": "idx_assets_tenant_status"},
         {"keys": [("tenant_id", ASCENDING), ("assigned_to", ASCENDING)], "name": "idx_assets_tenant_assigned"},
         {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_assets_tenant_created_desc"},
+    ],
+    "leave_types": [
+        {"keys": [("tenant_id", ASCENDING), ("code", ASCENDING)], "unique": True, "name": "idx_leavetypes_tenant_code_unique"},
+        {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_leavetypes_tenant_active"},
     ],
     "users": [
         {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},

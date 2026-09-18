@@ -33,17 +33,18 @@ Approval routing is unchanged from v1:
   HR Head / Admin: additionally decide manager-routed requests.
 """
 
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, current_app
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
+from bson.errors import InvalidId
 
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
 
 leaves_bp = Blueprint('leaves', __name__)
 
-LEAVE_TYPES = {'CL', 'SL', 'LP', 'ML', 'MATERNITY', 'OD', 'CO', 'PERMISSION'}
+BUILTIN_LEAVE_TYPES = {'CL', 'SL', 'LP', 'ML', 'MATERNITY', 'OD', 'CO', 'PERMISSION'}
 POOLED_TYPES = {'CL', 'SL'}         # share the CL/SL monthly pool
 ML_TYPE = 'ML'                      # its own monthly pool, female only
 MATERNITY_TYPE = 'MATERNITY'        # female only, no cap, continuous block, no quota impact
@@ -52,11 +53,64 @@ CO_TYPE = 'CO'                      # comp-off — standalone earned balance, no
 PERMISSION_TYPE = 'PERMISSION'      # half-day draws 0.5d from CL/SL pool; hourly tracked separately, no pool impact
 FEMALE_ONLY_TYPES = {ML_TYPE, MATERNITY_TYPE}
 
-CATEGORY_RULES = {
+DEFAULT_CATEGORY_RULES = {
     'regular':      {'monthly_cap': 2, 'ml_monthly_cap': 0},
     'probationary': {'monthly_cap': 1, 'ml_monthly_cap': 0},
     'female':       {'monthly_cap': 2, 'ml_monthly_cap': 1},
 }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-tenant leave policy: fiscal/calendar leave year, category caps, and
+# HR-defined custom leave types (beyond the built-in CL/SL/ML/LP/MATERNITY/
+# OD/CO/PERMISSION set). Loaded fresh each request — cheap single-document
+# reads, and this way a policy change takes effect immediately.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_leave_policy(db):
+    """Returns a fully-populated policy dict, merging any tenant customization
+    on top of the built-in defaults so callers never need to null-check.
+
+    NOTE: `companies` documents don't carry a tenant_id field on themselves
+    (a company IS a tenant, not tenant-scoped data) — looking them up through
+    the get_db() wrapper would auto-merge a tenant_id filter that no company
+    doc can ever match. This deliberately bypasses the wrapper and reads the
+    calling tenant's own company doc directly via g.tenant_id."""
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)}) or {}
+    policy = company.get('leave_policy') or {}
+    start_month = policy.get('leave_year_start_month') or 1
+    category_rules = dict(DEFAULT_CATEGORY_RULES)
+    custom_rules = policy.get('category_rules') or {}
+    for cat, rules in custom_rules.items():
+        if cat in category_rules and isinstance(rules, dict):
+            category_rules[cat] = {**category_rules[cat], **rules}
+    return {'leave_year_start_month': start_month, 'category_rules': category_rules}
+
+
+def _leave_year(d, start_month):
+    """Maps a date to its 'leave year' label under the tenant's fiscal-year
+    setting. start_month=1 (default) reproduces plain calendar-year
+    behavior (label == d.year). For any other start_month, the label is the
+    year the leave year STARTS in — e.g. start_month=4 (Apr-Mar): a date in
+    Jan-Mar belongs to the leave year that started the previous April."""
+    if start_month <= 1:
+        return d.year
+    return d.year if d.month >= start_month else d.year - 1
+
+
+def _current_leave_year(db):
+    policy = _get_leave_policy(db)
+    return _leave_year(datetime.now(), policy['leave_year_start_month'])
+
+
+def _get_custom_types(db, active_only=True):
+    """Dict of {code: doc} for this tenant's HR-defined custom leave types."""
+    query = {'is_active': True} if active_only else {}
+    return {t['code']: t for t in db.leave_types.find(query)}
+
+
+def _all_leave_type_codes(db):
+    return BUILTIN_LEAVE_TYPES | set(_get_custom_types(db).keys())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -103,11 +157,14 @@ def _suggest_category(db, emp, employee_id=None):
     return 'regular'
 
 
-def _get_or_create_category(db, employee_id, year=None):
-    """One doc per employee per year holding the category + per-month usage
-    counters. No accrual needed — the cap is checked live against actual
-    usage recorded for that specific month."""
-    year = year or datetime.now().year
+def _get_or_create_category(db, employee_id, year=None, category_rules=None):
+    """One doc per employee per leave-year holding the category + per-month
+    usage counters. No accrual needed — the cap is checked live against
+    actual usage recorded for that specific month. `year` is a leave-year
+    label (see _leave_year) — plain calendar year if the tenant hasn't set
+    a fiscal leave_year_start_month."""
+    year = year if year is not None else _current_leave_year(db)
+    category_rules = category_rules or _get_leave_policy(db)['category_rules']
     doc = db.leave_balances.find_one({'employee_id': employee_id, 'year': year})
     if doc:
         # Defensive migration: a doc created by an earlier schema version
@@ -116,7 +173,7 @@ def _get_or_create_category(db, employee_id, year=None):
         required = ('monthly_cap', 'ml_monthly_cap', 'monthly_used', 'ml_monthly_used', 'lp_monthly', 'comp_off_balance')
         if not all(k in doc for k in required):
             category = doc.get('category') or _suggest_category(db, db.employees.find_one({'_id': ObjectId(employee_id)}) or {}, employee_id)
-            rules = CATEGORY_RULES.get(category, CATEGORY_RULES['regular'])
+            rules = category_rules.get(category, category_rules['regular'])
             patch = {
                 'category':        category,
                 'monthly_cap':     doc.get('monthly_cap', rules['monthly_cap']),
@@ -126,10 +183,12 @@ def _get_or_create_category(db, employee_id, year=None):
                 'lp_monthly':      doc.get('lp_monthly') or {str(m): 0 for m in range(1, 13)},
                 'comp_off_balance': doc.get('comp_off_balance', 0),
                 'comp_off_earned_dates': doc.get('comp_off_earned_dates') or [],
+                'custom_used':     doc.get('custom_used') or {},
                 'updated_at':      datetime.utcnow(),
             }
             db.leave_balances.update_one({'_id': doc['_id']}, {'$set': patch})
             doc.update(patch)
+        doc.setdefault('custom_used', {})
         return doc
 
     emp = db.employees.find_one({'_id': ObjectId(employee_id)})
@@ -137,7 +196,7 @@ def _get_or_create_category(db, employee_id, year=None):
         return None
 
     category = _suggest_category(db, emp, employee_id)
-    rules = CATEGORY_RULES[category]
+    rules = category_rules.get(category, category_rules['regular'])
 
     doc = {
         'employee_id':     employee_id,
@@ -150,6 +209,7 @@ def _get_or_create_category(db, employee_id, year=None):
         'lp_monthly':      {str(m): 0 for m in range(1, 13)},   # informational only
         'comp_off_balance': 0,                                  # earned comp-off, standalone
         'comp_off_earned_dates': [],                            # weekend/holiday dates already credited — prevents double-crediting
+        'custom_used':     {},                                  # {type_code: {month_str: count}} for HR-defined custom types
         'manually_set':    False,
         'created_at':      datetime.utcnow(),
         'updated_at':      datetime.utcnow(),
@@ -170,12 +230,16 @@ def _date_range(from_date, to_date):
     return days
 
 
-def _compute_split(cat_doc, leave_type, from_date, to_date):
+def _compute_split(cat_doc, leave_type, from_date, to_date, custom_type=None):
     """Day-by-day: for each day, spend from that day's month's remaining free
-    quota (CL/SL pool or ML pool); anything left over becomes LP for that day.
-    Returns (paid_days, lp_days, month_breakdown) where month_breakdown is a
-    list of {year, month, paid, lp} so approval can credit the right buckets.
-    Does NOT mutate cat_doc — this is also used for the pre-submit preview."""
+    quota (CL/SL pool, ML pool, or a custom type's own flat pool); anything
+    left over becomes LP for that day. Returns (paid_days, lp_days,
+    month_breakdown) where month_breakdown is a list of {year, month, paid,
+    lp} so approval can credit the right buckets. Does NOT mutate cat_doc —
+    this is also used for the pre-submit preview.
+
+    `custom_type` is the leave_types doc for an HR-defined custom type (only
+    passed when leave_type isn't one of the built-in codes)."""
     if leave_type == 'LP':
         days = _date_range(from_date, to_date)
         return 0, len(days), []
@@ -194,11 +258,20 @@ def _compute_split(cat_doc, leave_type, from_date, to_date):
         days = _date_range(from_date, to_date)
         return len(days), 0, []
 
-    is_ml = (leave_type == ML_TYPE)
-    cap = cat_doc['ml_monthly_cap'] if is_ml else cat_doc['monthly_cap']
-    used_map = cat_doc['ml_monthly_used'] if is_ml else cat_doc['monthly_used']
-
-    running_used = dict(used_map)
+    if custom_type is not None:
+        cap = custom_type.get('monthly_cap')
+        if cap is None:
+            # Uncapped custom type — same shape as LP, but keeps its own code
+            # (so reporting can still tell it apart from generic LP).
+            days = _date_range(from_date, to_date)
+            return len(days), 0, []
+        used_map = cat_doc.get('custom_used', {}).get(custom_type['code'], {})
+        running_used = dict(used_map)
+    else:
+        is_ml = (leave_type == ML_TYPE)
+        cap = cat_doc['ml_monthly_cap'] if is_ml else cat_doc['monthly_cap']
+        used_map = cat_doc['ml_monthly_used'] if is_ml else cat_doc['monthly_used']
+        running_used = dict(used_map)
 
     days = _date_range(from_date, to_date)
     by_month = {}
@@ -250,8 +323,8 @@ def _compute_permission(cat_doc, permission_mode, the_date, from_time=None, to_t
     return paid, lp, breakdown, None
 
 
-def _apply_month_breakdown(db, cat_doc_id, is_ml, month_breakdown):
-    field = 'ml_monthly_used' if is_ml else 'monthly_used'
+def _apply_month_breakdown(db, cat_doc_id, is_ml, month_breakdown, custom_code=None):
+    field = f'custom_used.{custom_code}' if custom_code else ('ml_monthly_used' if is_ml else 'monthly_used')
     lp_field = 'lp_monthly'
     inc = {}
     for entry in month_breakdown:
@@ -281,6 +354,11 @@ def _apply_approval_effects(db, cat_doc, r):
         if r.get('permission_mode') == 'hourly':
             return  # hourly never touches CL/SL — nothing to apply
         _apply_month_breakdown(db, cat_doc['_id'], False, r.get('month_breakdown', []))
+        return
+    if leave_type not in BUILTIN_LEAVE_TYPES:
+        # HR-defined custom type — its own flat pool, tracked separately
+        # from the built-in CL/SL/ML pools.
+        _apply_month_breakdown(db, cat_doc['_id'], False, r.get('month_breakdown', []), custom_code=leave_type)
         return
     # CL, SL, ML
     _apply_month_breakdown(db, cat_doc['_id'], leave_type == ML_TYPE, r.get('month_breakdown', []))
@@ -343,7 +421,7 @@ def my_summary():
     if not emp_ref:
         return jsonify({'error': 'No employee record linked to this account'}), 400
 
-    year = int(request.args.get('year', datetime.now().year))
+    year = int(request.args.get('year', _current_leave_year(db)))
     cat_doc = _get_or_create_category(db, emp_ref, year)
     if not cat_doc:
         return jsonify({'error': 'Employee record not found'}), 404
@@ -382,12 +460,16 @@ def preview_leave():
     data = request.json or {}
     leave_type = (data.get('leave_type') or '').upper().strip()
     from_date, to_date = data.get('from_date'), data.get('to_date')
-    if leave_type not in LEAVE_TYPES:
-        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(LEAVE_TYPES))}'}), 400
+    custom_types = _get_custom_types(db)
+    valid_codes = BUILTIN_LEAVE_TYPES | set(custom_types.keys())
+    if leave_type not in valid_codes:
+        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(valid_codes))}'}), 400
     if not from_date or not to_date:
         return jsonify({'error': 'from_date and to_date are required'}), 400
 
-    cat_doc = _get_or_create_category(db, emp_ref, datetime.strptime(from_date, '%Y-%m-%d').year)
+    policy = _get_leave_policy(db)
+    year = _leave_year(datetime.strptime(from_date, '%Y-%m-%d'), policy['leave_year_start_month'])
+    cat_doc = _get_or_create_category(db, emp_ref, year, policy['category_rules'])
     if leave_type in FEMALE_ONLY_TYPES and cat_doc['category'] != 'female':
         return jsonify({'error': f'{leave_type.title()} is only available to female employees'}), 400
 
@@ -402,7 +484,7 @@ def preview_leave():
             return jsonify({'days': 0, 'paid_days': 0, 'lp_days': 0, 'permission_hours': hours,
                              'breakdown': [], 'warning': None})
     else:
-        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date, custom_types.get(leave_type))
 
     message = None
     if leave_type != 'LP' and lp > 0:
@@ -436,8 +518,10 @@ def apply_leave():
     from_time = data.get('from_time')
     to_time = data.get('to_time')
 
-    if leave_type not in LEAVE_TYPES:
-        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(LEAVE_TYPES))}'}), 400
+    custom_types = _get_custom_types(db)
+    valid_codes = BUILTIN_LEAVE_TYPES | set(custom_types.keys())
+    if leave_type not in valid_codes:
+        return jsonify({'error': f'leave_type must be one of {", ".join(sorted(valid_codes))}'}), 400
     if leave_type == PERMISSION_TYPE:
         if not from_date:
             return jsonify({'error': 'from_date is required'}), 400
@@ -452,8 +536,9 @@ def apply_leave():
     if not reason:
         return jsonify({'error': 'Reason for leave is required'}), 400
 
-    year = datetime.strptime(from_date, '%Y-%m-%d').year
-    cat_doc = _get_or_create_category(db, emp_ref, year)
+    policy = _get_leave_policy(db)
+    year = _leave_year(datetime.strptime(from_date, '%Y-%m-%d'), policy['leave_year_start_month'])
+    cat_doc = _get_or_create_category(db, emp_ref, year, policy['category_rules'])
     if not cat_doc:
         return jsonify({'error': 'Employee record not found'}), 404
 
@@ -471,9 +556,9 @@ def apply_leave():
         if cat_doc.get('comp_off_balance', 0) < paid:
             return jsonify({'error': f"Insufficient comp-off balance. You have {cat_doc.get('comp_off_balance', 0)} day(s) available."}), 400
     else:
-        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date)
+        paid, lp, breakdown = _compute_split(cat_doc, leave_type, from_date, to_date, custom_types.get(leave_type))
 
-    lp_prone_types = {'CL', 'SL', 'ML', PERMISSION_TYPE}
+    lp_prone_types = {'CL', 'SL', 'ML', PERMISSION_TYPE} | set(custom_types.keys())
     if leave_type in lp_prone_types and lp > 0 and not acknowledge_lp:
         return jsonify({
             'error': 'lp_confirmation_required',
@@ -595,8 +680,9 @@ def manager_action(rid):
 
     new_status = 'approved' if act == 'approve' else 'rejected'
     if act == 'approve':
-        year = datetime.strptime(r['from_date'], '%Y-%m-%d').year
-        cat_doc = _get_or_create_category(db, r['employee_id'], year)
+        policy = _get_leave_policy(db)
+        year = _leave_year(datetime.strptime(r['from_date'], '%Y-%m-%d'), policy['leave_year_start_month'])
+        cat_doc = _get_or_create_category(db, r['employee_id'], year, policy['category_rules'])
         _apply_approval_effects(db, cat_doc, r)
 
     db.leave_requests.update_one({'_id': ObjectId(rid)}, {
@@ -649,8 +735,9 @@ def hr_head_action(rid):
 
     new_status = 'approved' if act == 'approve' else 'rejected'
     if act == 'approve':
-        year = datetime.strptime(r['from_date'], '%Y-%m-%d').year
-        cat_doc = _get_or_create_category(db, r['employee_id'], year)
+        policy = _get_leave_policy(db)
+        year = _leave_year(datetime.strptime(r['from_date'], '%Y-%m-%d'), policy['leave_year_start_month'])
+        cat_doc = _get_or_create_category(db, r['employee_id'], year, policy['category_rules'])
         _apply_approval_effects(db, cat_doc, r)
 
     db.leave_requests.update_one({'_id': ObjectId(rid)}, {
@@ -666,7 +753,7 @@ def hr_head_action(rid):
 def all_balances():
     db = get_db()
 
-    year = int(request.args.get('year', datetime.now().year))
+    year = int(request.args.get('year', _current_leave_year(db)))
     out = []
     for emp in db.employees.find({'status': {'$ne': 'exited'}}):
         emp_id = str(emp['_id'])
@@ -688,7 +775,7 @@ def adjust_balance(emp_id):
     db = get_db()
 
     data = request.json or {}
-    year = int(data.get('year', datetime.now().year))
+    year = int(data.get('year', _current_leave_year(db)))
     cat_doc = _get_or_create_category(db, emp_id, year)
     if not cat_doc:
         return jsonify({'error': 'Employee not found'}), 404
@@ -696,11 +783,12 @@ def adjust_balance(emp_id):
     update = {'updated_at': datetime.utcnow(), 'manually_set': True}
     if 'category' in data:
         cat = data['category']
-        if cat not in CATEGORY_RULES:
-            return jsonify({'error': f'category must be one of {list(CATEGORY_RULES)}'}), 400
+        category_rules = _get_leave_policy(db)['category_rules']
+        if cat not in category_rules:
+            return jsonify({'error': f'category must be one of {list(category_rules)}'}), 400
         update['category'] = cat
-        update['monthly_cap'] = CATEGORY_RULES[cat]['monthly_cap']
-        update['ml_monthly_cap'] = CATEGORY_RULES[cat]['ml_monthly_cap']
+        update['monthly_cap'] = category_rules[cat]['monthly_cap']
+        update['ml_monthly_cap'] = category_rules[cat]['ml_monthly_cap']
     if 'monthly_cap' in data:
         update['monthly_cap'] = float(data['monthly_cap'])
     if 'ml_monthly_cap' in data:
@@ -738,3 +826,161 @@ def mark_notifications_read():
     db = get_db()
     db.leave_notifications.update_many({'target_role': 'hr', 'read': False}, {'$set': {'read': True}})
     return jsonify({'message': 'Marked as read'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HR — leave policy (fiscal/calendar leave year, category caps) and
+# custom leave type management
+# ─────────────────────────────────────────────────────────────────────────────
+
+@leaves_bp.route('/policy', methods=['GET'])
+@require_role('admin', 'hr', 'hr_head')
+def get_policy():
+    db = get_db()
+    return jsonify(_get_leave_policy(db))
+
+
+@leaves_bp.route('/policy', methods=['PUT'])
+@require_role('admin', 'hr_head')
+def update_policy():
+    db = get_db()
+    data = request.json or {}
+    update = {}
+
+    if 'leave_year_start_month' in data:
+        try:
+            m = int(data['leave_year_start_month'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'leave_year_start_month must be an integer 1-12'}), 400
+        if not (1 <= m <= 12):
+            return jsonify({'error': 'leave_year_start_month must be between 1 and 12'}), 400
+        update['leave_policy.leave_year_start_month'] = m
+
+    if 'category_rules' in data:
+        rules = data['category_rules']
+        if not isinstance(rules, dict):
+            return jsonify({'error': 'category_rules must be an object'}), 400
+        for cat, vals in rules.items():
+            if cat not in DEFAULT_CATEGORY_RULES:
+                return jsonify({'error': f"category must be one of {list(DEFAULT_CATEGORY_RULES)}"}), 400
+            if not isinstance(vals, dict) or 'monthly_cap' not in vals:
+                return jsonify({'error': f"category_rules.{cat} must include monthly_cap"}), 400
+            try:
+                monthly_cap = float(vals['monthly_cap'])
+                ml_monthly_cap = float(vals.get('ml_monthly_cap', 0))
+            except (TypeError, ValueError):
+                return jsonify({'error': f"category_rules.{cat} caps must be numbers"}), 400
+            update[f'leave_policy.category_rules.{cat}'] = {'monthly_cap': monthly_cap, 'ml_monthly_cap': ml_monthly_cap}
+
+    if not update:
+        return jsonify({'error': 'Nothing to update'}), 400
+    update['updated_at'] = datetime.utcnow()
+
+    # Same bypass as _get_leave_policy — companies aren't tenant-scoped data.
+    current_app.db.companies.update_one({'_id': ObjectId(g.tenant_id)}, {'$set': update})
+    return jsonify(_get_leave_policy(db))
+
+
+def _serialize_type(t):
+    t['_id'] = str(t['_id'])
+    return t
+
+
+@leaves_bp.route('/types', methods=['GET'])
+@tenant_scoped
+def list_types():
+    """Any authenticated tenant member can list active custom types — the
+    apply-leave form needs this to offer them as options. Include inactive
+    ones only for HR/admin managing the list."""
+    db = get_db()
+    is_manager = g.caller.get('role') in ('admin', 'hr', 'hr_head')
+    types = list(db.leave_types.find({} if is_manager else {'is_active': True}).sort('created_at', 1))
+    return jsonify([_serialize_type(t) for t in types])
+
+
+@leaves_bp.route('/types', methods=['POST'])
+@require_role('admin', 'hr', 'hr_head')
+def create_type():
+    db = get_db()
+    data = request.json or {}
+    code = (data.get('code') or '').strip().upper()
+    name = (data.get('name') or '').strip()
+    if not code or not name:
+        return jsonify({'error': 'code and name are required'}), 400
+    if not code.replace('_', '').isalnum():
+        return jsonify({'error': 'code must be alphanumeric (underscores allowed)'}), 400
+    if code in BUILTIN_LEAVE_TYPES:
+        return jsonify({'error': f"'{code}' is a built-in leave type code and can't be reused"}), 400
+    if db.leave_types.find_one({'code': code}):
+        return jsonify({'error': f"A leave type with code '{code}' already exists"}), 400
+
+    monthly_cap = data.get('monthly_cap')
+    if monthly_cap is not None:
+        try:
+            monthly_cap = float(monthly_cap)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'monthly_cap must be a number or null (uncapped)'}), 400
+
+    now = datetime.utcnow()
+    doc = {
+        'code': code, 'name': name, 'monthly_cap': monthly_cap,
+        'is_active': True, 'created_at': now, 'updated_at': now,
+    }
+    result = db.leave_types.insert_one(doc)
+    doc['_id'] = result.inserted_id
+    return jsonify(_serialize_type(doc)), 201
+
+
+@leaves_bp.route('/types/<type_id>', methods=['PUT'])
+@require_role('admin', 'hr', 'hr_head')
+def update_type(type_id):
+    db = get_db()
+    try:
+        oid = ObjectId(type_id)
+    except InvalidId:
+        return jsonify({'error': 'Invalid type id'}), 400
+
+    data = request.json or {}
+    update = {}
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name:
+            return jsonify({'error': 'name cannot be empty'}), 400
+        update['name'] = name
+    if 'monthly_cap' in data:
+        cap = data['monthly_cap']
+        if cap is not None:
+            try:
+                cap = float(cap)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'monthly_cap must be a number or null'}), 400
+        update['monthly_cap'] = cap
+    if 'is_active' in data:
+        update['is_active'] = bool(data['is_active'])
+    if not update:
+        return jsonify({'error': 'Nothing to update'}), 400
+    update['updated_at'] = datetime.utcnow()
+
+    result = db.leave_types.update_one({'_id': oid}, {'$set': update})
+    if result.matched_count == 0:
+        return jsonify({'error': 'Leave type not found'}), 404
+    return jsonify(_serialize_type(db.leave_types.find_one({'_id': oid})))
+
+
+@leaves_bp.route('/types/<type_id>', methods=['DELETE'])
+@require_role('admin', 'hr_head')
+def delete_type(type_id):
+    db = get_db()
+    try:
+        oid = ObjectId(type_id)
+    except InvalidId:
+        return jsonify({'error': 'Invalid type id'}), 400
+
+    t = db.leave_types.find_one({'_id': oid})
+    if not t:
+        return jsonify({'error': 'Leave type not found'}), 404
+    if db.leave_requests.find_one({'leave_type': t['code']}):
+        return jsonify({'error': 'This leave type has existing requests — deactivate it instead of deleting'}), 400
+
+    db.leave_types.delete_one({'_id': oid})
+    return jsonify({'message': 'Leave type deleted'})

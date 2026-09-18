@@ -307,6 +307,303 @@ function BalancesTab({ balances, onAdjust }) {
   );
 }
 
+// ─── Add/Edit leave type modal ───────────────────────────────────────────────
+function LeaveTypeModal({ type, onClose, onSaved }) {
+  const isEdit = !!type;
+  const [name, setName] = useState(type?.name || '');
+  const [code, setCode] = useState(type?.code || '');
+  const [cap, setCap] = useState(type?.monthly_cap ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    setSaving(true); setError('');
+    try {
+      const monthly_cap = cap === '' || cap === null ? null : Number(cap);
+      if (isEdit) {
+        await axios.put(`/api/leaves/types/${type._id}`, { name: name.trim(), monthly_cap });
+      } else {
+        await axios.post('/api/leaves/types', { code: code.trim(), name: name.trim(), monthly_cap });
+      }
+      onSaved();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Could not save leave type');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <h3 className="modal-title">{isEdit ? 'Edit Leave Type' : 'Add Leave Type'}</h3>
+
+        {error && <div className="alert alert-error" style={{ marginBottom: 14 }}>{error}</div>}
+
+        <div className="form-group">
+          <label className="form-label">Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Bereavement Leave" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Code</label>
+          <input
+            value={code}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            placeholder="e.g. BRVMT"
+            disabled={isEdit}
+          />
+          {isEdit && (
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>
+              Code can't be changed after a leave type is created.
+            </div>
+          )}
+        </div>
+        <div className="form-group">
+          <label className="form-label">Monthly cap (days)</label>
+          <input
+            type="number" min="0" step="0.5" value={cap}
+            onChange={e => setCap(e.target.value)}
+            placeholder="Leave blank for uncapped"
+          />
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={save}
+            disabled={saving || !name.trim() || (!isEdit && !code.trim())}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const EMPTY_CATEGORY_RULES = {
+  regular: { monthly_cap: 0, ml_monthly_cap: 0 },
+  probationary: { monthly_cap: 0, ml_monthly_cap: 0 },
+  female: { monthly_cap: 0, ml_monthly_cap: 0 },
+};
+
+const CATEGORY_ROWS = [
+  { key: 'regular', label: 'Regular' },
+  { key: 'probationary', label: 'Probationary' },
+  { key: 'female', label: 'Female employees' },
+];
+
+// ─── Settings tab ────────────────────────────────────────────────────────────
+function SettingsTab({ notify }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [yearMonth, setYearMonth] = useState(1);
+  const [savingYear, setSavingYear] = useState(false);
+
+  const [caps, setCaps] = useState(EMPTY_CATEGORY_RULES);
+  const [savingCaps, setSavingCaps] = useState(false);
+
+  const [types, setTypes] = useState([]);
+  const [showAddType, setShowAddType] = useState(false);
+  const [editingType, setEditingType] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError('');
+    Promise.all([
+      axios.get('/api/leaves/policy'),
+      axios.get('/api/leaves/types'),
+    ]).then(([p, t]) => {
+      setYearMonth(p.data.leave_year_start_month || 1);
+      setCaps({ ...EMPTY_CATEGORY_RULES, ...(p.data.category_rules || {}) });
+      setTypes(t.data);
+    }).catch(e => {
+      setError(e.response?.data?.error || 'Could not load leave settings');
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const refreshTypes = () => axios.get('/api/leaves/types').then(r => setTypes(r.data)).catch(() => {});
+
+  const saveYear = async () => {
+    setSavingYear(true);
+    try {
+      const { data } = await axios.put('/api/leaves/policy', { leave_year_start_month: Number(yearMonth) });
+      setYearMonth(data.leave_year_start_month);
+      notify('Leave year setting saved');
+    } catch (e) {
+      notify(e.response?.data?.error || 'Could not save leave year setting');
+    } finally { setSavingYear(false); }
+  };
+
+  const saveCaps = async () => {
+    setSavingCaps(true);
+    try {
+      const payload = {};
+      CATEGORY_ROWS.forEach(({ key }) => {
+        payload[key] = {
+          monthly_cap: Number(caps[key]?.monthly_cap || 0),
+          ml_monthly_cap: Number(caps[key]?.ml_monthly_cap || 0),
+        };
+      });
+      const { data } = await axios.put('/api/leaves/policy', { category_rules: payload });
+      setCaps({ ...EMPTY_CATEGORY_RULES, ...(data.category_rules || {}) });
+      notify('Category caps saved');
+    } catch (e) {
+      notify(e.response?.data?.error || 'Could not save category caps');
+    } finally { setSavingCaps(false); }
+  };
+
+  const toggleActive = async (t) => {
+    try {
+      await axios.put(`/api/leaves/types/${t._id}`, { is_active: !t.is_active });
+      notify(`${t.name} ${t.is_active ? 'deactivated' : 'reactivated'}`);
+      refreshTypes();
+    } catch (e) {
+      notify(e.response?.data?.error || 'Could not update leave type');
+    }
+  };
+
+  const deleteType = async (t) => {
+    if (!window.confirm(`Delete leave type "${t.name}"? This cannot be undone.`)) return;
+    try {
+      await axios.delete(`/api/leaves/types/${t._id}`);
+      notify('Leave type deleted');
+      refreshTypes();
+    } catch (e) {
+      notify(e.response?.data?.error || 'Could not delete leave type');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="empty-state"><p>Loading settings…</p></div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <div className="card">
+        <h3 style={{ marginTop: 0, marginBottom: 14 }}>Leave Year</h3>
+        <div className="form-group">
+          <label className="form-label">Leave year starts in</label>
+          <select value={yearMonth} onChange={e => setYearMonth(Number(e.target.value))} style={{ width: 240 }}>
+            {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-faint)', marginBottom: 14 }}>
+          Choose January for a calendar-year leave cycle (Jan – Dec). Choosing any other month starts a
+          fiscal leave year instead — e.g. April begins a leave year that runs April through March.
+        </div>
+        <button className="btn btn-primary" onClick={saveYear} disabled={savingYear}>
+          {savingYear ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0, marginBottom: 14 }}>Category Caps</h3>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>CL/SL days per month</th>
+                <th>Additional ML days per month</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CATEGORY_ROWS.map(({ key, label }) => (
+                <tr key={key}>
+                  <td style={{ fontWeight: 600 }}>{label}</td>
+                  <td>
+                    <input
+                      type="number" min="0" step="0.5" style={{ width: 100 }}
+                      value={caps[key]?.monthly_cap ?? 0}
+                      onChange={e => setCaps(c => ({ ...c, [key]: { ...c[key], monthly_cap: e.target.value } }))}
+                    />
+                  </td>
+                  <td>
+                    {key === 'female' ? (
+                      <input
+                        type="number" min="0" step="0.5" style={{ width: 100 }}
+                        value={caps[key]?.ml_monthly_cap ?? 0}
+                        onChange={e => setCaps(c => ({ ...c, [key]: { ...c[key], ml_monthly_cap: e.target.value } }))}
+                      />
+                    ) : <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={saveCaps} disabled={savingCaps}>
+          {savingCaps ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>Custom Leave Types</h3>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowAddType(true)}>+ Add Leave Type</button>
+        </div>
+        {types.length === 0 ? (
+          <div className="empty-state"><p>No custom leave types yet</p></div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Code</th><th>Monthly cap</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody>
+                {types.map(t => (
+                  <tr key={t._id}>
+                    <td>{t.name}</td>
+                    <td style={{ fontFamily: 'var(--mono)' }}>{t.code}</td>
+                    <td>{t.monthly_cap == null ? 'Uncapped' : t.monthly_cap}</td>
+                    <td><span className={`badge ${t.is_active ? 'badge-green' : 'badge-gray'}`}>{t.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setEditingType(t)}>Edit</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => toggleActive(t)}>
+                          {t.is_active ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                        <button className="btn btn-sm btn-danger" onClick={() => deleteType(t)}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {showAddType && (
+        <LeaveTypeModal
+          onClose={() => setShowAddType(false)}
+          onSaved={() => { setShowAddType(false); notify('Leave type added'); refreshTypes(); }}
+        />
+      )}
+      {editingType && (
+        <LeaveTypeModal
+          type={editingType}
+          onClose={() => setEditingType(null)}
+          onSaved={() => { setEditingType(null); notify('Leave type updated'); refreshTypes(); }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function LeaveManagementPage() {
   const { user } = useAuth();
@@ -339,6 +636,8 @@ export default function LeaveManagementPage() {
     }
   };
 
+  const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   return (
@@ -357,7 +656,11 @@ export default function LeaveManagementPage() {
       {toast && <div className="alert alert-success" style={{ marginBottom: 16 }}>{toast}</div>}
 
       <div className="tabs" style={{ marginBottom: 18 }}>
-        {[{ key: 'requests', label: 'All Requests' }, { key: 'balances', label: 'Balances' }].map(t => (
+        {[
+          { key: 'requests', label: 'All Requests' },
+          { key: 'balances', label: 'Balances' },
+          ...(canDecide ? [{ key: 'settings', label: 'Settings' }] : []),
+        ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} className={`tab-btn ${tab === t.key ? 'active' : ''}`}>{t.label}</button>
         ))}
       </div>
@@ -378,6 +681,7 @@ export default function LeaveManagementPage() {
         </>
       )}
       {tab === 'balances' && <BalancesTab balances={balances} onAdjust={load} />}
+      {tab === 'settings' && canDecide && <SettingsTab notify={notify} />}
     </div>
   );
 }

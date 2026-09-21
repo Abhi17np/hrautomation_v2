@@ -24,6 +24,7 @@ from flask_jwt_extended import create_access_token
 
 from auth_utils import platform_admin_required
 from extensions import limiter
+from roles_service import seed_system_roles
 
 platform_bp = Blueprint('platform', __name__)
 
@@ -112,6 +113,9 @@ def create_company():
         db.companies.delete_one({'_id': company_id})
         return jsonify({'error': 'Admin email already exists for this tenant'}), 400
 
+    roles = seed_system_roles(db, tenant_id)
+    admin_role = roles['admin']
+
     hashed = bcrypt.hashpw(admin_password.encode(), bcrypt.gensalt())
     db.users.insert_one({
         'tenant_id': tenant_id,
@@ -119,6 +123,8 @@ def create_company():
         'email': admin_email,
         'password': hashed,
         'role': 'admin',
+        'role_id': str(admin_role['_id']),
+        'role_key': admin_role['key'],
         'is_active': True,
         'created_at': now,
     })

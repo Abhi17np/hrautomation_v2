@@ -21,6 +21,7 @@ import AssetsPage    from './pages/AssetsPage';
 import OrgChartPage  from './pages/OrgChartPage';
 import ReportsPage   from './pages/ReportsPage';
 import HRMSupportPage from './pages/HRMSupportPage';
+import RolesPage      from './pages/RolesPage';
 
 
 import './App.css';
@@ -60,6 +61,7 @@ const PAGES = {
   '/organization/assets':    AssetsPage,
   '/organization/org-chart': OrgChartPage,
   '/organization/reports':   ReportsPage,
+  '/organization/roles':     RolesPage,
   '/support': HRMSupportPage,
 };
 

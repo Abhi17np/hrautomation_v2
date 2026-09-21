@@ -29,6 +29,7 @@ const NAV_HR = [
       { to: '/organization/assets', label: 'Assets' },
       { to: '/organization/org-chart', label: 'Org Chart' },
       { to: '/organization/reports', label: 'Reports' },
+      { to: '/organization/roles', label: 'Roles & Permissions' },
   ] },
 ];
 const NAV_EMPLOYEE = [
@@ -714,9 +715,14 @@ export default function Layout({ children, currentPath }) {
     });
   }, [user?._id]);
 
-  const NAV = user?.role === 'employee' ? NAV_EMPLOYEE
+  const canManageRoles = (user?.permissions || []).includes('roles.manage');
+  const NAV = (user?.role === 'employee' ? NAV_EMPLOYEE
     : user?.role === 'manager' ? NAV_MANAGER
-      : NAV_HR;
+      : NAV_HR
+  ).map(item => item.group
+    ? { ...item, items: item.items.filter(it => it.to !== '/organization/roles' || canManageRoles) }
+    : item
+  );
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F3F6FC' }}>

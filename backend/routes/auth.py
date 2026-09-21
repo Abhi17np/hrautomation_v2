@@ -7,6 +7,7 @@ from bson import ObjectId
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
 from extensions import limiter
+from roles_service import build_user_role_fields
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -19,6 +20,7 @@ def serialize_user(user):
         'email':     user['email'],
         'name':      user['name'],
         'role':      user['role'],
+        'role_key':  user.get('role_key') or user['role'],
         'tenant_id': user.get('tenant_id'),
     }
     if user.get('employee_ref'):
@@ -74,6 +76,9 @@ def me():
     db   = get_db()
     user = g.caller
     data = serialize_user(user)
+    data['permissions'] = sorted(g.caller_permissions or [])
+    if g.caller_role:
+        data['role_name'] = g.caller_role.get('name')
     # Merge employee record fields so frontend always has them
     if user.get('employee_ref'):
         try:
@@ -102,10 +107,16 @@ def me():
 def list_users():
     db    = get_db()
     role  = request.args.get('role')
-    query = {'role': role} if role else {}
+    role_id = request.args.get('role_id')
+    query = {}
+    if role:    query['role'] = role
+    if role_id: query['role_id'] = role_id
     users = list(db.users.find(query, {'password': 0}))
+    roles_by_id = {str(r['_id']): r for r in db.roles.find({})}
     for u in users:
         u['_id'] = str(u['_id'])
+        role_doc = roles_by_id.get(u.get('role_id'))
+        u['role_name'] = role_doc['name'] if role_doc else u.get('role')
     return jsonify(users)
 
 
@@ -118,13 +129,24 @@ def create_user():
         return jsonify({'error': 'name, email and password are required'}), 400
     if db.users.find_one({'email': data['email']}):
         return jsonify({'error': 'Email already exists'}), 400
+
+    role_fields = {}
+    if data.get('role_id'):
+        from roles_service import resolve_role
+        role_doc = resolve_role(db, g.tenant_id, role_id=data['role_id'])
+        if not role_doc:
+            return jsonify({'error': 'Invalid role_id'}), 400
+        role_fields = {'role': role_doc['base_role'], 'role_id': str(role_doc['_id']), 'role_key': role_doc['key']}
+    else:
+        role_fields = build_user_role_fields(db, g.tenant_id, data.get('role', 'hr'))
+
     hashed = bcrypt.hashpw(data['password'].encode(), bcrypt.gensalt())
     user = {
         'name':       data['name'],
         'email':      data['email'],
         'password':   hashed,
-        'role':       data.get('role', 'hr'),
         'created_at': datetime.utcnow(),
+        **role_fields,
     }
     result = db.users.insert_one(user)
     return jsonify({'id': str(result.inserted_id), 'message': 'User created'}), 201
@@ -161,6 +183,10 @@ def get_profile():
     db   = get_db()
     user.pop('password', None)
     user['_id'] = str(user['_id'])
+    user['permissions'] = sorted(g.caller_permissions or [])
+    if g.caller_role:
+        user['role_name'] = g.caller_role.get('name')
+        user['role_key']  = g.caller_role.get('key')
     # Also pull employee record if linked
     if user.get('employee_ref'):
         emp = db.employees.find_one({'_id': ObjectId(user['employee_ref'])})

@@ -1282,9 +1282,12 @@ def create_id(lid):
     DEFAULT_PW = '12345678'
     hashed     = bcrypt.hashpw(DEFAULT_PW.encode(), bcrypt.gensalt())
 
+    from roles_service import build_user_role_fields
+    role_fields = build_user_role_fields(db, g.tenant_id, data.get('role', 'employee'))
+
     user_res = db.users.insert_one({
         'name': emp.get('name', ''), 'email': login_email,
-        'password': hashed, 'role': data.get('role', 'employee'),
+        'password': hashed, **role_fields,
         'employee_ref': str(emp['_id']), 'emp_code': emp_code,
         'created_at': datetime.utcnow(), 'created_by': uid,
     })

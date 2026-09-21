@@ -33,8 +33,10 @@ from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 def tenant_scoped(fn):
     """Verifies the JWT, resolves g.tenant_id from its claims, loads the
-    calling user (tenant-scoped) into g.caller. Rejects platform-admin
-    tokens (no tenant_id claim) and deactivated accounts."""
+    calling user (tenant-scoped) into g.caller, and resolves their
+    permission set (g.caller_permissions, g.caller_role) from the `roles`
+    collection. Rejects platform-admin tokens (no tenant_id claim) and
+    deactivated accounts."""
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
@@ -55,18 +57,45 @@ def tenant_scoped(fn):
         if caller.get('is_active') is False:
             return jsonify({'error': 'Account deactivated. Please contact HR.'}), 403
         g.caller = caller
+
+        from roles_service import permissions_for_user
+        g.caller_permissions, g.caller_role = permissions_for_user(db, tenant_id, caller)
+
         return fn(*args, **kwargs)
     return wrapper
 
 
 def require_role(*roles):
     """Stacks tenant_scoped, then requires g.caller['role'] to be one of
-    `roles`. Usage: @require_role('admin', 'hr_head')."""
+    `roles`. Usage: @require_role('admin', 'hr_head').
+
+    `role` is kept in sync with the caller's role's `base_role`, so a
+    custom role (e.g. 'HR Associate' based on 'hr') is still gated
+    correctly here — this decorator is for routes not yet migrated to
+    the finer-grained require_permission."""
     def decorator(fn):
         @wraps(fn)
         @tenant_scoped
         def wrapper(*args, **kwargs):
             if g.caller.get('role') not in roles:
+                return jsonify({'error': 'Access denied'}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def require_permission(*perms, mode='all'):
+    """Stacks tenant_scoped, then requires the caller's resolved permission
+    set (g.caller_permissions) to satisfy `perms`. mode='all' (default)
+    requires every listed permission; mode='any' requires at least one.
+    Usage: @require_permission('letters.approve')."""
+    def decorator(fn):
+        @wraps(fn)
+        @tenant_scoped
+        def wrapper(*args, **kwargs):
+            granted = g.caller_permissions or set()
+            ok = all(p in granted for p in perms) if mode == 'all' else any(p in granted for p in perms)
+            if not ok:
                 return jsonify({'error': 'Access denied'}), 403
             return fn(*args, **kwargs)
         return wrapper

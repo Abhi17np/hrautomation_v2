@@ -142,8 +142,10 @@ SCHEMAS = {
                     "role":         {
                         "bsonType": "string",
                         "enum": ["admin", "hr", "hr_head", "manager", "employee"],
-                        "description": "User role controlling access"
+                        "description": "Legacy behavior bucket — kept in sync with roles[role_id].base_role so routes not yet migrated to require_permission keep working unchanged"
                     },
+                    "role_id":      {"bsonType": ["string", "null"], "description": "ObjectId of this user's role in the `roles` collection"},
+                    "role_key":     {"bsonType": ["string", "null"], "description": "Denormalized roles.key — the role's display slug, may be a custom role distinct from `role`'s legacy bucket"},
                     "employee_ref": {"bsonType": "string", "description": "ObjectId of linked employee record"},
                     "emp_code":     {"bsonType": "string", "description": "Employee code e.g. EMP001"},
                     "is_active":    {"bsonType": "bool",   "description": "False = account deactivated"},
@@ -163,6 +165,38 @@ SCHEMAS = {
             }
         },
         "validationLevel": "moderate",  # moderate = existing docs not re-validated
+    },
+
+    # ── roles ──────────────────────────────────────────────────────────────
+    # Configurable RBAC: every tenant is seeded with 5 system roles matching
+    # the legacy admin/hr/hr_head/manager/employee enum (is_system: true,
+    # base_role == key), and can add custom roles or edit any role's
+    # permission set. base_role tells not-yet-migrated require_role(...)
+    # routes which legacy bucket a role behaves as; permissions is what
+    # require_permission(...) routes (roles/workflows and anything new)
+    # actually check.
+    "roles": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "key", "name", "base_role", "permissions", "is_system", "created_at"],
+                "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "key":         {"bsonType": "string", "description": "Unique slug within the tenant, e.g. 'hr_associate'"},
+                    "name":        {"bsonType": "string", "description": "Display name, e.g. 'HR Associate'"},
+                    "base_role": {
+                        "bsonType": "string",
+                        "enum": ["admin", "hr", "hr_head", "manager", "employee"],
+                        "description": "Which legacy bucket this role behaves as on routes still gated by require_role(...)"
+                    },
+                    "permissions": {"bsonType": "array", "items": {"bsonType": "string"}, "description": "Permission keys from permissions.PERMISSION_CATALOG"},
+                    "is_system":   {"bsonType": "bool", "description": "True for the 5 auto-seeded roles — cannot be deleted, base_role/key are fixed, but name/permissions are editable"},
+                    "created_at":  {"bsonType": "date"},
+                    "updated_at":  {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
     },
 
     # ── employees ──────────────────────────────────────────────────────────
@@ -796,6 +830,10 @@ INDEXES = {
         {"keys": [("tenant_id", ASCENDING), ("email", ASCENDING)], "unique": True, "name": "idx_users_tenant_email_unique"},
         {"keys": [("role", ASCENDING)],  "name": "idx_users_role"},
         {"keys": [("employee_ref", ASCENDING)], "sparse": True, "name": "idx_users_employee_ref"},
+        {"keys": [("tenant_id", ASCENDING), ("role_id", ASCENDING)], "sparse": True, "name": "idx_users_tenant_roleid"},
+    ],
+    "roles": [
+        {"keys": [("tenant_id", ASCENDING), ("key", ASCENDING)], "unique": True, "name": "idx_roles_tenant_key_unique"},
     ],
     "employees": [
         {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "unique": True, "name": "idx_employees_tenant_empid_unique"},

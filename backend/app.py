@@ -79,6 +79,9 @@ from routes.audit              import audit_bp
 from routes.payroll_config     import payroll_config_bp
 from routes.payroll_runs       import payroll_runs_bp
 from routes.expenses           import expenses_bp
+from routes.announcements      import announcements_bp
+from routes.notifications      import notifications_bp
+from routes.policies           import policies_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(roles_bp,              url_prefix='/api/roles')
@@ -87,6 +90,9 @@ app.register_blueprint(audit_bp,              url_prefix='/api/audit-log')
 app.register_blueprint(payroll_config_bp,     url_prefix='/api/payroll-config')
 app.register_blueprint(payroll_runs_bp,       url_prefix='/api/payroll-runs')
 app.register_blueprint(expenses_bp,           url_prefix='/api/expenses')
+app.register_blueprint(announcements_bp,      url_prefix='/api/announcements')
+app.register_blueprint(notifications_bp,      url_prefix='/api/notifications')
+app.register_blueprint(policies_bp,           url_prefix='/api/policies')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
 app.register_blueprint(templates_bp,          url_prefix='/api/templates')
 app.register_blueprint(letters_bp,            url_prefix='/api/letters')

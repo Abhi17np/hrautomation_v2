@@ -29,6 +29,8 @@ import AuditLogPage      from './pages/AuditLogPage';
 import PayrollRunsPage    from './pages/PayrollRunsPage';
 import PayrollSettingsPage from './pages/PayrollSettingsPage';
 import ExpensesPage      from './pages/ExpensesPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
+import PoliciesPage      from './pages/PoliciesPage';
 
 
 import './App.css';
@@ -74,6 +76,8 @@ const PAGES = {
   '/payroll/run': PayrollRunsPage,
   '/payroll/settings': PayrollSettingsPage,
   '/expenses': ExpensesPage,
+  '/announcements': AnnouncementsPage,
+  '/policies': PoliciesPage,
   '/support': HRMSupportPage,
 };
 

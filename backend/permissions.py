@@ -86,6 +86,11 @@ PERMISSION_CATALOG = {
     "Support": [
         ("support.manage", "Manage & resolve HR support tickets"),
     ],
+    "Engagement": [
+        ("announcements.manage", "Post & manage company announcements"),
+        ("policies.manage", "Upload & manage policy documents"),
+        ("policies.view_acknowledgments", "View who has acknowledged a policy"),
+    ],
 }
 
 ALL_PERMISSIONS = {key for perms in PERMISSION_CATALOG.values() for key, _ in perms}
@@ -115,6 +120,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         "documents.review",
         "assets.manage",
         "support.manage",
+        "announcements.manage", "policies.manage", "policies.view_acknowledgments",
     }),
     "manager": sorted({
         "employees.view",

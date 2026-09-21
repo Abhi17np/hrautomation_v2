@@ -350,6 +350,96 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── announcements ──────────────────────────────────────────────────────
+    # Company-wide (or role-targeted) notice board posts.
+    "announcements": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "title", "body", "created_by", "created_at"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "title":        {"bsonType": "string"},
+                    "body":         {"bsonType": "string"},
+                    "target_roles": {"bsonType": ["array", "null"], "description": "Role keys this announcement targets; empty/null = everyone"},
+                    "pinned":       {"bsonType": ["bool", "null"]},
+                    "created_by":   {"bsonType": "string"},
+                    "expires_at":   {"bsonType": ["date", "null"]},
+                    "created_at":   {"bsonType": "date"},
+                    "updated_at":   {"bsonType": ["date", "null"]},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── notifications ──────────────────────────────────────────────────────
+    # Unified in-app notification store — new modules should write here
+    # rather than inventing their own per-module notification shape
+    # (leave_notifications predates this and is left as-is).
+    "notifications": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "user_id", "title", "created_at"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "user_id":   {"bsonType": "string", "description": "Target user's ObjectId as a string"},
+                    "type":      {"bsonType": ["string", "null"], "description": "e.g. 'announcement', 'workflow', 'expense'"},
+                    "title":     {"bsonType": "string"},
+                    "message":   {"bsonType": ["string", "null"]},
+                    "link":      {"bsonType": ["string", "null"]},
+                    "read":      {"bsonType": ["bool", "null"]},
+                    "created_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── policies ────────────────────────────────────────────────────────────
+    # Policy library (leave policy, code of conduct, etc.) — text body or an
+    # uploaded document, with employee acknowledgment tracking.
+    "policies": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "title", "created_by", "created_at"],
+                "properties": {
+                    "tenant_id":   {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "title":       {"bsonType": "string"},
+                    "category":    {"bsonType": ["string", "null"]},
+                    "body":        {"bsonType": ["string", "null"]},
+                    "file_gridfs_id": {"bsonType": ["string", "null"]},
+                    "filename":    {"bsonType": ["string", "null"]},
+                    "requires_acknowledgment": {"bsonType": ["bool", "null"]},
+                    "is_active":   {"bsonType": ["bool", "null"]},
+                    "created_by":  {"bsonType": "string"},
+                    "created_at":  {"bsonType": "date"},
+                    "updated_at":  {"bsonType": ["date", "null"]},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── policy_acknowledgments ─────────────────────────────────────────────
+    "policy_acknowledgments": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "policy_id", "user_id", "acknowledged_at"],
+                "properties": {
+                    "tenant_id":       {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "policy_id":       {"bsonType": "string"},
+                    "user_id":         {"bsonType": "string"},
+                    "acknowledged_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── audit_log ──────────────────────────────────────────────────────────
     # Append-only record of sensitive actions (user/role/workflow changes,
     # auth events) for compliance and support investigation. Never updated
@@ -1152,6 +1242,19 @@ INDEXES = {
     ],
     "fnf_settlements": [
         {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "unique": True, "name": "idx_fnf_tenant_emp_unique"},
+    ],
+    "announcements": [
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_announcements_tenant_created_desc"},
+    ],
+    "notifications": [
+        {"keys": [("tenant_id", ASCENDING), ("user_id", ASCENDING), ("read", ASCENDING)], "name": "idx_notifications_tenant_user_read"},
+        {"keys": [("tenant_id", ASCENDING), ("user_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_notifications_tenant_user_created_desc"},
+    ],
+    "policies": [
+        {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_policies_tenant_active"},
+    ],
+    "policy_acknowledgments": [
+        {"keys": [("tenant_id", ASCENDING), ("policy_id", ASCENDING), ("user_id", ASCENDING)], "unique": True, "name": "idx_policyack_tenant_policy_user_unique"},
     ],
     "workflow_definitions": [
         {"keys": [("tenant_id", ASCENDING), ("process_type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_workflowdefs_tenant_type_active"},

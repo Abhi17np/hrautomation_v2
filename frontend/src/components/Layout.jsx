@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 
 const NAV_HR = [
   { to: '/', icon: '⊞', label: 'Dashboard' },
+  { to: '/announcements', icon: '📣', label: 'Announcements' },
+  { to: '/policies', icon: '📘', label: 'Policies' },
   { to: '/employees', icon: '◎', label: 'Employees' },
   { group: 'Onboarding', icon: '⌘', items: [
       { to: '/templates', label: 'Templates' },
@@ -39,6 +41,8 @@ const NAV_HR = [
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
+  { to: '/announcements', icon: '📣', label: 'Announcements' },
+  { to: '/policies', icon: '📘', label: 'Policies' },
   { to: '/letters', icon: '◎', label: 'My Offer Letters' },
   { to: '/appointment', icon: '◈', label: 'Appointment Order' },
   { to: '/documents', icon: '⬡', label: 'My Documents' },
@@ -52,6 +56,8 @@ const NAV_EMPLOYEE = [
 
 const NAV_MANAGER = [
   { to: '/', icon: '▦', label: 'Dashboard' },
+  { to: '/announcements', icon: '📣', label: 'Announcements' },
+  { to: '/policies', icon: '📘', label: 'Policies' },
   { to: '/letters', icon: '◎', label: 'My Offer Letters' },
   { to: '/appointment', icon: '◈', label: 'Appointment Order' },
   { to: '/documents', icon: '⬡', label: 'My Documents' },
@@ -188,6 +194,99 @@ function Field({ label, value, onChange, type = 'text', half }) {
     <div className="form-group" style={{ margin: 0, gridColumn: half ? 'auto' : '1 / -1' }}>
       <label className="form-label">{label}</label>
       <input type={type} value={value || ''} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+// ─── NotificationBell — unified notification center dropdown ──────────────
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const [notifs, setNotifs] = useState([]);
+  const [unread, setUnread] = useState(0);
+
+  const load = () => {
+    axios.get('/api/notifications/')
+      .then(r => { setNotifs(r.data.notifications || []); setUnread(r.data.unread_count || 0); })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const markAllRead = async () => {
+    await axios.post('/api/notifications/mark-all-read');
+    setNotifs(n => n.map(x => ({ ...x, read: true })));
+    setUnread(0);
+  };
+
+  const openNotif = async (n) => {
+    if (!n.read) {
+      await axios.post(`/api/notifications/${n._id}/read`);
+      setNotifs(prev => prev.map(x => x._id === n._id ? { ...x, read: true } : x));
+      setUnread(u => Math.max(0, u - 1));
+    }
+    if (n.link) window.location.hash = n.link.replace(/^#/, '');
+  };
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => { setOpen(o => !o); if (!open) load(); }}
+        style={{
+          width: 32, height: 32, borderRadius: 10, border: '1px solid #EEF1F6',
+          background: '#fff', cursor: 'pointer', position: 'relative',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+        }}
+        title="Notifications"
+      >
+        🔔
+        {unread > 0 && (
+          <span style={{
+            position: 'absolute', top: -4, right: -4,
+            background: '#EB5757', color: '#fff', fontSize: 9.5, fontWeight: 700,
+            borderRadius: 99, minWidth: 16, height: 16, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+          }}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'absolute', top: 38, right: 0, width: 320, maxHeight: 400, overflowY: 'auto',
+            background: '#fff', borderRadius: 12, border: '1px solid #EEF1F6',
+            boxShadow: '0 12px 32px rgba(31,62,133,.16)', zIndex: 999,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #EEF1F6' }}>
+              <span style={{ fontWeight: 700, fontSize: 12.5 }}>Notifications</span>
+              {unread > 0 && (
+                <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: '#3E7BFA', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  Mark all read
+                </button>
+              )}
+            </div>
+            {notifs.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: '#8A94A6', fontSize: 12 }}>No notifications yet</div>
+            ) : notifs.map(n => (
+              <div key={n._id} onClick={() => openNotif(n)} style={{
+                padding: '10px 14px', borderBottom: '1px solid #F3F6FC', cursor: 'pointer',
+                background: n.read ? '#fff' : '#F0F5FE',
+              }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#232B3A' }}>{n.title}</div>
+                {n.message && <div style={{ fontSize: 11.5, color: '#8A94A6', marginTop: 2 }}>{n.message}</div>}
+                <div style={{ fontSize: 10, color: '#AEB7C4', marginTop: 3, fontFamily: 'var(--mono)' }}>
+                  {new Date(n.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -761,8 +860,9 @@ export default function Layout({ children, currentPath }) {
         <div style={{
           padding: '18px 16px 16px',
           borderBottom: '1px solid #EEF1F6',
-          display: 'flex', alignItems: 'center', gap: 10,
+          display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between',
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <img
             src="/infopace-logo.webp"
             alt="Logo"
@@ -788,6 +888,8 @@ export default function Layout({ children, currentPath }) {
                   : 'Infopace '}
             </div>
           </div>
+          </div>
+          <NotificationBell />
         </div>
 
         {/* Nav */}

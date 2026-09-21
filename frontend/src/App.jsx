@@ -23,6 +23,9 @@ import ReportsPage   from './pages/ReportsPage';
 import HRMSupportPage from './pages/HRMSupportPage';
 import RolesPage      from './pages/RolesPage';
 import WorkflowsPage  from './pages/WorkflowsPage';
+import AcceptInvitePage  from './pages/AcceptInvitePage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import AuditLogPage      from './pages/AuditLogPage';
 
 
 import './App.css';
@@ -64,6 +67,7 @@ const PAGES = {
   '/organization/reports':   ReportsPage,
   '/organization/roles':     RolesPage,
   '/organization/workflows': WorkflowsPage,
+  '/organization/audit-log': AuditLogPage,
   '/support': HRMSupportPage,
 };
 
@@ -88,6 +92,12 @@ function AppRouter() {
   // separate login/session (see PlatformAdminPage.jsx) and is intentionally
   // not listed in any tenant nav.
   if (path === '/platform') return <PlatformAdminPage />;
+
+  // Credentialing links (invite/reset emails) carry a ?token=... query
+  // string and must work whether or not the visitor is currently logged
+  // in, so these are checked before the auth gate below.
+  if (path.startsWith('/accept-invite')) return <AcceptInvitePage />;
+  if (path.startsWith('/reset-password')) return <ResetPasswordPage />;
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
   if (!user)   return <LoginPage />;

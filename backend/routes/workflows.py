@@ -10,11 +10,12 @@ is walked at runtime.
 from datetime import datetime
 
 from bson import ObjectId
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from auth_utils import require_permission, tenant_scoped
 from tenant_scope import get_db
 from workflow_engine import PROCESS_TYPES, get_active_definition, seed_default_definition
+from audit import log_audit
 
 workflows_bp = Blueprint('workflows', __name__)
 
@@ -106,6 +107,8 @@ def update_workflow(process_type):
         {'$set': {'stages': cleaned, 'updated_at': datetime.utcnow()}}
     )
     definition = db.workflow_definitions.find_one({'_id': definition['_id']})
+    log_audit(db, tenant_id, g.caller, 'workflow.updated', entity_type='workflow_definition',
+              entity_id=definition['_id'], details={'process_type': process_type, 'stage_count': len(cleaned)})
 
     roles_by_id = {str(r['_id']): r for r in db.roles.find({})}
     return jsonify(_serialize(definition, roles_by_id))
@@ -120,5 +123,7 @@ def reset_workflow(process_type):
     tenant_id = _tenant_id_of(db)
     db.workflow_definitions.delete_many({'tenant_id': tenant_id, 'process_type': process_type})
     definition = seed_default_definition(db, tenant_id, process_type)
+    log_audit(db, tenant_id, g.caller, 'workflow.reset', entity_type='workflow_definition',
+              entity_id=definition['_id'], details={'process_type': process_type})
     roles_by_id = {str(r['_id']): r for r in db.roles.find({})}
     return jsonify(_serialize(definition, roles_by_id))

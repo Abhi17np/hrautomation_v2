@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 // ─── Original illustration: person beside a dashboard tablet + plant ────────
@@ -84,12 +85,68 @@ function HeroIllustration() {
   );
 }
 
+function ForgotPasswordForm({ company, email, onBack }) {
+  const [form, setForm] = useState({ company, email });
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(''); setLoading(true);
+    try {
+      await axios.post('/api/auth/forgot-password', form);
+      setSent(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div>
+        <div className="alert alert-success" style={{ marginBottom: 18 }}>
+          If that account exists, a password reset email has been sent.
+        </div>
+        <button className="btn btn-secondary" style={{ width: '100%' }} onClick={onBack}>Back to sign in</button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <h2 style={{ fontFamily: 'var(--display)', fontSize: 21, fontWeight: 700, color: '#232B3A', margin: '0 0 5px' }}>
+        Forgot password
+      </h2>
+      <p style={{ fontSize: 12.5, color: '#8A94A6', margin: '0 0 12px' }}>
+        We'll email you a link to reset your password.
+      </p>
+      {error && <div className="alert alert-error">{error}</div>}
+      <input type="text" required value={form.company} placeholder="Company code"
+        onChange={e => setForm({ ...form, company: e.target.value })}
+        style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }} />
+      <input type="email" required value={form.email} placeholder="Email Address"
+        onChange={e => setForm({ ...form, email: e.target.value })}
+        style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }} />
+      <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: 13 }}>
+        {loading ? 'Sending…' : 'Send reset link'}
+      </button>
+      <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={onBack}>
+        Back to sign in
+      </button>
+    </form>
+  );
+}
+
 export default function LoginPage() {
   const [company, setCompany] = useState(() => localStorage.getItem('tenant_slug') || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -162,69 +219,86 @@ export default function LoginPage() {
           flex: '1 1 55%', minWidth: 300, padding: '52px 52px',
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
-          <h2 style={{ fontFamily: 'var(--display)', fontSize: 21, fontWeight: 700, color: '#232B3A', margin: '0 0 5px' }}>
-            Sign in
-          </h2>
-          <p style={{ fontSize: 12.5, color: '#8A94A6', margin: '0 0 26px' }}>
-            Welcome back to the HR Automation System
-          </p>
+          {showForgot ? (
+            <ForgotPasswordForm company={company} email={email} onBack={() => setShowForgot(false)} />
+          ) : (
+            <>
+              <h2 style={{ fontFamily: 'var(--display)', fontSize: 21, fontWeight: 700, color: '#232B3A', margin: '0 0 5px' }}>
+                Sign in
+              </h2>
+              <p style={{ fontSize: 12.5, color: '#8A94A6', margin: '0 0 26px' }}>
+                Welcome back to the HR Automation System
+              </p>
 
-          {error && (
-            <div className="alert alert-error" style={{ marginBottom: 18 }}>
-              <span>⚠</span> {error}
-            </div>
+              {error && (
+                <div className="alert alert-error" style={{ marginBottom: 18 }}>
+                  <span>⚠</span> {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <input
+                  type="text"
+                  value={company}
+                  onChange={e => setCompany(e.target.value)}
+                  placeholder="Company code"
+                  required
+                  autoFocus
+                  style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="Email Address"
+                  required
+                  style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(true)}
+                  style={{
+                    alignSelf: 'flex-end', background: 'none', border: 'none',
+                    color: '#3E7BFA', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  Forgot password?
+                </button>
+
+                <p style={{ fontSize: 11.5, color: '#AEB7C4', lineHeight: 1.6, margin: '2px 0 4px' }}>
+                  This portal is for Infopace India employees only. Contact HR if you
+                  believe you should have access but can't sign in.
+                </p>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  style={{ width: '100%', padding: '13px', fontSize: 13.5, borderRadius: 12, marginTop: 4 }}
+                >
+                  {loading ? (
+                    <>
+                      <span className="spinner" style={{ borderColor: 'rgba(255,255,255,.35)', borderTopColor: '#fff' }} />
+                      Signing in…
+                    </>
+                  ) : 'Sign in →'}
+                </button>
+              </form>
+
+              <p style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: '#AEB7C4', fontWeight: 500 }}>
+                Contact your administrator if you need access
+              </p>
+            </>
           )}
-
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <input
-              type="text"
-              value={company}
-              onChange={e => setCompany(e.target.value)}
-              placeholder="Company code"
-              required
-              autoFocus
-              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
-            />
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="Email Address"
-              required
-              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Password"
-              required
-              style={{ padding: '13px 16px', fontSize: 13.5, borderRadius: 12 }}
-            />
-
-            <p style={{ fontSize: 11.5, color: '#AEB7C4', lineHeight: 1.6, margin: '2px 0 4px' }}>
-              This portal is for Infopace India employees only. Contact HR if you
-              believe you should have access but can't sign in.
-            </p>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-              style={{ width: '100%', padding: '13px', fontSize: 13.5, borderRadius: 12, marginTop: 4 }}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner" style={{ borderColor: 'rgba(255,255,255,.35)', borderTopColor: '#fff' }} />
-                  Signing in…
-                </>
-              ) : 'Sign in →'}
-            </button>
-          </form>
-
-          <p style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: '#AEB7C4', fontWeight: 500 }}>
-            Contact your administrator if you need access
-          </p>
         </div>
       </div>
     </div>

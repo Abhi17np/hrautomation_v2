@@ -1293,18 +1293,31 @@ def create_id(lid):
     if not login_email:
         login_email = f"{emp_code.lower()}@company.com"
 
-    DEFAULT_PW = '12345678'
-    hashed     = bcrypt.hashpw(DEFAULT_PW.encode(), bcrypt.gensalt())
-
     from roles_service import build_user_role_fields
+    from security_utils import generate_token, token_expiry
+    from services.email_service import send_invite_email
+    from audit import log_audit
+
     role_fields = build_user_role_fields(db, g.tenant_id, data.get('role', 'employee'))
+    invite_token = generate_token()
+    placeholder  = bcrypt.hashpw(generate_token().encode(), bcrypt.gensalt())
 
     user_res = db.users.insert_one({
         'name': emp.get('name', ''), 'email': login_email,
-        'password': hashed, **role_fields,
+        'password': placeholder, **role_fields,
+        'is_active': True, 'must_reset_password': True,
+        'invite_token': invite_token, 'invite_expires_at': token_expiry(),
         'employee_ref': str(emp['_id']), 'emp_code': emp_code,
         'created_at': datetime.utcnow(), 'created_by': uid,
     })
+
+    company = db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    company_name = company.get('name', 'the company') if company else 'the company'
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    accept_url = f'{frontend_url}/#/accept-invite?token={invite_token}'
+    emailed = send_invite_email(login_email, emp.get('name', ''), company_name, accept_url)
+    log_audit(db, g.tenant_id, caller, 'user.invited', entity_type='user', entity_id=user_res.inserted_id,
+              details={'email': login_email, 'via': 'offer_letter_create_id'})
 
     manager_name = ''
     if manager_id:
@@ -1330,18 +1343,23 @@ def create_id(lid):
         }},
     })
 
-    return jsonify({
-        'message': 'Employee login ID created and added to Joining Employees',
+    resp = {
+        'message': 'Employee login ID created and invite ' + ('emailed' if emailed else 'link generated — SMTP not configured'),
         'login_email': login_email, 'emp_code': emp_code,
-        'default_password': DEFAULT_PW, 'user_id': str(user_res.inserted_id),
-    }), 201
+        'user_id': str(user_res.inserted_id),
+    }
+    if not emailed:
+        resp['invite_url'] = accept_url
+    return jsonify(resp), 201
 
 
 @letters_bp.route('/<lid>/send-welcome-email', methods=['POST'])
 @require_role('hr_head', 'admin')
 def send_welcome_email(lid):
+    """Sends a plain welcome note. Login credentials are never included
+    here — they go out exactly once, via the invite email sent by
+    create-id (or resent below if the invite is still unaccepted)."""
     db     = get_db()
-    uid    = get_jwt_identity()
     caller = g.caller
 
     l = db.letters.find_one({'_id': ObjectId(lid)})
@@ -1350,28 +1368,36 @@ def send_welcome_email(lid):
     data         = request.json or {}
     to_email     = data.get('email', '')
     emp_name     = data.get('employee_name') or l.get('employee_name', 'Employee')
-    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3001')
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
     if not to_email:
         return jsonify({'error': 'Email is required'}), 400
 
-    smtp_host = os.getenv('SMTP_HOST') or ''
-    smtp_user = os.getenv('SMTP_USER') or ''
-    smtp_pass = os.getenv('SMTP_PASS') or ''
-    smtp_port = int(os.getenv('SMTP_PORT', 587))
-    from_addr = os.getenv('SMTP_FROM') or smtp_user
+    company = db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    company_name = company.get('name', 'the company') if company else 'the company'
 
-    if not smtp_host or not smtp_user:
-        return jsonify({'error': 'SMTP not configured'}), 500
+    user = db.users.find_one({'email': to_email})
+    pending_invite = user and user.get('invite_token') and user.get('invite_expires_at', datetime.min) > datetime.utcnow()
 
-    subject = f"Welcome to the Team, {emp_name}!"
-    body    = f"""Dear {emp_name},
+    if pending_invite:
+        accept_url = f'{frontend_url}/#/accept-invite?token={user["invite_token"]}'
+        body = f"""Dear {emp_name},
 
 Thank you for joining us! We are excited to have you on board.
 
-Your Login Credentials:
-  Email:    {to_email}
-  Password: 12345678
+Set your password to activate your account: {accept_url}
+
+Document Instructions:
+  - Upload soft copies of all required documents through the portal.
+  - Bring hard copies on your joining date for submission to HR.
+
+Regards,
+{company_name} HR Team
+"""
+    else:
+        body = f"""Dear {emp_name},
+
+Thank you for joining us! We are excited to have you on board.
 
 Please log in and complete your profile at: {frontend_url}/#/profile
 
@@ -1379,23 +1405,14 @@ Document Instructions:
   - Upload soft copies of all required documents through the portal.
   - Bring hard copies on your joining date for submission to HR.
 
-Please change your password after first login.
-
 Regards,
-Infopace Management Pvt Ltd - HR Team
+{company_name} HR Team
 """
-    try:
-        from email.mime.text import MIMEText
-        msg = MIMEText(body, 'plain')
-        msg['Subject'] = subject
-        msg['From']    = f'Infopace Management Pvt Ltd - HR Team <{from_addr}>'
-        msg['To']      = to_email
-        with smtplib.SMTP(smtp_host, smtp_port) as s:
-            s.ehlo(); s.starttls(); s.login(smtp_user, smtp_pass)
-            s.sendmail(from_addr, to_email, msg.as_string())
-        return jsonify({'message': 'Welcome email sent successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    from services.email_service import send_email
+    sent = send_email(to_email, f'Welcome to the Team, {emp_name}!', body, from_label=f'{company_name} HR Team')
+    if not sent:
+        return jsonify({'error': 'SMTP not configured'}), 500
+    return jsonify({'message': 'Welcome email sent successfully'})
 
 
 @letters_bp.route('/<lid>/download', methods=['GET'])

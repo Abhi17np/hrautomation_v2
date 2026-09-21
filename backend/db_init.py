@@ -146,6 +146,13 @@ SCHEMAS = {
                     },
                     "role_id":      {"bsonType": ["string", "null"], "description": "ObjectId of this user's role in the `roles` collection"},
                     "role_key":     {"bsonType": ["string", "null"], "description": "Denormalized roles.key — the role's display slug, may be a custom role distinct from `role`'s legacy bucket"},
+                    "invite_token":        {"bsonType": ["string", "null"], "description": "Pending-invite token (cleared once accepted); password is a random unusable placeholder until then"},
+                    "invite_expires_at":   {"bsonType": ["date", "null"]},
+                    "must_reset_password": {"bsonType": ["bool", "null"], "description": "True until the invited user sets their own password"},
+                    "password_reset_token":      {"bsonType": ["string", "null"]},
+                    "password_reset_expires_at": {"bsonType": ["date", "null"]},
+                    "failed_login_attempts": {"bsonType": ["int", "null"]},
+                    "locked_until":          {"bsonType": ["date", "null"], "description": "Login blocked until this time after too many failed attempts"},
                     "employee_ref": {"bsonType": "string", "description": "ObjectId of linked employee record"},
                     "emp_code":     {"bsonType": "string", "description": "Employee code e.g. EMP001"},
                     "is_active":    {"bsonType": "bool",   "description": "False = account deactivated"},
@@ -165,6 +172,31 @@ SCHEMAS = {
             }
         },
         "validationLevel": "moderate",  # moderate = existing docs not re-validated
+    },
+
+    # ── audit_log ──────────────────────────────────────────────────────────
+    # Append-only record of sensitive actions (user/role/workflow changes,
+    # auth events) for compliance and support investigation. Never updated
+    # or deleted from route code.
+    "audit_log": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "action", "created_at"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "actor_user_id":   {"bsonType": ["string", "null"]},
+                    "actor_name":      {"bsonType": ["string", "null"]},
+                    "action":          {"bsonType": "string", "description": "e.g. 'user.invited', 'role.updated', 'auth.login_failed'"},
+                    "entity_type":     {"bsonType": ["string", "null"]},
+                    "entity_id":       {"bsonType": ["string", "null"]},
+                    "details":         {"bsonType": ["object", "null"]},
+                    "ip":              {"bsonType": ["string", "null"]},
+                    "created_at":      {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
     },
 
     # ── roles ──────────────────────────────────────────────────────────────
@@ -918,9 +950,15 @@ INDEXES = {
         {"keys": [("role", ASCENDING)],  "name": "idx_users_role"},
         {"keys": [("employee_ref", ASCENDING)], "sparse": True, "name": "idx_users_employee_ref"},
         {"keys": [("tenant_id", ASCENDING), ("role_id", ASCENDING)], "sparse": True, "name": "idx_users_tenant_roleid"},
+        {"keys": [("invite_token", ASCENDING)], "unique": True, "sparse": True, "name": "idx_users_invite_token"},
+        {"keys": [("password_reset_token", ASCENDING)], "unique": True, "sparse": True, "name": "idx_users_reset_token"},
     ],
     "roles": [
         {"keys": [("tenant_id", ASCENDING), ("key", ASCENDING)], "unique": True, "name": "idx_roles_tenant_key_unique"},
+    ],
+    "audit_log": [
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_auditlog_tenant_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("action", ASCENDING)], "name": "idx_auditlog_tenant_action"},
     ],
     "workflow_definitions": [
         {"keys": [("tenant_id", ASCENDING), ("process_type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_workflowdefs_tenant_type_active"},

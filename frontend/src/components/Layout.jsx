@@ -31,6 +31,7 @@ const NAV_HR = [
       { to: '/organization/reports', label: 'Reports' },
       { to: '/organization/roles', label: 'Roles & Permissions' },
       { to: '/organization/workflows', label: 'Approval Workflows' },
+      { to: '/organization/audit-log', label: 'Audit Log' },
   ] },
 ];
 const NAV_EMPLOYEE = [
@@ -199,7 +200,7 @@ function ProfileModal({ onClose }) {
   const [pwSuccess, setPwSuccess] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [acctLoading, setAcctLoading] = useState(false);
-  const [acctForm, setAcctForm] = useState({ name: '', email: '', password: '', role: 'hr' });
+  const [acctForm, setAcctForm] = useState({ name: '', email: '', role: 'hr' });
   const [acctSaving, setAcctSaving] = useState(false);
   const [acctError, setAcctError] = useState('');
   const [acctSuccess, setAcctSuccess] = useState('');
@@ -262,19 +263,18 @@ function ProfileModal({ onClose }) {
 
   const createAccount = async () => {
     setAcctError(''); setAcctSuccess('');
-    if (!acctForm.name || !acctForm.email || !acctForm.password) {
-      setAcctError('All fields are required.'); return;
-    }
-    if (acctForm.password.length < 6) {
-      setAcctError('Password must be at least 6 characters.'); return;
+    if (!acctForm.name || !acctForm.email) {
+      setAcctError('Name and email are required.'); return;
     }
     setAcctSaving(true);
     try {
-      await axios.post('/api/auth/users', acctForm);
-      setAcctSuccess(`Account created for ${acctForm.email}`);
-      setAcctForm({ name: '', email: '', password: '', role: 'hr' });
+      const res = await axios.post('/api/auth/users', acctForm);
+      setAcctSuccess(res.data.invite_url
+        ? `Invite created for ${acctForm.email} — SMTP isn't configured, share this link: ${res.data.invite_url}`
+        : `Invite emailed to ${acctForm.email}`);
+      setAcctForm({ name: '', email: '', role: 'hr' });
       loadAccounts();
-      setTimeout(() => setAcctSuccess(''), 3000);
+      setTimeout(() => setAcctSuccess(''), 8000);
     } catch (e) {
       setAcctError(e.response?.data?.error || 'Failed to create account');
     } finally { setAcctSaving(false); }
@@ -617,7 +617,6 @@ function ProfileModal({ onClose }) {
                   {[
                     { label: 'Full Name', key: 'name', type: 'text', placeholder: 'e.g. Priya Sharma' },
                     { label: 'Email', key: 'email', type: 'email', placeholder: 'e.g. priya@infopace.com' },
-                    { label: 'Password', key: 'password', type: 'password', placeholder: 'Min 6 characters' },
                   ].map(({ label, key, type, placeholder }) => (
                     <div key={key} className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">{label} *</label>
@@ -637,18 +636,21 @@ function ProfileModal({ onClose }) {
                     </select>
                   </div>
                 </div>
+                <p style={{ fontSize: 11.5, color: '#8A94A6', margin: '10px 0 0' }}>
+                  They'll get an email to set their own password — no password is set here.
+                </p>
                 <button
                   onClick={createAccount}
                   disabled={acctSaving}
                   style={{
-                    marginTop: 14, padding: '9px 20px',
+                    marginTop: 8, padding: '9px 20px',
                     background: 'linear-gradient(135deg,#444ce7,#6172f3)',
                     border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600,
                     color: '#fff', cursor: 'pointer', width: '100%',
                     opacity: acctSaving ? 0.6 : 1,
                   }}
                 >
-                  {acctSaving ? 'Creating…' : '+ Create Account'}
+                  {acctSaving ? 'Sending invite…' : '+ Invite Account'}
                 </button>
               </div>
             </div>
@@ -718,13 +720,15 @@ export default function Layout({ children, currentPath }) {
 
   const canManageRoles = (user?.permissions || []).includes('roles.manage');
   const canManageWorkflows = (user?.permissions || []).includes('workflows.manage');
+  const canViewAudit = (user?.permissions || []).includes('audit.view');
   const NAV = (user?.role === 'employee' ? NAV_EMPLOYEE
     : user?.role === 'manager' ? NAV_MANAGER
       : NAV_HR
   ).map(item => item.group
     ? { ...item, items: item.items.filter(it =>
         (it.to !== '/organization/roles' || canManageRoles) &&
-        (it.to !== '/organization/workflows' || canManageWorkflows)
+        (it.to !== '/organization/workflows' || canManageWorkflows) &&
+        (it.to !== '/organization/audit-log' || canViewAudit)
       ) }
     : item
   );

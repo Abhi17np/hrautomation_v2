@@ -18,6 +18,7 @@ from flask import Blueprint, g, jsonify, request
 from auth_utils import require_permission, tenant_scoped
 from permissions import ALL_PERMISSIONS, LEGACY_ROLE_KEYS, PERMISSION_CATALOG
 from tenant_scope import get_db
+from audit import log_audit
 
 roles_bp = Blueprint('roles', __name__)
 
@@ -90,6 +91,8 @@ def create_role():
     }
     result = db.roles.insert_one(doc)
     doc['_id'] = result.inserted_id
+    log_audit(db, g.tenant_id, g.caller, 'role.created', entity_type='role', entity_id=result.inserted_id,
+              details={'key': key, 'base_role': base_role})
     return jsonify(_serialize(doc)), 201
 
 
@@ -133,6 +136,7 @@ def update_role(rid):
         return jsonify({'error': 'Nothing to update'}), 400
     update['updated_at'] = datetime.utcnow()
     db.roles.update_one({'_id': ObjectId(rid)}, {'$set': update})
+    log_audit(db, g.tenant_id, g.caller, 'role.updated', entity_type='role', entity_id=rid, details=update)
     return jsonify(_serialize(db.roles.find_one({'_id': ObjectId(rid)})))
 
 
@@ -154,4 +158,5 @@ def delete_role(rid):
         return jsonify({'error': f'{in_use} user(s) still have this role — reassign them first'}), 400
 
     db.roles.delete_one({'_id': ObjectId(rid)})
+    log_audit(db, g.tenant_id, g.caller, 'role.deleted', entity_type='role', entity_id=rid, details={'key': role['key']})
     return jsonify({'message': 'Role deleted'})

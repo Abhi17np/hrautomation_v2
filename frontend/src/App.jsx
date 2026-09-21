@@ -26,6 +26,9 @@ import WorkflowsPage  from './pages/WorkflowsPage';
 import AcceptInvitePage  from './pages/AcceptInvitePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import AuditLogPage      from './pages/AuditLogPage';
+import PayrollRunsPage    from './pages/PayrollRunsPage';
+import PayrollSettingsPage from './pages/PayrollSettingsPage';
+import ExpensesPage      from './pages/ExpensesPage';
 
 
 import './App.css';
@@ -68,6 +71,9 @@ const PAGES = {
   '/organization/roles':     RolesPage,
   '/organization/workflows': WorkflowsPage,
   '/organization/audit-log': AuditLogPage,
+  '/payroll/run': PayrollRunsPage,
+  '/payroll/settings': PayrollSettingsPage,
+  '/expenses': ExpensesPage,
   '/support': HRMSupportPage,
 };
 

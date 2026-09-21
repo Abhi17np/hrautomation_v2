@@ -23,7 +23,10 @@ const NAV_HR = [
   ] },
   { group: 'Payroll', icon: '💰', items: [
       { to: '/payslip-management', label: 'Payslips' },
+      { to: '/payroll/run', label: 'Run Payroll' },
+      { to: '/payroll/settings', label: 'Statutory Settings' },
   ] },
+  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
   { group: 'Organization', icon: '▣', items: [
       { to: '/organization/assets', label: 'Assets' },
@@ -43,6 +46,7 @@ const NAV_EMPLOYEE = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip', icon: '💰', label: 'Payslips' },
+  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
@@ -56,6 +60,7 @@ const NAV_MANAGER = [
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
   { to: '/payslip-management', icon: '💰', label: 'Payslips' },
+  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
@@ -721,6 +726,8 @@ export default function Layout({ children, currentPath }) {
   const canManageRoles = (user?.permissions || []).includes('roles.manage');
   const canManageWorkflows = (user?.permissions || []).includes('workflows.manage');
   const canViewAudit = (user?.permissions || []).includes('audit.view');
+  const canRunPayroll = (user?.permissions || []).includes('payroll.run');
+  const canConfigurePayroll = (user?.permissions || []).includes('payroll.configure');
   const NAV = (user?.role === 'employee' ? NAV_EMPLOYEE
     : user?.role === 'manager' ? NAV_MANAGER
       : NAV_HR
@@ -728,7 +735,9 @@ export default function Layout({ children, currentPath }) {
     ? { ...item, items: item.items.filter(it =>
         (it.to !== '/organization/roles' || canManageRoles) &&
         (it.to !== '/organization/workflows' || canManageWorkflows) &&
-        (it.to !== '/organization/audit-log' || canViewAudit)
+        (it.to !== '/organization/audit-log' || canViewAudit) &&
+        (it.to !== '/payroll/run' || canRunPayroll) &&
+        (it.to !== '/payroll/settings' || canConfigurePayroll)
       ) }
     : item
   );

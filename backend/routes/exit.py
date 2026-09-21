@@ -17,13 +17,14 @@ All files stored in MongoDB GridFS — no local disk dependency.
 from flask import Blueprint, request, jsonify, current_app, send_file, g
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
+from calendar import monthrange
 from bson import ObjectId
 from io import BytesIO
 import os, re, tempfile, zipfile, gridfs, smtplib
 from email.message import EmailMessage
 from services.letter_generator import generate_letter_docx, generate_letter_pdf
 
-from auth_utils import tenant_scoped, require_role
+from auth_utils import tenant_scoped, require_role, require_permission
 from tenant_scope import get_db
 from workflow_engine import start_workflow, advance_workflow, get_instance_for_entity, WorkflowError
 
@@ -649,5 +650,84 @@ def download_relieving(letter_id):
                          download_name=f'{name}_relieving_letter.docx')
 
     return jsonify({'error': 'File not found. Please regenerate the relieving letter.'}), 404
+
+
+# ─── Full & Final settlement ──────────────────────────────────────────────────
+# Pro-rates the employee's last salary from their monthly basic/HRA/DA/
+# allowances against last_working_day; leave-encashment days and any
+# recoverable deductions (unreturned assets, notice-period shortfall) are
+# HR-entered rather than auto-derived, since the leave-balance schema is
+# per-category and its "encashable" definition is a policy choice this
+# endpoint shouldn't guess at.
+
+@exit_bp.route('/<emp_id>/fnf-settlement', methods=['GET'])
+@require_permission('fnf.manage')
+def get_fnf_settlement(emp_id):
+    db = get_db()
+    settlement = db.fnf_settlements.find_one({'employee_id': emp_id})
+    if not settlement:
+        return jsonify({'error': 'No settlement computed yet'}), 404
+    settlement['_id'] = str(settlement['_id'])
+    return jsonify(settlement)
+
+
+@exit_bp.route('/<emp_id>/fnf-settlement', methods=['POST'])
+@require_permission('fnf.manage')
+def compute_fnf_settlement(emp_id):
+    db = get_db()
+    u = g.caller
+    emp = db.employees.find_one({'_id': ObjectId(emp_id)})
+    if not emp:
+        return jsonify({'error': 'Employee not found'}), 404
+
+    data = request.json or {}
+    leave_days = float(data.get('leave_encashment_days', 0) or 0)
+    recoverable = float(data.get('recoverable_deductions', 0) or 0)
+    deduction_notes = data.get('deduction_notes', '')
+
+    last_working_day = emp.get('last_working_day')
+    if not last_working_day:
+        return jsonify({'error': 'Employee has no last_working_day on record — cannot pro-rate'}), 400
+
+    try:
+        lwd = datetime.strptime(last_working_day, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'error': f'Unrecognized last_working_day format: {last_working_day!r}, expected YYYY-MM-DD'}), 400
+
+    monthly_gross = sum(float(emp.get(f) or 0) for f in ('basic', 'hra', 'da', 'allowances'))
+    days_in_month = monthrange(lwd.year, lwd.month)[1]
+    prorated_salary = round(monthly_gross * lwd.day / days_in_month)
+
+    per_day_salary = monthly_gross / days_in_month if days_in_month else 0
+    leave_encashment_amount = round(per_day_salary * leave_days)
+
+    total_payable = prorated_salary + leave_encashment_amount - recoverable
+
+    now = datetime.utcnow()
+    doc = {
+        'employee_id': emp_id, 'last_working_day': last_working_day,
+        'prorated_salary': prorated_salary,
+        'leave_encashment_days': leave_days, 'leave_encashment_amount': leave_encashment_amount,
+        'recoverable_deductions': recoverable, 'deduction_notes': deduction_notes,
+        'total_payable': round(total_payable), 'status': 'draft',
+        'computed_by': str(u['_id']), 'created_at': now, 'updated_at': now,
+    }
+    db.fnf_settlements.update_one({'employee_id': emp_id}, {'$set': doc}, upsert=True)
+    saved = db.fnf_settlements.find_one({'employee_id': emp_id})
+    saved['_id'] = str(saved['_id'])
+    return jsonify(saved)
+
+
+@exit_bp.route('/<emp_id>/fnf-settlement/finalize', methods=['POST'])
+@require_permission('fnf.manage')
+def finalize_fnf_settlement(emp_id):
+    db = get_db()
+    settlement = db.fnf_settlements.find_one({'employee_id': emp_id})
+    if not settlement:
+        return jsonify({'error': 'No settlement computed yet'}), 404
+    db.fnf_settlements.update_one({'employee_id': emp_id}, {'$set': {
+        'status': 'finalized', 'updated_at': datetime.utcnow(),
+    }})
+    return jsonify({'message': 'Settlement finalized'})
 
 

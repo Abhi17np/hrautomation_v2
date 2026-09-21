@@ -102,9 +102,47 @@ SCHEMAS = {
                     },
                     "payroll_config": {
                         "bsonType": "object",
-                        "description": "Placeholder — populated in the payroll phase",
+                        "description": "Statutory payroll settings — see payroll_engine.py for calculation logic and its compliance notice. Values below are editable defaults, not guaranteed-current statutory figures.",
                         "properties": {
                             "pay_cycle_start_day": {"bsonType": ["int", "null"]},
+                            "pf": {
+                                "bsonType": ["object", "null"],
+                                "properties": {
+                                    "enabled": {"bsonType": "bool"},
+                                    "employer_rate": {"bsonType": "double"},
+                                    "employee_rate": {"bsonType": "double"},
+                                    "wage_ceiling": {"bsonType": ["int", "double"]},
+                                    "apply_ceiling": {"bsonType": "bool"},
+                                }
+                            },
+                            "esi": {
+                                "bsonType": ["object", "null"],
+                                "properties": {
+                                    "enabled": {"bsonType": "bool"},
+                                    "employer_rate": {"bsonType": "double"},
+                                    "employee_rate": {"bsonType": "double"},
+                                    "wage_threshold": {"bsonType": ["int", "double"]},
+                                }
+                            },
+                            "professional_tax": {
+                                "bsonType": ["object", "null"],
+                                "properties": {
+                                    "enabled": {"bsonType": "bool"},
+                                    "state": {"bsonType": ["string", "null"]},
+                                    "custom_slabs": {"bsonType": ["array", "null"]},
+                                }
+                            },
+                            "tds": {
+                                "bsonType": ["object", "null"],
+                                "description": "Simplified monthly TDS estimator config — see payroll_engine.compute_tds_monthly",
+                                "properties": {
+                                    "enabled": {"bsonType": "bool"},
+                                    "standard_deduction": {"bsonType": ["int", "double"]},
+                                    "rebate_taxable_income_threshold": {"bsonType": ["int", "double"]},
+                                    "slabs": {"bsonType": ["array", "null"]},
+                                    "cess_rate": {"bsonType": "double"},
+                                }
+                            },
                         }
                     },
                     "attendance_config": {
@@ -172,6 +210,105 @@ SCHEMAS = {
             }
         },
         "validationLevel": "moderate",  # moderate = existing docs not re-validated
+    },
+
+    # ── payroll_runs ───────────────────────────────────────────────────────
+    # A batch payroll processing run for one (month, year) — computes and
+    # links a payslip per active employee via payroll_engine.py, replacing
+    # one-by-one manual payslip creation.
+    "payroll_runs": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "month", "year", "status", "created_at"],
+                "properties": {
+                    "tenant_id":      {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "month":          {"bsonType": "int"},
+                    "year":           {"bsonType": "int"},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["draft", "finalized"],
+                        "description": "draft = payslips generated but still editable; finalized = approved and locked",
+                    },
+                    "employee_count": {"bsonType": ["int", "null"]},
+                    "total_gross":    {"bsonType": ["double", "int", "null"]},
+                    "total_net":      {"bsonType": ["double", "int", "null"]},
+                    "created_by":     {"bsonType": ["string", "null"]},
+                    "finalized_by":   {"bsonType": ["string", "null"]},
+                    "finalized_at":   {"bsonType": ["date", "null"]},
+                    "created_at":     {"bsonType": "date"},
+                    "updated_at":     {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── expense_claims ─────────────────────────────────────────────────────
+    # Employee reimbursement/expense claims: travel, food, other business
+    # expenses submitted with a receipt, approved by HR/manager, then
+    # marked reimbursed once paid out.
+    "expense_claims": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "employee_id", "category", "amount", "status", "created_at"],
+                "properties": {
+                    "tenant_id":       {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id":     {"bsonType": "string"},
+                    "category": {
+                        "bsonType": "string",
+                        "enum": ["travel", "food", "accommodation", "office_supplies", "communication", "other"],
+                    },
+                    "amount":          {"bsonType": ["double", "int"]},
+                    "description":     {"bsonType": ["string", "null"]},
+                    "expense_date":    {"bsonType": ["string", "null"]},
+                    "receipt_gridfs_id": {"bsonType": ["string", "null"]},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["pending_approval", "approved", "rejected", "reimbursed"],
+                    },
+                    "remarks":         {"bsonType": ["string", "null"]},
+                    "reviewed_by":     {"bsonType": ["string", "null"]},
+                    "reviewed_at":     {"bsonType": ["date", "null"]},
+                    "reimbursed_at":   {"bsonType": ["date", "null"]},
+                    "created_at":      {"bsonType": "date"},
+                    "updated_at":      {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── fnf_settlements ────────────────────────────────────────────────────
+    # Full & final settlement computed on exit: pro-rated last salary, paid
+    # leave encashment, minus any recoverable deductions.
+    "fnf_settlements": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "employee_id", "status", "created_at"],
+                "properties": {
+                    "tenant_id":         {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "employee_id":       {"bsonType": "string"},
+                    "last_working_day":  {"bsonType": ["string", "null"]},
+                    "prorated_salary":   {"bsonType": ["double", "int", "null"]},
+                    "leave_encashment_days": {"bsonType": ["double", "int", "null"]},
+                    "leave_encashment_amount": {"bsonType": ["double", "int", "null"]},
+                    "recoverable_deductions": {"bsonType": ["double", "int", "null"], "description": "e.g. unreturned assets, notice-period shortfall"},
+                    "deduction_notes":   {"bsonType": ["string", "null"]},
+                    "total_payable":     {"bsonType": ["double", "int", "null"]},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["draft", "finalized", "paid"],
+                    },
+                    "computed_by":       {"bsonType": ["string", "null"]},
+                    "created_at":        {"bsonType": "date"},
+                    "updated_at":        {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
     },
 
     # ── audit_log ──────────────────────────────────────────────────────────
@@ -348,6 +485,9 @@ SCHEMAS = {
                         "description": "Employment lifecycle status"
                     },
                     "shift_id":         {"bsonType": ["string", "null"], "description": "Assigned shift's ObjectId as a string; null = no shift assigned"},
+                    "bank_account_number": {"bsonType": ["string", "null"]},
+                    "bank_ifsc":           {"bsonType": ["string", "null"]},
+                    "bank_name":           {"bsonType": ["string", "null"]},
                     "exit_date":        {"bsonType": ["string", "null"]},
                     "deactivated_by":   {"bsonType": ["string", "null"]},
                     "deactivated_at":   {"bsonType": ["string", "null"]},
@@ -959,6 +1099,17 @@ INDEXES = {
     "audit_log": [
         {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_auditlog_tenant_created_desc"},
         {"keys": [("tenant_id", ASCENDING), ("action", ASCENDING)], "name": "idx_auditlog_tenant_action"},
+    ],
+    "payroll_runs": [
+        {"keys": [("tenant_id", ASCENDING), ("year", ASCENDING), ("month", ASCENDING)], "unique": True, "name": "idx_payrollruns_tenant_year_month_unique"},
+    ],
+    "expense_claims": [
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "name": "idx_expenseclaims_tenant_emp"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)], "name": "idx_expenseclaims_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_expenseclaims_tenant_created_desc"},
+    ],
+    "fnf_settlements": [
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "unique": True, "name": "idx_fnf_tenant_emp_unique"},
     ],
     "workflow_definitions": [
         {"keys": [("tenant_id", ASCENDING), ("process_type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_workflowdefs_tenant_type_active"},

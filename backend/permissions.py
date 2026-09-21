@@ -86,6 +86,9 @@ PERMISSION_CATALOG = {
     "Support": [
         ("support.manage", "Manage & resolve HR support tickets"),
     ],
+    "Reports": [
+        ("reports.view", "View analytics & compliance reports"),
+    ],
     "Engagement": [
         ("announcements.manage", "Post & manage company announcements"),
         ("policies.manage", "Upload & manage policy documents"),
@@ -121,6 +124,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         "assets.manage",
         "support.manage",
         "announcements.manage", "policies.manage", "policies.view_acknowledgments",
+        "reports.view",
     }),
     "manager": sorted({
         "employees.view",

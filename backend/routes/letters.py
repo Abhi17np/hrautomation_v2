@@ -1297,6 +1297,13 @@ def create_id(lid):
     from security_utils import generate_token, token_expiry
     from services.email_service import send_invite_email
     from audit import log_audit
+    from feature_gating import check_seat_limit, SeatLimitExceeded
+
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    try:
+        check_seat_limit(current_app.db, db, g.tenant_id, company)
+    except SeatLimitExceeded as e:
+        return jsonify({'error': str(e)}), 403
 
     role_fields = build_user_role_fields(db, g.tenant_id, data.get('role', 'employee'))
     invite_token = generate_token()
@@ -1311,7 +1318,6 @@ def create_id(lid):
         'created_at': datetime.utcnow(), 'created_by': uid,
     })
 
-    company = db.companies.find_one({'_id': ObjectId(g.tenant_id)})
     company_name = company.get('name', 'the company') if company else 'the company'
     frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     accept_url = f'{frontend_url}/#/accept-invite?token={invite_token}'
@@ -1373,7 +1379,7 @@ def send_welcome_email(lid):
     if not to_email:
         return jsonify({'error': 'Email is required'}), 400
 
-    company = db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
     company_name = company.get('name', 'the company') if company else 'the company'
 
     user = db.users.find_one({'email': to_email})

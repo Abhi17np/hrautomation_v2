@@ -153,6 +153,15 @@ def create_user():
     if db.users.find_one({'email': data['email']}):
         return jsonify({'error': 'Email already exists'}), 400
 
+    from feature_gating import check_seat_limit, SeatLimitExceeded
+    # companies aren't tenant-scoped data — must bypass the TenantScopedDB
+    # wrapper (see tenant_scope.py / payslips.py's _get_payroll_policy).
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    try:
+        check_seat_limit(current_app.db, db, g.tenant_id, company)
+    except SeatLimitExceeded as e:
+        return jsonify({'error': str(e)}), 403
+
     role_fields = {}
     if data.get('role_id'):
         from roles_service import resolve_role
@@ -163,7 +172,6 @@ def create_user():
     else:
         role_fields = build_user_role_fields(db, g.tenant_id, data.get('role', 'hr'))
 
-    company = db.companies.find_one({'_id': ObjectId(g.tenant_id)})
     company_name = company.get('name', 'your company') if company else 'your company'
 
     invite_token = generate_token()

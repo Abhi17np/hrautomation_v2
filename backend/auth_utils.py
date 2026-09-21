@@ -56,6 +56,13 @@ def tenant_scoped(fn):
             return jsonify({'error': 'User not found'}), 404
         if caller.get('is_active') is False:
             return jsonify({'error': 'Account deactivated. Please contact HR.'}), 403
+
+        # A suspended tenant's already-issued JWTs must stop working
+        # immediately, not just be blocked from new logins.
+        company = current_app.db.companies.find_one({'_id': ObjectId(tenant_id)}, {'status': 1})
+        if company and company.get('status') == 'suspended':
+            return jsonify({'error': 'This account is suspended. Contact your platform administrator.'}), 403
+
         g.caller = caller
 
         from roles_service import permissions_for_user

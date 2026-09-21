@@ -25,6 +25,7 @@ from flask_jwt_extended import create_access_token
 from auth_utils import platform_admin_required
 from extensions import limiter
 from roles_service import seed_system_roles
+from feature_gating import seed_default_plans, default_subscription, get_plan, active_user_count, seat_limit_for
 
 platform_bp = Blueprint('platform', __name__)
 
@@ -32,12 +33,19 @@ _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$')
 
 
 def _serialize_company(c):
+    sub = c.get('subscription') or {}
     return {
         'id':           str(c['_id']),
         'name':         c.get('name'),
         'slug':         c.get('slug'),
         'status':       c.get('status'),
         'plan':         c.get('plan'),
+        'subscription': {
+            'tier': sub.get('tier'), 'seat_limit': sub.get('seat_limit'),
+            'billing_status': sub.get('billing_status'),
+            'trial_ends_at': sub['trial_ends_at'].isoformat() if sub.get('trial_ends_at') else None,
+            'current_period_end': sub['current_period_end'].isoformat() if sub.get('current_period_end') else None,
+        },
         'contact_name':  c.get('contact_name'),
         'contact_email': c.get('contact_email'),
         'contact_phone': c.get('contact_phone'),
@@ -93,12 +101,14 @@ def create_company():
     if db.companies.find_one({'slug': slug}):
         return jsonify({'error': 'A company with this slug already exists'}), 400
 
+    seed_default_plans(db)
     now = datetime.utcnow()
     company_doc = {
         'name': name,
         'slug': slug,
         'status': 'active',
         'plan': data.get('plan', 'trial'),
+        'subscription': default_subscription(data.get('tier', 'starter')),
         'contact_name':  data.get('contact_name'),
         'contact_email': data.get('contact_email'),
         'contact_phone': data.get('contact_phone'),
@@ -151,6 +161,17 @@ def update_company(company_id):
         update['plan'] = data['plan']
     if 'branding' in data and isinstance(data['branding'], dict):
         update['branding'] = data['branding']
+    if 'subscription_tier' in data:
+        db = current_app.db
+        if not get_plan(db, data['subscription_tier']):
+            return jsonify({'error': f"Unknown plan tier '{data['subscription_tier']}'"}), 400
+        update['subscription.tier'] = data['subscription_tier']
+    if 'seat_limit' in data:
+        update['subscription.seat_limit'] = data['seat_limit']
+    if 'billing_status' in data:
+        if data['billing_status'] not in ('trial', 'active', 'past_due', 'canceled'):
+            return jsonify({'error': "billing_status must be one of trial/active/past_due/canceled"}), 400
+        update['subscription.billing_status'] = data['billing_status']
     if not update:
         return jsonify({'error': 'Nothing to update'}), 400
     update['updated_at'] = datetime.utcnow()
@@ -161,3 +182,106 @@ def update_company(company_id):
         return jsonify({'error': 'Company not found'}), 404
     company = db.companies.find_one({'_id': oid})
     return jsonify({'company': _serialize_company(company)})
+
+
+@platform_bp.route('/plans', methods=['GET'])
+@platform_admin_required
+def list_plans():
+    db = current_app.db
+    seed_default_plans(db)
+    plans = list(db.plans.find({}).sort('price_monthly', 1))
+    for p in plans:
+        p['_id'] = str(p['_id'])
+    return jsonify(plans)
+
+
+@platform_bp.route('/companies/<company_id>/usage', methods=['GET'])
+@platform_admin_required
+def company_usage(company_id):
+    try:
+        oid = ObjectId(company_id)
+    except InvalidId:
+        return jsonify({'error': 'Invalid company id'}), 400
+    db = current_app.db
+    company = db.companies.find_one({'_id': oid})
+    if not company:
+        return jsonify({'error': 'Company not found'}), 404
+    tenant_id = str(oid)
+
+    from datetime import timedelta
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    return jsonify({
+        'active_users': db.users.count_documents({'tenant_id': tenant_id, 'is_active': {'$ne': False}}),
+        'seat_limit': seat_limit_for(db, company),
+        'employee_count': db.employees.count_documents({'tenant_id': tenant_id}),
+        'audit_events_last_30d': db.audit_log.count_documents({'tenant_id': tenant_id, 'created_at': {'$gte': thirty_days_ago}}),
+        'letters_last_30d': db.letters.count_documents({'tenant_id': tenant_id, 'created_at': {'$gte': thirty_days_ago}}),
+        'payroll_runs_last_30d': db.payroll_runs.count_documents({'tenant_id': tenant_id, 'created_at': {'$gte': thirty_days_ago}}),
+    })
+
+
+@platform_bp.route('/companies/<company_id>/impersonate', methods=['POST'])
+@platform_admin_required
+def impersonate_company(company_id):
+    """Mints a tenant JWT for the company's first admin user, for support
+    investigation. Logged in BOTH the platform admin's action context and
+    the tenant's own audit log, so the tenant can always see this
+    happened."""
+    try:
+        oid = ObjectId(company_id)
+    except InvalidId:
+        return jsonify({'error': 'Invalid company id'}), 400
+    db = current_app.db
+    company = db.companies.find_one({'_id': oid})
+    if not company:
+        return jsonify({'error': 'Company not found'}), 404
+    tenant_id = str(oid)
+
+    admin_user = db.users.find_one({'tenant_id': tenant_id, 'role': 'admin', 'is_active': {'$ne': False}})
+    if not admin_user:
+        return jsonify({'error': 'No active admin user found for this company'}), 404
+
+    token = create_access_token(
+        identity=str(admin_user['_id']),
+        additional_claims={'tenant_id': tenant_id, 'role': admin_user['role'], 'impersonated_by': str(g.platform_admin['_id'])},
+    )
+    from audit import log_audit
+    log_audit(db, tenant_id, None, 'platform.impersonation_started', entity_type='user', entity_id=admin_user['_id'],
+              details={'platform_admin_email': g.platform_admin.get('email')})
+    return jsonify({'token': token, 'user_email': admin_user['email']})
+
+
+@platform_bp.route('/companies/<company_id>/export', methods=['GET'])
+@platform_admin_required
+def export_company(company_id):
+    """A bounded JSON export of a tenant's core data — for offboarding or
+    a data-access request. Not a full backup (skips generated documents/
+    GridFS binaries); those are recoverable from the underlying files if
+    ever needed."""
+    try:
+        oid = ObjectId(company_id)
+    except InvalidId:
+        return jsonify({'error': 'Invalid company id'}), 400
+    db = current_app.db
+    company = db.companies.find_one({'_id': oid})
+    if not company:
+        return jsonify({'error': 'Company not found'}), 404
+    tenant_id = str(oid)
+
+    def _dump(coll_name, projection=None):
+        docs = list(db[coll_name].find({'tenant_id': tenant_id}, projection))
+        for d in docs:
+            d['_id'] = str(d['_id'])
+        return docs
+
+    export = {
+        'company': _serialize_company(company),
+        'users': _dump('users', {'password': 0}),
+        'employees': _dump('employees'),
+        'letters': _dump('letters', {'docx_path': 0, 'pdf_path': 0}),
+        'payslips': _dump('payslips'),
+        'leave_requests': _dump('leave_requests'),
+    }
+    from audit import log_audit
+    log_audit(db, tenant_id, None, 'platform.data_exported', details={'platform_admin_email': g.platform_admin.get('email')})
+    return jsonify(export)

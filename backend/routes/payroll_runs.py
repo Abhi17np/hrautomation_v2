@@ -86,7 +86,10 @@ def create_run():
         return jsonify({'error': 'This month has already been finalized. Delete-and-rerun is not supported once finalized.'}), 400
 
     from flask import current_app
+    from feature_gating import company_features
     company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    if 'feature.payroll_runs' not in company_features(current_app.db, company):
+        return jsonify({'error': 'Batch payroll runs are not available on this plan — upgrade to Pro or Enterprise.'}), 403
     payroll_config = _merged_payroll_config(company)
 
     employees = list(db.employees.find({'status': 'active'}))

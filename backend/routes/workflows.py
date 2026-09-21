@@ -68,6 +68,13 @@ def update_workflow(process_type):
     if not stages or not isinstance(stages, list):
         return jsonify({'error': 'stages array is required and cannot be empty'}), 400
 
+    if len(stages) > 1:
+        from flask import current_app
+        from feature_gating import company_features
+        company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+        if 'feature.custom_workflows' not in company_features(current_app.db, company):
+            return jsonify({'error': 'Multi-stage workflows are not available on this plan — upgrade to Pro or Enterprise. You can still rename or reassign the single default stage.'}), 403
+
     valid_role_ids = {str(r['_id']) for r in db.roles.find({})}
     seen_keys = set()
     cleaned = []

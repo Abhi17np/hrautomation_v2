@@ -61,6 +61,13 @@ def get_role(rid):
 @require_permission('roles.manage')
 def create_role():
     db = get_db()
+
+    from flask import current_app
+    from feature_gating import company_features
+    company = current_app.db.companies.find_one({'_id': ObjectId(g.tenant_id)})
+    if 'feature.custom_roles' not in company_features(current_app.db, company):
+        return jsonify({'error': 'Custom roles are not available on this plan — upgrade to Pro or Enterprise.'}), 403
+
     data = request.json or {}
 
     name = (data.get('name') or '').strip()

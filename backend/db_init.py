@@ -59,6 +59,30 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── plans ──────────────────────────────────────────────────────────────
+    # Platform-level subscription tier catalog (NOT tenant data — no
+    # tenant_id, managed only via platform-admin routes). A company's
+    # subscription.tier references plans.key.
+    "plans": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["key", "name", "seat_limit", "features", "is_active", "created_at"],
+                "properties": {
+                    "key":          {"bsonType": "string", "description": "Unique slug, e.g. 'starter', 'pro', 'enterprise'"},
+                    "name":         {"bsonType": "string"},
+                    "seat_limit":   {"bsonType": ["int", "null"], "description": "null = unlimited"},
+                    "price_monthly": {"bsonType": ["double", "int", "null"], "description": "Display only — no payment gateway wired"},
+                    "features":     {"bsonType": "array", "items": {"bsonType": "string"}, "description": "Feature keys this tier unlocks — see feature_gating.py"},
+                    "is_active":    {"bsonType": "bool"},
+                    "created_at":   {"bsonType": "date"},
+                    "updated_at":   {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── companies ──────────────────────────────────────────────────────────
     # Tenants of the SaaS platform. Every other collection's documents belong
     # to exactly one company via tenant_id (= this collection's _id as a string).
@@ -75,7 +99,22 @@ SCHEMAS = {
                         "enum": ["active", "suspended", "trial"],
                         "description": "Tenant lifecycle state",
                     },
-                    "plan":   {"bsonType": "string", "description": "e.g. 'basic', 'pro' — free text, no billing engine yet"},
+                    "plan":   {"bsonType": "string", "description": "Legacy free-text plan label — superseded by `subscription.tier`, kept for backward display compat"},
+                    "subscription": {
+                        "bsonType": "object",
+                        "description": "Plan/seat/billing-status scaffold — no payment gateway wired; see routes/platform.py and plans collection",
+                        "properties": {
+                            "tier":              {"bsonType": "string", "description": "References plans.key"},
+                            "seat_limit":         {"bsonType": ["int", "null"], "description": "Max active users; null = unlimited"},
+                            "billing_status": {
+                                "bsonType": "string",
+                                "enum": ["trial", "active", "past_due", "canceled"],
+                            },
+                            "trial_ends_at":      {"bsonType": ["date", "null"]},
+                            "current_period_end": {"bsonType": ["date", "null"]},
+                            "feature_overrides":  {"bsonType": ["array", "null"], "description": "Feature keys force-enabled beyond the tier's defaults"},
+                        }
+                    },
                     "branding": {
                         "bsonType": "object",
                         "properties": {
@@ -1038,6 +1077,9 @@ INDEXES = {
     "companies": [
         {"keys": [("slug", ASCENDING)], "unique": True, "name": "idx_companies_slug_unique"},
         {"keys": [("status", ASCENDING)], "name": "idx_companies_status"},
+    ],
+    "plans": [
+        {"keys": [("key", ASCENDING)], "unique": True, "name": "idx_plans_key_unique"},
     ],
     "leave_requests": [
         {"keys": [("employee_id", ASCENDING)], "name": "idx_leavereq_employee"},

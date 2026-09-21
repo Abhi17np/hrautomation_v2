@@ -440,6 +440,53 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── api_keys ───────────────────────────────────────────────────────────
+    # Tenant-issued keys for external system access to the read-only
+    # public API (routes/public_api.py). Only the hash is stored.
+    "api_keys": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "name", "key_hash", "is_active", "created_at"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "name":         {"bsonType": "string"},
+                    "key_hash":     {"bsonType": "string", "description": "bcrypt hash of the raw key — shown once at creation, never stored in plaintext"},
+                    "key_prefix":   {"bsonType": ["string", "null"], "description": "First few chars of the raw key, for display/identification only"},
+                    "is_active":    {"bsonType": "bool"},
+                    "created_by":   {"bsonType": ["string", "null"]},
+                    "last_used_at": {"bsonType": ["date", "null"]},
+                    "created_at":   {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── webhooks ───────────────────────────────────────────────────────────
+    # Outbound event subscriptions — a registered URL receives a signed
+    # POST when a subscribed event fires (webhook_dispatch.py).
+    "webhooks": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "url", "events", "secret", "is_active", "created_at"],
+                "properties": {
+                    "tenant_id": {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "url":       {"bsonType": "string"},
+                    "events":    {"bsonType": "array", "items": {"bsonType": "string"}, "description": "e.g. ['employee.exited', 'expense.approved']"},
+                    "secret":    {"bsonType": "string", "description": "HMAC signing secret for the X-Webhook-Signature header"},
+                    "is_active": {"bsonType": "bool"},
+                    "created_by": {"bsonType": ["string", "null"]},
+                    "last_delivery_status": {"bsonType": ["int", "null"]},
+                    "last_delivery_at":     {"bsonType": ["date", "null"]},
+                    "created_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── audit_log ──────────────────────────────────────────────────────────
     # Append-only record of sensitive actions (user/role/workflow changes,
     # auth events) for compliance and support investigation. Never updated
@@ -1255,6 +1302,12 @@ INDEXES = {
     ],
     "policy_acknowledgments": [
         {"keys": [("tenant_id", ASCENDING), ("policy_id", ASCENDING), ("user_id", ASCENDING)], "unique": True, "name": "idx_policyack_tenant_policy_user_unique"},
+    ],
+    "api_keys": [
+        {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_apikeys_tenant_active"},
+    ],
+    "webhooks": [
+        {"keys": [("tenant_id", ASCENDING), ("is_active", ASCENDING)], "name": "idx_webhooks_tenant_active"},
     ],
     "workflow_definitions": [
         {"keys": [("tenant_id", ASCENDING), ("process_type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_workflowdefs_tenant_type_active"},

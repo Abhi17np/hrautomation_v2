@@ -83,6 +83,9 @@ from routes.announcements      import announcements_bp
 from routes.notifications      import notifications_bp
 from routes.policies           import policies_bp
 from routes.analytics          import analytics_bp
+from routes.api_keys           import api_keys_bp
+from routes.webhooks           import webhooks_bp
+from routes.public_api         import public_api_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(roles_bp,              url_prefix='/api/roles')
@@ -95,6 +98,9 @@ app.register_blueprint(announcements_bp,      url_prefix='/api/announcements')
 app.register_blueprint(notifications_bp,      url_prefix='/api/notifications')
 app.register_blueprint(policies_bp,           url_prefix='/api/policies')
 app.register_blueprint(analytics_bp,          url_prefix='/api/analytics')
+app.register_blueprint(api_keys_bp,           url_prefix='/api/api-keys')
+app.register_blueprint(webhooks_bp,           url_prefix='/api/webhooks')
+app.register_blueprint(public_api_bp,         url_prefix='/api/public/v1')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
 app.register_blueprint(templates_bp,          url_prefix='/api/templates')
 app.register_blueprint(letters_bp,            url_prefix='/api/letters')

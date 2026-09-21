@@ -27,7 +27,7 @@ from functools import wraps
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from flask import current_app, g, jsonify
+from flask import current_app, g, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 
@@ -107,6 +107,31 @@ def require_permission(*perms, mode='all'):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def require_api_key(fn):
+    """Guards routes/public_api.py — authenticates via the X-API-Key
+    header (a tenant-issued key, see routes/api_keys.py) instead of a
+    user JWT. Sets g.tenant_id so get_db() works normally; there is no
+    g.caller for these routes since no user is involved."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        import hashlib
+        raw_key = request.headers.get('X-API-Key', '')
+        if not raw_key:
+            return jsonify({'error': 'X-API-Key header is required'}), 401
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        key_doc = current_app.db.api_keys.find_one({'key_hash': key_hash, 'is_active': True})
+        if not key_doc:
+            return jsonify({'error': 'Invalid or revoked API key'}), 401
+
+        from datetime import datetime
+        current_app.db.api_keys.update_one({'_id': key_doc['_id']}, {'$set': {'last_used_at': datetime.utcnow()}})
+
+        g.tenant_id = key_doc['tenant_id']
+        g.api_key_doc = key_doc
+        return fn(*args, **kwargs)
+    return wrapper
 
 
 def platform_admin_required(fn):

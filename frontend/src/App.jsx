@@ -32,6 +32,7 @@ import ExpensesPage      from './pages/ExpensesPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import PoliciesPage      from './pages/PoliciesPage';
 import AnalyticsPage     from './pages/AnalyticsPage';
+import IntegrationsPage  from './pages/IntegrationsPage';
 
 
 import './App.css';
@@ -72,6 +73,7 @@ const PAGES = {
   '/organization/org-chart': OrgChartPage,
   '/organization/reports':   ReportsPage,
   '/organization/analytics': AnalyticsPage,
+  '/organization/integrations': IntegrationsPage,
   '/organization/roles':     RolesPage,
   '/organization/workflows': WorkflowsPage,
   '/organization/audit-log': AuditLogPage,

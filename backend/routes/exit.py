@@ -543,6 +543,12 @@ def generate_relieving():
         {'$set': {'is_active': False, 'deactivated_at': datetime.utcnow()}}
     )
 
+    from webhook_dispatch import dispatch_event
+    dispatch_event(db, 'employee.exited', {
+        'employee_id': emp_id, 'name': emp.get('name'), 'designation': emp.get('designation'),
+        'last_working_day': emp.get('last_working_day'),
+    })
+
     # ── Send email if candidate_email provided ─────────────────────────────
     candidate_email = data.get('candidate_email', '').strip()
     email_sent = False

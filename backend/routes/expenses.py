@@ -134,6 +134,13 @@ def action(claim_id):
         'reviewed_by': str(caller['_id']), 'reviewed_at': now, 'updated_at': now,
     }})
     log_audit(db, g.tenant_id, caller, f'expense.{act}d', entity_type='expense_claim', entity_id=claim_id)
+
+    if new_status == 'approved':
+        from webhook_dispatch import dispatch_event
+        dispatch_event(db, 'expense.approved', {
+            'claim_id': claim_id, 'employee_id': claim['employee_id'],
+            'category': claim['category'], 'amount': claim['amount'],
+        })
     return jsonify(_serialize(db.expense_claims.find_one({'_id': ObjectId(claim_id)}), db))
 
 

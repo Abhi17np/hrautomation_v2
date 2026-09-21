@@ -35,6 +35,7 @@ const NAV_HR = [
       { to: '/organization/org-chart', label: 'Org Chart' },
       { to: '/organization/reports', label: 'Reports' },
       { to: '/organization/analytics', label: 'Analytics' },
+      { to: '/organization/integrations', label: 'Integrations' },
       { to: '/organization/roles', label: 'Roles & Permissions' },
       { to: '/organization/workflows', label: 'Approval Workflows' },
       { to: '/organization/audit-log', label: 'Audit Log' },
@@ -829,6 +830,7 @@ export default function Layout({ children, currentPath }) {
   const canRunPayroll = (user?.permissions || []).includes('payroll.run');
   const canConfigurePayroll = (user?.permissions || []).includes('payroll.configure');
   const canViewReports = (user?.permissions || []).includes('reports.view');
+  const canManageIntegrations = (user?.permissions || []).includes('integrations.manage');
   const NAV = (user?.role === 'employee' ? NAV_EMPLOYEE
     : user?.role === 'manager' ? NAV_MANAGER
       : NAV_HR
@@ -839,7 +841,8 @@ export default function Layout({ children, currentPath }) {
         (it.to !== '/organization/audit-log' || canViewAudit) &&
         (it.to !== '/payroll/run' || canRunPayroll) &&
         (it.to !== '/payroll/settings' || canConfigurePayroll) &&
-        (it.to !== '/organization/analytics' || canViewReports)
+        (it.to !== '/organization/analytics' || canViewReports) &&
+        (it.to !== '/organization/integrations' || canManageIntegrations)
       ) }
     : item
   );

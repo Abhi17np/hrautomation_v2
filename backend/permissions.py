@@ -89,6 +89,9 @@ PERMISSION_CATALOG = {
     "Reports": [
         ("reports.view", "View analytics & compliance reports"),
     ],
+    "Integrations": [
+        ("integrations.manage", "Manage API keys & webhook subscriptions"),
+    ],
     "Engagement": [
         ("announcements.manage", "Post & manage company announcements"),
         ("policies.manage", "Upload & manage policy documents"),

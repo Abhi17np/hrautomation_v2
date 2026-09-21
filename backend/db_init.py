@@ -199,6 +199,93 @@ SCHEMAS = {
         "validationLevel": "moderate",
     },
 
+    # ── workflow_definitions ───────────────────────────────────────────────
+    # Configurable approval chains. Each tenant is seeded with one active
+    # definition per process_type reproducing today's hardcoded flow
+    # (single HR-Head stage for offer_letter/appointment_order, single
+    # manager stage for exit_resignation) — editable via routes/workflows.py.
+    "workflow_definitions": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "process_type", "stages", "is_active", "created_at"],
+                "properties": {
+                    "tenant_id":    {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "process_type": {
+                        "bsonType": "string",
+                        "enum": ["offer_letter", "appointment_order", "exit_resignation"],
+                    },
+                    "is_active": {"bsonType": "bool", "description": "Only one active definition per (tenant_id, process_type)"},
+                    "stages": {
+                        "bsonType": "array",
+                        "description": "Ordered approval stages",
+                        "items": {
+                            "bsonType": "object",
+                            "required": ["stage_key", "name", "approver_role_id", "resulting_status_on_approve", "resulting_status_on_reject"],
+                            "properties": {
+                                "stage_key":       {"bsonType": "string", "description": "Unique within this definition, e.g. 'stage_1'"},
+                                "name":            {"bsonType": "string", "description": "Display label, e.g. 'HR Head Review'"},
+                                "approver_role_id": {"bsonType": "string", "description": "ObjectId of the roles doc whose holders can act at this stage"},
+                                "allow_self_approval": {"bsonType": "bool", "description": "If false, an actor cannot approve their own submission (e.g. a manager approving their own resignation)"},
+                                "pending_status":  {"bsonType": "string", "description": "Value written onto the entity's status field while this stage is awaiting action"},
+                                "resulting_status_on_approve": {"bsonType": "string", "description": "Value written onto the entity's status field once THIS stage is approved — either the next stage's pending_status or a terminal one if this is the last stage"},
+                                "resulting_status_on_reject":  {"bsonType": "string", "description": "Value written onto the entity's status field on reject at this stage"},
+                            }
+                        }
+                    },
+                    "created_at": {"bsonType": "date"},
+                    "updated_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
+    # ── workflow_instances ─────────────────────────────────────────────────
+    # One per in-flight (or completed) approval chain — tracks which stage
+    # an entity (letter / appointment order / exit record) is at, mirroring
+    # the entity's own `status` field so existing frontend/status-driven
+    # code (letter_generator, clearance gate, email triggers) never has to
+    # change: the engine writes the stage's resulting_status onto the
+    # entity exactly as the old hardcoded code did.
+    "workflow_instances": {
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["tenant_id", "process_type", "definition_id", "entity_type", "entity_id", "current_stage_key", "status", "created_at"],
+                "properties": {
+                    "tenant_id":        {"bsonType": "string", "description": "Owning company's ObjectId as a string"},
+                    "process_type":     {"bsonType": "string"},
+                    "definition_id":    {"bsonType": "string", "description": "ObjectId of the workflow_definitions doc used"},
+                    "entity_type":      {"bsonType": "string", "enum": ["letter", "appointment_order", "employee_exit"]},
+                    "entity_id":        {"bsonType": "string", "description": "ObjectId of the letter/appointment_order/employee doc"},
+                    "current_stage_key": {"bsonType": "string", "description": "Stage key in progress, or 'approved'/'rejected' once terminal"},
+                    "status": {
+                        "bsonType": "string",
+                        "enum": ["in_progress", "approved", "rejected"],
+                    },
+                    "history": {
+                        "bsonType": "array",
+                        "items": {
+                            "bsonType": "object",
+                            "properties": {
+                                "stage_key":  {"bsonType": "string"},
+                                "user_id":    {"bsonType": "string"},
+                                "user_name":  {"bsonType": "string"},
+                                "action":     {"bsonType": "string"},
+                                "remarks":    {"bsonType": "string"},
+                                "timestamp":  {"bsonType": "string"},
+                            }
+                        }
+                    },
+                    "created_at": {"bsonType": "date"},
+                    "updated_at": {"bsonType": "date"},
+                }
+            }
+        },
+        "validationLevel": "moderate",
+    },
+
     # ── employees ──────────────────────────────────────────────────────────
     # HR employee records — the source of truth for offer letter placeholders
     "employees": {
@@ -834,6 +921,13 @@ INDEXES = {
     ],
     "roles": [
         {"keys": [("tenant_id", ASCENDING), ("key", ASCENDING)], "unique": True, "name": "idx_roles_tenant_key_unique"},
+    ],
+    "workflow_definitions": [
+        {"keys": [("tenant_id", ASCENDING), ("process_type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_workflowdefs_tenant_type_active"},
+    ],
+    "workflow_instances": [
+        {"keys": [("tenant_id", ASCENDING), ("entity_type", ASCENDING), ("entity_id", ASCENDING)], "name": "idx_workflowinst_tenant_entity"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)], "name": "idx_workflowinst_tenant_status"},
     ],
     "employees": [
         {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "unique": True, "name": "idx_employees_tenant_empid_unique"},

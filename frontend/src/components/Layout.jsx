@@ -30,6 +30,7 @@ const NAV_HR = [
       { to: '/organization/org-chart', label: 'Org Chart' },
       { to: '/organization/reports', label: 'Reports' },
       { to: '/organization/roles', label: 'Roles & Permissions' },
+      { to: '/organization/workflows', label: 'Approval Workflows' },
   ] },
 ];
 const NAV_EMPLOYEE = [
@@ -716,11 +717,15 @@ export default function Layout({ children, currentPath }) {
   }, [user?._id]);
 
   const canManageRoles = (user?.permissions || []).includes('roles.manage');
+  const canManageWorkflows = (user?.permissions || []).includes('workflows.manage');
   const NAV = (user?.role === 'employee' ? NAV_EMPLOYEE
     : user?.role === 'manager' ? NAV_MANAGER
       : NAV_HR
   ).map(item => item.group
-    ? { ...item, items: item.items.filter(it => it.to !== '/organization/roles' || canManageRoles) }
+    ? { ...item, items: item.items.filter(it =>
+        (it.to !== '/organization/roles' || canManageRoles) &&
+        (it.to !== '/organization/workflows' || canManageWorkflows)
+      ) }
     : item
   );
 

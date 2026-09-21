@@ -25,6 +25,7 @@ from services.letter_generator import generate_letter_docx, generate_letter_pdf
 
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
+from workflow_engine import start_workflow, advance_workflow, get_instance_for_entity, WorkflowError
 
 exit_bp = Blueprint('exit', __name__)
 
@@ -128,8 +129,11 @@ def submit_resignation():
     except Exception:
         lwd = None
 
+    _, pending_status = start_workflow(db, g.tenant_id, 'exit_resignation', 'employee_exit', emp_ref, u,
+                                        remarks=data.get('exit_reason', ''))
+
     db.employees.update_one({'_id': ObjectId(emp_ref)}, {'$set': {
-        'status':           'resignation_pending',
+        'status':           pending_status,
         'resignation_date': resignation_date,
         'last_working_day': data.get('last_working_day') or lwd,
         'exit_reason':      data.get('exit_reason', ''),
@@ -138,7 +142,7 @@ def submit_resignation():
         'updated_at':       datetime.utcnow(),
     }})
 
-    return jsonify({'message': 'Resignation submitted. Awaiting manager approval.'})
+    return jsonify({'message': 'Resignation submitted for approval.'})
 
 
 # ─── Employee / Manager: own status ──────────────────────────────────────────
@@ -207,60 +211,68 @@ def pending_approvals():
 # ─── Manager: approve ────────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/approve-resignation', methods=['POST'])
-@require_role('manager', 'hr_head', 'admin')
+@tenant_scoped
 def approve_resignation(emp_id):
     db  = get_db()
     uid = get_jwt_identity()
     u   = g.caller
 
-    role = u.get('role')
-
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
         return jsonify({'error': 'Employee not found'}), 404
-    if emp.get('status') != 'resignation_pending':
-        return jsonify({'error': f"Status is '{emp.get('status')}', expected resignation_pending"}), 400
 
-    if role == 'manager':
-        mgr_ref = u.get('employee_ref', '')
-        if mgr_ref and str(emp['_id']) == str(mgr_ref):
-            return jsonify({'error': 'You cannot approve your own resignation'}), 403
+    instance = get_instance_for_entity(db, 'employee_exit', emp_id)
+    if not instance:
+        return jsonify({'error': f"Status is '{emp.get('status')}' — no resignation approval in progress"}), 400
+
+    try:
+        new_status = advance_workflow(
+            db, g.tenant_id, instance, 'approve', u,
+            g.caller_permissions, u.get('role_id'),
+            remarks='Resignation approved', subject_employee_ref=emp_id,
+        )
+    except WorkflowError as e:
+        return jsonify({'error': str(e)}), 403 if 'own' in str(e) or 'authorized' in str(e) else 400
 
     db.employees.update_one({'_id': ObjectId(emp_id)}, {'$set': {
-        'status':                   'notice_period',
+        'status':                   new_status,
         'resignation_approved_by':  uid,
         'resignation_approved_at':  datetime.utcnow().isoformat(),
         'updated_at':               datetime.utcnow(),
     }})
 
-    return jsonify({'message': 'Resignation approved. Employee is now serving notice period.'})
+    return jsonify({'message': 'Resignation approved.', 'new_status': new_status})
 
 
 # ─── Manager: reject ─────────────────────────────────────────────────────────
 
 @exit_bp.route('/<emp_id>/reject-resignation', methods=['POST'])
-@require_role('manager', 'hr_head', 'admin')
+@tenant_scoped
 def reject_resignation(emp_id):
     db  = get_db()
     uid = get_jwt_identity()
     u   = g.caller
 
-    role = u.get('role')
-
     emp = db.employees.find_one({'_id': ObjectId(emp_id)})
     if not emp:
         return jsonify({'error': 'Employee not found'}), 404
-    if emp.get('status') != 'resignation_pending':
-        return jsonify({'error': f"Status is '{emp.get('status')}', expected resignation_pending"}), 400
 
-    if role == 'manager':
-        mgr_ref = u.get('employee_ref', '')
-        if mgr_ref and str(emp['_id']) == str(mgr_ref):
-            return jsonify({'error': 'You cannot reject your own resignation'}), 403
+    instance = get_instance_for_entity(db, 'employee_exit', emp_id)
+    if not instance:
+        return jsonify({'error': f"Status is '{emp.get('status')}' — no resignation approval in progress"}), 400
 
     data = request.json or {}
+    try:
+        new_status = advance_workflow(
+            db, g.tenant_id, instance, 'reject', u,
+            g.caller_permissions, u.get('role_id'),
+            remarks=data.get('reason', '') or 'Rejected', subject_employee_ref=emp_id,
+        )
+    except WorkflowError as e:
+        return jsonify({'error': str(e)}), 403 if 'own' in str(e) or 'authorized' in str(e) else 400
+
     db.employees.update_one({'_id': ObjectId(emp_id)}, {'$set': {
-        'status':                   'active',
+        'status':                   new_status,
         'resignation_date':         None,
         'last_working_day':         None,
         'exit_reason':              '',

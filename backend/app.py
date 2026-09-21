@@ -74,9 +74,11 @@ from routes.platform           import platform_bp
 from routes.assets             import assets_bp
 from routes.support            import support_bp
 from routes.roles              import roles_bp
+from routes.workflows          import workflows_bp
 
 app.register_blueprint(auth_bp,               url_prefix='/api/auth')
 app.register_blueprint(roles_bp,              url_prefix='/api/roles')
+app.register_blueprint(workflows_bp,          url_prefix='/api/workflows')
 app.register_blueprint(employees_bp,          url_prefix='/api/employees')
 app.register_blueprint(templates_bp,          url_prefix='/api/templates')
 app.register_blueprint(letters_bp,            url_prefix='/api/letters')

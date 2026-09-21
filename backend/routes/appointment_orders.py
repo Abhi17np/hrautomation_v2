@@ -26,6 +26,7 @@ from services.letter_generator import generate_letter_docx, generate_letter_pdf
 
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
+from workflow_engine import start_workflow, advance_workflow, get_instance_for_entity, WorkflowError
 
 appointment_orders_bp = Blueprint('appointment_orders', __name__)
 
@@ -316,15 +317,17 @@ def submit_order(oid):
     if not o:                  return jsonify({'error': 'Not found'}), 404
     if o['status'] != 'draft': return jsonify({'error': 'Only drafts can be submitted'}), 400
 
+    _, pending_status = start_workflow(db, g.tenant_id, 'appointment_order', 'appointment_order', oid, caller,
+                                        remarks='Submitted for approval')
     db.appointment_orders.update_one({'_id': ObjectId(oid)}, {
-        '$set':  {'status': 'pending_hr_head', 'updated_at': datetime.utcnow()},
+        '$set':  {'status': pending_status, 'updated_at': datetime.utcnow()},
         '$push': {'approval_history': {
             'user_id': uid, 'action': 'submitted',
-            'from': 'draft', 'to': 'pending_hr_head',
+            'from': 'draft', 'to': pending_status,
             'timestamp': datetime.utcnow().isoformat(),
         }},
     })
-    return jsonify({'message': 'Submitted to HR Head for approval'})
+    return jsonify({'message': 'Submitted for approval'})
 
 
 @appointment_orders_bp.route('/<oid>/update-fields', methods=['POST'])
@@ -375,19 +378,21 @@ def resubmit_order(oid):
     if o['status'] != 'draft':
         return jsonify({'error': 'Only draft orders can be resubmitted'}), 400
 
+    _, pending_status = start_workflow(db, g.tenant_id, 'appointment_order', 'appointment_order', oid, caller,
+                                        remarks='Resubmitted for approval')
     db.appointment_orders.update_one({'_id': ObjectId(oid)}, {
-        '$set':  {'status': 'pending_hr_head', 'updated_at': datetime.utcnow()},
+        '$set':  {'status': pending_status, 'updated_at': datetime.utcnow()},
         '$push': {'approval_history': {
             'user_id':   uid, 'action': 'resubmitted',
-            'from': 'draft', 'to': 'pending_hr_head',
+            'from': 'draft', 'to': pending_status,
             'timestamp': datetime.utcnow().isoformat(),
         }},
     })
-    return jsonify({'message': 'Resubmitted to HR Head for approval.'})
+    return jsonify({'message': 'Resubmitted for approval.'})
 
 
 @appointment_orders_bp.route('/<oid>/hr-action', methods=['POST'])
-@require_role('hr_head', 'admin')
+@tenant_scoped
 def hr_action(oid):
     db     = get_db()
     uid    = get_jwt_identity()
@@ -395,8 +400,10 @@ def hr_action(oid):
 
     o = db.appointment_orders.find_one({'_id': ObjectId(oid)})
     if not o: return jsonify({'error': 'Not found'}), 404
-    if o['status'] != 'pending_hr_head':
-        return jsonify({'error': f"Status is '{o['status']}', expected pending_hr_head"}), 400
+
+    instance = get_instance_for_entity(db, 'appointment_order', oid)
+    if not instance:
+        return jsonify({'error': f"Cannot act on status '{o['status']}' — no approval in progress"}), 400
 
     data    = request.json or {}
     act     = data.get('action')
@@ -404,10 +411,14 @@ def hr_action(oid):
 
     if act not in ('approve', 'reject'):
         return jsonify({'error': "action must be 'approve' or 'reject'"}), 400
-    if act == 'reject' and not remarks:
-        return jsonify({'error': 'Rejection reason is required'}), 400
 
-    new_status = 'approved' if act == 'approve' else 'rejected'
+    try:
+        new_status = advance_workflow(
+            db, g.tenant_id, instance, act, caller,
+            g.caller_permissions, caller.get('role_id'), remarks=remarks,
+        )
+    except WorkflowError as e:
+        return jsonify({'error': str(e)}), 400
 
     update_ops = {
         '$set':  {'status': new_status, 'updated_at': datetime.utcnow()},
@@ -416,15 +427,15 @@ def hr_action(oid):
             'user_name': caller.get('name', ''),
             'role':      caller.get('role'),
             'action':    act,
-            'from':      'pending_hr_head',
+            'from':      o['status'],
             'to':        new_status,
             'remarks':   remarks,
             'timestamp': datetime.utcnow().isoformat(),
         }},
     }
 
-    # ── On approval: generate DOCX/PDF and save to GridFS ──────────────────
-    if act == 'approve':
+    # ── On final approval: generate DOCX/PDF and save to GridFS ────────────
+    if act == 'approve' and new_status == 'approved':
         tmpl_id = o.get('template_id') or data.get('template_id')
         if tmpl_id:
             tmpl = db.templates.find_one({'_id': ObjectId(tmpl_id)})

@@ -30,6 +30,7 @@ from services.gridfs_storage import save_file_to_gridfs, serve_from_gridfs, dele
 
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
+from workflow_engine import start_workflow, advance_workflow, get_instance_for_entity, WorkflowError
 
 letters_bp = Blueprint('letters', __name__)
 log = logging.getLogger(__name__)
@@ -919,35 +920,38 @@ def get_letter(lid):
 @tenant_scoped
 def submit(lid):
     db     = get_db()
-    uid    = get_jwt_identity()
     caller = g.caller
     l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
     if l['status'] != 'draft':
         return jsonify({'error': 'Only draft letters can be submitted'}), 400
+
+    _, pending_status = start_workflow(db, g.tenant_id, 'offer_letter', 'letter', lid, caller,
+                                        remarks='Submitted for approval')
     db.letters.update_one({'_id': ObjectId(lid)}, {
-        '$set': {'status': 'pending_hr_head', 'updated_at': datetime.utcnow()},
+        '$set': {'status': pending_status, 'updated_at': datetime.utcnow()},
         '$push': {'approval_history': {
-            'user_id': uid, 'user_name': caller.get('name', ''),
-            'action': 'submit', 'remarks': 'Submitted for HR Head approval',
+            'user_id': str(caller['_id']), 'user_name': caller.get('name', ''),
+            'action': 'submit', 'remarks': 'Submitted for approval',
             'timestamp': datetime.utcnow().isoformat(),
         }},
     })
-    return jsonify({'message': 'Submitted to HR Head for approval'})
+    return jsonify({'message': 'Submitted for approval'})
 
 
 @letters_bp.route('/<lid>/hr-action', methods=['POST'])
-@require_role('hr_head', 'admin')
+@tenant_scoped
 def hr_action(lid):
     db     = get_db()
     uid    = get_jwt_identity()
     caller = g.caller
 
-    l = db.letters.find_one({'_id': ObjectId(lid)}
-    )
+    l = db.letters.find_one({'_id': ObjectId(lid)})
     if not l: return jsonify({'error': 'Letter not found'}), 404
-    if l['status'] != 'pending_hr_head':
-        return jsonify({'error': f"Cannot act on status '{l['status']}'"}), 400
+
+    instance = get_instance_for_entity(db, 'letter', lid)
+    if not instance:
+        return jsonify({'error': f"Cannot act on status '{l['status']}' — no approval in progress"}), 400
 
     data    = request.json or {}
     act     = data.get('action')
@@ -956,21 +960,31 @@ def hr_action(lid):
 
     if act not in ('approve', 'reject'):
         return jsonify({'error': "action must be 'approve' or 'reject'"}), 400
-    if act == 'reject' and not remarks:
-        return jsonify({'error': 'Rejection reason is required'}), 400
 
-    new_status = 'approved' if act == 'approve' else 'rejected'
+    try:
+        new_status = advance_workflow(
+            db, g.tenant_id, instance, act, caller,
+            g.caller_permissions, caller.get('role_id'), remarks=remarks,
+        )
+    except WorkflowError as e:
+        return jsonify({'error': str(e)}), 400
+
     ops = {
         '$set':  {'status': new_status, 'updated_at': datetime.utcnow()},
         '$push': {'approval_history': {
             'user_id': uid, 'user_name': caller.get('name', ''),
             'role': caller.get('role'), 'action': act,
-            'from': 'pending_hr_head', 'to': new_status,
+            'from': l['status'], 'to': new_status,
             'remarks': remarks, 'timestamp': datetime.utcnow().isoformat(),
         }},
     }
 
-    if act == 'approve':
+    # Final-approval-only actions (doc regeneration, employee record sync):
+    # only run once the letter is fully approved, not on an intermediate
+    # stage's approve in a multi-stage chain.
+    is_final_approval = act == 'approve' and new_status == 'approved'
+
+    if is_final_approval:
         hr_sig       = data.get('hr_signature', '')
         chairman_sig = data.get('chairman_signature', '')
         new_ctx = {**l.get('context', {}), **edits, 'date': datetime.now().strftime('%d-%m-%Y')}
@@ -996,7 +1010,7 @@ def hr_action(lid):
             finally:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    if act == 'approve':
+    if is_final_approval:
         final_ctx = ops['$set'].get('context', l.get('context', {}))
         emp_update = {}
         if edits.get('joining_date') or final_ctx.get('joining_date'):

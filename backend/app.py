@@ -10,8 +10,13 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 
+from observability import configure_logging, init_sentry, register_request_hooks
+configure_logging()
+
 app = Flask(__name__)
 app.url_map.strict_slashes = False
+init_sentry(app)
+register_request_hooks(app)
 
 # Multi-tenant SaaS: each customer org's frontend runs on its own origin, so
 # CORS must be an explicit allow-list, not '*' — a wildcard would let any
@@ -127,7 +132,10 @@ def index():
 def not_found(e):    return {'error': 'Not found'}, 404
 
 @app.errorhandler(500)
-def server_error(e): return {'error': 'Internal server error'}, 500
+def server_error(e):
+    import logging
+    logging.getLogger('request').exception('Unhandled exception: %s', e)
+    return {'error': 'Internal server error'}, 500
 
 from tenant_scope import TenantMismatchError
 

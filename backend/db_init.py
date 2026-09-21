@@ -1324,27 +1324,35 @@ INDEXES = {
         {"keys": [("created_at", DESCENDING)], "name": "idx_employees_created_desc"},
         {"keys": [("tenant_id", ASCENDING), ("shift_id", ASCENDING)], "sparse": True, "name": "idx_employees_tenant_shift"},
     ],
+    # NOTE: these 4 collections' indexes were originally NOT tenant-prefixed
+    # (data isolation still held — every query is tenant-filtered by
+    # tenant_scope.py's TenantScopedCollection regardless of indexes — but
+    # a non-prefixed index scales poorly once tenant/data volume grows,
+    # since Mongo has to scan across all tenants' documents for a given
+    # key value). Re-prefixed with tenant_id under new names; run_setup()
+    # drops the old-named indexes first since Mongo won't let create_index
+    # redefine an existing index's keys under the same name.
     "templates": [
-        {"keys": [("type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_templates_type_active"},
-        {"keys": [("created_at", DESCENDING)], "name": "idx_templates_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("type", ASCENDING), ("is_active", ASCENDING)], "name": "idx_templates_tenant_type_active"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_templates_tenant_created_desc"},
     ],
     "letters": [
-        {"keys": [("employee_id", ASCENDING)], "name": "idx_letters_employee"},
-        {"keys": [("status", ASCENDING)],      "name": "idx_letters_status"},
-        {"keys": [("letter_type", ASCENDING)], "name": "idx_letters_type"},
-        {"keys": [("employee_id", ASCENDING), ("letter_type", ASCENDING), ("version", DESCENDING)], "name": "idx_letters_emp_type_ver"},
-        {"keys": [("created_at", DESCENDING)], "name": "idx_letters_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "name": "idx_letters_tenant_employee"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)],      "name": "idx_letters_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("letter_type", ASCENDING)], "name": "idx_letters_tenant_type"},
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING), ("letter_type", ASCENDING), ("version", DESCENDING)], "name": "idx_letters_tenant_emp_type_ver"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_letters_tenant_created_desc"},
     ],
     "appointment_orders": [
-        {"keys": [("employee_id", ASCENDING)], "name": "idx_ao_employee"},
-        {"keys": [("status", ASCENDING)],      "name": "idx_ao_status"},
-        {"keys": [("reference_number", ASCENDING)], "sparse": True, "name": "idx_ao_ref_number"},
-        {"keys": [("created_at", DESCENDING)], "name": "idx_ao_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "name": "idx_ao_tenant_employee"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)],      "name": "idx_ao_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("reference_number", ASCENDING)], "sparse": True, "name": "idx_ao_tenant_ref_number"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_ao_tenant_created_desc"},
     ],
     "exit_records": [
-        {"keys": [("employee_id", ASCENDING)], "name": "idx_exit_employee"},
-        {"keys": [("status", ASCENDING)],      "name": "idx_exit_status"},
-        {"keys": [("created_at", DESCENDING)], "name": "idx_exit_created_desc"},
+        {"keys": [("tenant_id", ASCENDING), ("employee_id", ASCENDING)], "name": "idx_exit_tenant_employee"},
+        {"keys": [("tenant_id", ASCENDING), ("status", ASCENDING)],      "name": "idx_exit_tenant_status"},
+        {"keys": [("tenant_id", ASCENDING), ("created_at", DESCENDING)], "name": "idx_exit_tenant_created_desc"},
     ],
     "documents": [
         {"keys": [("user_id", ASCENDING), ("doc_type", ASCENDING)], "unique": True, "name": "idx_docs_user_doctype_unique"},
@@ -1459,6 +1467,27 @@ def run_setup():
                 print(f"   ✅ {coll_name:25s} — created")
             except CollectionInvalid:
                 print(f"   ⏭️  {coll_name:25s} — already exists (skipped)")
+
+    # ── Drop superseded non-tenant-prefixed indexes ───────────────────────
+    # These were replaced by tenant-prefixed versions above (see the note
+    # by the `templates`/`letters`/`appointment_orders`/`exit_records`
+    # INDEXES entries) — drop the old names so create_index below doesn't
+    # collide with them; they're additive-safe no-ops if already gone.
+    OLD_INDEX_NAMES = {
+        "templates": ["idx_templates_type_active", "idx_templates_created_desc"],
+        "letters": ["idx_letters_employee", "idx_letters_status", "idx_letters_type",
+                    "idx_letters_emp_type_ver", "idx_letters_created_desc"],
+        "appointment_orders": ["idx_ao_employee", "idx_ao_status", "idx_ao_ref_number", "idx_ao_created_desc"],
+        "exit_records": ["idx_exit_employee", "idx_exit_status", "idx_exit_created_desc"],
+    }
+    print("\n🧹 Dropping superseded indexes (if present)...")
+    for coll_name, names in OLD_INDEX_NAMES.items():
+        for name in names:
+            try:
+                db[coll_name].drop_index(name)
+                print(f"   🗑️  {coll_name}.{name} — dropped")
+            except OperationFailure:
+                pass  # already gone / never existed
 
     # ── Create Indexes ────────────────────────────────────────────────────
     print("\n🔍 Creating indexes...")

@@ -1,0 +1,52 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  syntax-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Compile check (syntax gate)
+        working-directory: backend
+        run: |
+          python -m compileall -q . -x '(venv|__pycache__)'
+
+      - name: Lint (pyflakes — undefined names, unused imports, etc.)
+        working-directory: backend
+        run: |
+          pip install pyflakes
+          python -m pyflakes . || true
+        # Non-blocking for now: this repo has no lint baseline yet, so a
+        # first pass would surface a large pre-existing backlog unrelated
+        # to any given PR's diff. Flip the `|| true` off once that
+        # backlog is triaged, so lint failures actually gate merges.
+
+      - name: Run tests (if any exist)
+        working-directory: backend
+        run: |
+          if find . -path ./venv -prune -o -name 'test_*.py' -print -o -name '*_test.py' -print | grep -q .; then
+            pip install pytest
+            python -m pytest -q
+          else
+            echo "No test files found — skipping. Add backend/tests/ to start covering this."
+          fi

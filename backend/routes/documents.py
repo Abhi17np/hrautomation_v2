@@ -15,6 +15,7 @@ import gridfs
 
 from auth_utils import tenant_scoped, require_role
 from tenant_scope import get_db
+from encryption import encrypt_bytes, decrypt_bytes
 
 documents_bp = Blueprint('documents', __name__)
 logger = logging.getLogger(__name__)
@@ -81,14 +82,16 @@ def upload():
         except Exception:
             pass
 
-    # Save to GridFS
-    file_data = file.read()
+    # Save to GridFS — encrypted at rest (KYC documents: Aadhaar, PAN, bank
+    # passbook, etc. are sensitive PII). content_type is stored separately
+    # in the `documents` doc below since fs.put's own content_type would
+    # otherwise mislead anything reading the encrypted bytes directly.
+    file_data = encrypt_bytes(file.read())
     gridfs_id = fs.put(
         file_data,
         filename=filename,
         user_id=uid,
         doc_type=doc_type,
-        content_type=file.content_type or 'application/octet-stream',
         uploaded_at=datetime.utcnow(),
     )
 
@@ -101,6 +104,7 @@ def upload():
             'doc_type':    doc_type,
             'filename':    secure_filename(file.filename),
             'gridfs_id':   str(gridfs_id),
+            'content_type': file.content_type or 'application/octet-stream',
             'url':         rel_path,
             'uploaded_at': datetime.utcnow(),
             'status':      'uploaded',
@@ -155,9 +159,9 @@ def serve_file(uid, filename):
     try:
         grid_out = fs.get(ObjectId(doc['gridfs_id']))
         return send_file(
-            BytesIO(grid_out.read()),
+            BytesIO(decrypt_bytes(grid_out.read())),
             download_name=filename,
-            mimetype=grid_out.content_type or 'application/octet-stream',
+            mimetype=doc.get('content_type') or 'application/octet-stream',
         )
     except Exception as e:
         logger.error('GridFS read error: %s', e)

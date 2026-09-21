@@ -11,11 +11,19 @@ import time
 import logging
 import os
 import smtplib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 log = logging.getLogger(__name__)
+
+# Bounds how many tenants' daily checks run concurrently — each tenant's
+# work is I/O-bound (Mongo queries + SMTP sends), so a modest thread pool
+# lets tenant count grow without the whole run serializing behind one
+# slow SMTP send, while still isolating failures per tenant (see the
+# try/except around each future below).
+MAX_CONCURRENT_TENANTS = int(os.getenv('SCHEDULER_MAX_CONCURRENT_TENANTS', 8))
 
 
 def _send_email(to_email: str, subject: str, body: str):
@@ -200,17 +208,28 @@ def run_daily_checks(app):
                 companies = list(app.db.companies.find({'status': {'$ne': 'suspended'}}))
                 total_birthday, total_anniversary = 0, 0
 
-                for company in companies:
+                def _run_one(company):
                     tenant_id = str(company['_id'])
                     company_name = (company.get('branding', {}) or {}).get('company_display_name') \
                         or company.get('name', 'Your Company')
                     tdb = scoped_db_for(tenant_id)
-                    try:
-                        b, a = _run_daily_checks_for_tenant(tdb, company_name, today)
-                        total_birthday    += b
-                        total_anniversary += a
-                    except Exception as e:
-                        log.error('Scheduler: daily check failed for tenant %s — %s', tenant_id, e)
+                    # Runs inside a worker thread — needs its own app context
+                    # for anything touching current_app (get_db()/services),
+                    # even though _run_daily_checks_for_tenant here only uses
+                    # the already-bound `tdb` and stdlib/smtplib calls.
+                    with app.app_context():
+                        return tenant_id, _run_daily_checks_for_tenant(tdb, company_name, today)
+
+                with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TENANTS) as pool:
+                    futures = {pool.submit(_run_one, c): c for c in companies}
+                    for future in as_completed(futures):
+                        company = futures[future]
+                        try:
+                            tenant_id, (b, a) = future.result()
+                            total_birthday    += b
+                            total_anniversary += a
+                        except Exception as e:
+                            log.error('Scheduler: daily check failed for tenant %s — %s', company.get('_id'), e)
 
                 log.info('Scheduler: done — %d birthday, %d anniversary emails sent across %d tenant(s)',
                          total_birthday, total_anniversary, len(companies))

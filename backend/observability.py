@@ -18,6 +18,19 @@ import uuid
 from flask import g, request
 
 
+class _ContextFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            record.request_id = getattr(g, 'request_id', '-')
+            record.tenant_id = getattr(g, 'tenant_id', '-')
+        except RuntimeError:
+            # No app context at all (e.g. a log line during startup) —
+            # g itself is unavailable outside one.
+            record.request_id = '-'
+            record.tenant_id = '-'
+        return True
+
+
 def configure_logging():
     level = os.getenv('LOG_LEVEL', 'INFO').upper()
     logging.basicConfig(
@@ -25,19 +38,17 @@ def configure_logging():
         format='%(asctime)s %(levelname)s [%(name)s] request_id=%(request_id)s tenant_id=%(tenant_id)s — %(message)s',
     )
 
-    class _ContextFilter(logging.Filter):
-        def filter(self, record):
-            try:
-                record.request_id = getattr(g, 'request_id', '-')
-                record.tenant_id = getattr(g, 'tenant_id', '-')
-            except RuntimeError:
-                # No app context at all (e.g. a log line during startup) —
-                # g itself is unavailable outside one.
-                record.request_id = '-'
-                record.tenant_id = '-'
-            return True
-
-    logging.getLogger().addFilter(_ContextFilter())
+    # A filter attached to a Logger only runs for calls made directly on
+    # THAT logger — it does NOT run for records propagating up from a
+    # child logger (scheduler, werkzeug, flask, every module-level
+    # `logging.getLogger(__name__)` in this codebase). Since the format
+    # string references %(request_id)s/%(tenant_id)s, every one of those
+    # propagated records was hitting a KeyError inside the formatter
+    # instead of printing. Attaching the filter to the root logger's
+    # HANDLER (installed by basicConfig above) instead fixes it for every
+    # record that reaches that handler, regardless of source logger.
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(_ContextFilter())
 
 
 def init_sentry(app):

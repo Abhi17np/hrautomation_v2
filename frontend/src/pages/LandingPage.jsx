@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import './LandingPage.css';
 
 /* ── Icons ─────────────────────────────────────────────────── */
@@ -205,14 +205,203 @@ function scrollToId(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/* Catmull-Rom points to a smooth cubic path */
+function smoothPath(pts) {
+  const f = (p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+  let d = `M${f(pts[0])}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${f(c1)} ${f(c2)} ${f(p2)}`;
+  }
+  return d;
+}
+
+/*
+ * Slowly drifting colour blobs painted onto a tiny canvas that CSS scales up
+ * and blurs. One blob eases toward the pointer. Paused while off screen, and
+ * drawn once (static) when the visitor prefers reduced motion.
+ */
+function MeshBackground({ pointer }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas.getContext('2d');
+    const W = 200;
+    const H = 120;
+    canvas.width = W;
+    canvas.height = H;
+
+    const blobs = [
+      { c: '62,123,250', a: 0.38, r: 0.62, x: 0.18, y: 0.22, sx: 0.31, sy: 0.23, p: 0 },
+      { c: '124,111,224', a: 0.34, r: 0.55, x: 0.82, y: 0.18, sx: 0.26, sy: 0.34, p: 2.1 },
+      { c: '14,159,148', a: 0.24, r: 0.5, x: 0.78, y: 0.72, sx: 0.22, sy: 0.28, p: 4.2 },
+      { c: '110,157,252', a: 0.32, r: 0.58, x: 0.24, y: 0.78, sx: 0.29, sy: 0.19, p: 1.3 },
+      { c: '247,182,121', a: 0.2, r: 0.38, x: 0.55, y: 0.5, sx: 0.24, sy: 0.31, p: 3.4 },
+    ];
+    const follow = { x: 0.5, y: 0.35 };
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const t0 = performance.now();
+    let raf = 0;
+    let running = false;
+
+    const paint = (now) => {
+      const t = (now - t0) / 1000;
+      ctx.fillStyle = '#f6f9ff';
+      ctx.fillRect(0, 0, W, H);
+
+      blobs.forEach((b) => {
+        const x = (b.x + Math.sin(t * b.sx + b.p) * 0.16) * W;
+        const y = (b.y + Math.cos(t * b.sy + b.p) * 0.2) * H;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, b.r * W);
+        g.addColorStop(0, `rgba(${b.c},${b.a})`);
+        g.addColorStop(1, `rgba(${b.c},0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      });
+
+      const target = pointer.current;
+      follow.x += ((target ? target.x : 0.5) - follow.x) * 0.04;
+      follow.y += ((target ? target.y : 0.35) - follow.y) * 0.04;
+      const fx = follow.x * W;
+      const fy = follow.y * H;
+      const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 0.3 * W);
+      g.addColorStop(0, 'rgba(62,123,250,0.26)');
+      g.addColorStop(1, 'rgba(62,123,250,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+
+      if (running) raf = requestAnimationFrame(paint);
+    };
+
+    if (reduce) {
+      paint(t0);
+      return undefined;
+    }
+
+    const io = new IntersectionObserver(([entry]) => {
+      cancelAnimationFrame(raf);
+      running = entry.isIntersecting;
+      if (running) raf = requestAnimationFrame(paint);
+    });
+    io.observe(canvas);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [pointer]);
+
+  return <canvas ref={ref} className="lp-mesh" aria-hidden="true" />;
+}
+
+const HERO_WORDS = ['One', 'place', 'for', 'all', 'your'];
+
+const DASH_NAV = [
+  { label: 'Dashboard', icon: 'chart' },
+  { label: 'Employees', icon: 'users' },
+  { label: 'Letters', icon: 'doc' },
+  { label: 'Leave', icon: 'calendar' },
+  { label: 'Attendance', icon: 'clock' },
+  { label: 'Payroll', icon: 'wallet' },
+  { label: 'Approvals', icon: 'check' },
+];
+
+const DASH_STATS = [
+  { label: 'Employees', value: '248', note: '+6 this month', tone: 'is-green' },
+  { label: 'On leave today', value: '12', note: 'Across 5 teams', tone: 'is-blue' },
+  { label: 'Pending approvals', value: '7', note: '3 due today', tone: 'is-amber' },
+  { label: 'September payroll', value: 'Ready', note: 'Runs on the 30th', tone: 'is-purple' },
+];
+
+const DASH_APPROVALS = [
+  { title: 'Leave request', meta: 'Design · 2 days', status: 'Pending', tone: 'lp-status-amber' },
+  { title: 'Expense claim', meta: 'Sales · ₹4,200', status: 'Approved', tone: 'lp-status-green' },
+  { title: 'Offer letter', meta: 'Engineering', status: 'In review', tone: 'lp-status-blue' },
+];
+
+const TREND = [98, 86, 92, 72, 78, 60, 66, 48, 54, 40, 46, 30];
+const TREND_PTS = TREND.map((y, i) => [(i * 400) / (TREND.length - 1), y]);
+const TREND_LINE = smoothPath(TREND_PTS);
+const TREND_AREA = `${TREND_LINE} L400,150 L0,150 Z`;
+
 /* ── Page ──────────────────────────────────────────────────── */
 export default function LandingPage() {
   const rootRef = useRef(null);
+  const heroRef = useRef(null);
+  const shotRef = useRef(null);
+  const pointer = useRef(null);
   const stepRefs = useRef([]);
   const layerRefs = useRef([]);
   const [stuck, setStuck] = useState(false);
   const [layer, setLayer] = useState(1);
   const [step, setStep] = useState(0);
+
+  /* hero pointer: drives the dot-grid spotlight, node parallax and mesh blob */
+  useEffect(() => {
+    const el = heroRef.current;
+    let raf = 0;
+
+    const onMove = (e) => {
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      pointer.current = { x, y: y * 1.6 };
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.setProperty('--mx', `${(x * 100).toFixed(2)}%`);
+        el.style.setProperty('--my', `${(y * 100).toFixed(2)}%`);
+        el.style.setProperty('--px', ((x - 0.5) * 2).toFixed(3));
+        el.style.setProperty('--py', ((y - 0.5) * 2).toFixed(3));
+      });
+    };
+
+    const onLeave = () => {
+      pointer.current = null;
+      el.style.setProperty('--px', '0');
+      el.style.setProperty('--py', '0');
+    };
+
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerleave', onLeave);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerleave', onLeave);
+    };
+  }, []);
+
+  /* product screenshot starts tilted back and lies flat as it scrolls up */
+  useEffect(() => {
+    const el = shotRef.current;
+    let raf = 0;
+
+    const update = () => {
+      const top = el.getBoundingClientRect().top;
+      const vh = window.innerHeight;
+      const p = Math.min(1, Math.max(0, (vh - top) / (vh * 0.7)));
+      el.style.setProperty('--tilt', (1 - p).toFixed(3));
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
 
   /* scroll reveals */
   useEffect(() => {
@@ -303,9 +492,11 @@ export default function LandingPage() {
       </nav>
 
       {/* ── Hero ── */}
-      <header className="lp-hero">
-        <div className="lp-hero-bg" />
-        <div className="lp-hero-grid" />
+      <header className="lp-hero" ref={heroRef}>
+        <MeshBackground pointer={pointer} />
+        <div className="lp-hero-dots" />
+        <div className="lp-hero-dots is-spot" />
+        <div className="lp-hero-grain" />
 
         <div className="lp-hero-inner">
           {/* connected module network */}
@@ -313,8 +504,8 @@ export default function LandingPage() {
             <svg className="lp-net-lines" viewBox="0 0 980 230" fill="none" aria-hidden="true">
               {NET_LINKS.map((d, i) => (
                 <g key={d}>
-                  <path id={`lpNet${i}`} d={d} stroke="#cddffb" strokeWidth="1.4" strokeLinecap="round" />
-                  <circle r="3.5" fill="#3e7bfa" opacity="0.75">
+                  <path id={`lpNet${i}`} d={d} stroke="#bcd2fa" strokeWidth="1.4" strokeLinecap="round" />
+                  <circle r="3.5" fill="#3e7bfa" opacity="0.8">
                     <animateMotion dur={`${5 + i * 0.7}s`} repeatCount="indefinite">
                       <mpath href={`#lpNet${i}`} />
                     </animateMotion>
@@ -323,13 +514,18 @@ export default function LandingPage() {
               ))}
             </svg>
 
-            {NET_NODES.map((n) => (
+            {NET_NODES.map((n, i) => (
               <span
                 key={n.icon + n.x}
-                className={`lp-net-node ${n.tone}${n.hub ? ' is-hub' : ''}`}
-                style={{ left: `${n.x}%`, top: `${n.y}%`, '--delay': n.delay }}
+                className="lp-net-node"
+                style={{ left: `${n.x}%`, top: `${n.y}%`, '--depth': n.hub ? 10 : 16 + (i % 3) * 8 }}
               >
-                <Icon name={n.icon} size={n.hub ? 34 : 20} />
+                <span
+                  className={`lp-net-tile ${n.tone}${n.hub ? ' is-hub' : ''}`}
+                  style={{ '--delay': n.delay }}
+                >
+                  <Icon name={n.icon} size={n.hub ? 34 : 20} />
+                </span>
               </span>
             ))}
           </div>
@@ -339,22 +535,119 @@ export default function LandingPage() {
             Payroll, letters and approvals now share one workspace
           </span>
 
-          <h1 className="lp-h1" data-reveal style={{ '--d': '120ms' }}>
-            One place for all your <span className="lp-grad">HR needs</span>
+          <h1 className="lp-h1">
+            {HERO_WORDS.map((w, i) => (
+              <Fragment key={w}>
+                <span className="lp-word" style={{ '--i': i }}>
+                  {w}
+                </span>{' '}
+              </Fragment>
+            ))}
+            <span className="lp-word" style={{ '--i': HERO_WORDS.length }}>
+              <span className="lp-grad">HR needs</span>
+            </span>
           </h1>
 
-          <p className="lp-hero-sub" data-reveal style={{ '--d': '180ms' }}>
+          <p className="lp-hero-sub" data-reveal style={{ '--d': '420ms' }}>
             Offer letters, appointment orders, leave, attendance, payroll and exits. The
             Infopace India HR Automation System runs every workflow from a single secure portal.
           </p>
 
-          <div className="lp-hero-actions" data-reveal style={{ '--d': '240ms' }}>
+          <div className="lp-hero-actions" data-reveal style={{ '--d': '520ms' }}>
             <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={goToLogin}>
               Sign in to your workspace <Icon name="arrow" size={16} className="lp-arrow" />
             </button>
             <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('workflow')}>
               See how it works
             </button>
+          </div>
+
+          {/* product preview */}
+          <div className="lp-stage" data-reveal style={{ '--d': '620ms' }}>
+            <div className="lp-shot" ref={shotRef}>
+              <div className="lp-dash">
+                <aside className="lp-dash-side">
+                  <img className="lp-dash-logo" src="/infopace-logo.webp" alt="" />
+                  {DASH_NAV.map((n, i) => (
+                    <span key={n.label} className={`lp-dash-nav ${i === 0 ? 'is-on' : ''}`}>
+                      <Icon name={n.icon} size={15} />
+                      {n.label}
+                    </span>
+                  ))}
+                </aside>
+
+                <div className="lp-dash-main">
+                  <div className="lp-dash-top">
+                    <div>
+                      <div className="lp-dash-hello">Good morning, HR team</div>
+                      <div className="lp-dash-date">Tuesday, 24 September</div>
+                    </div>
+                    <div className="lp-dash-tools">
+                      <span className="lp-dash-search">
+                        <Icon name="search" size={13} /> Search employees
+                      </span>
+                      <span className="lp-dash-avatar">HR</span>
+                    </div>
+                  </div>
+
+                  <div className="lp-dash-stats">
+                    {DASH_STATS.map((s) => (
+                      <div className="lp-dash-stat" key={s.label}>
+                        <span className="lp-dash-stat-label">{s.label}</span>
+                        <span className="lp-dash-stat-val">{s.value}</span>
+                        <span className={`lp-dash-chip ${s.tone}`}>{s.note}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="lp-dash-grid">
+                    <div className="lp-dash-card">
+                      <div className="lp-dash-card-head">
+                        Attendance this month <span>Daily</span>
+                      </div>
+                      <svg className="lp-dash-chart" viewBox="0 0 400 150" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="lpArea" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stopColor="#3e7bfa" stopOpacity="0.26" />
+                            <stop offset="1" stopColor="#3e7bfa" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        {[30, 70, 110].map((y) => (
+                          <line key={y} x1="0" x2="400" y1={y} y2={y} stroke="#eef2f9" strokeWidth="1" />
+                        ))}
+                        <path className="lp-dash-area" d={TREND_AREA} fill="url(#lpArea)" />
+                        <path
+                          className="lp-dash-line"
+                          d={TREND_LINE}
+                          pathLength="1"
+                          fill="none"
+                          stroke="#3e7bfa"
+                          strokeWidth="2.6"
+                          strokeLinecap="round"
+                        />
+                        <circle className="lp-dash-dot" cx="400" cy="30" r="5" fill="#fff" stroke="#3e7bfa" strokeWidth="2.6" />
+                      </svg>
+                    </div>
+
+                    <div className="lp-dash-card">
+                      <div className="lp-dash-card-head">
+                        Pending approvals <span>7</span>
+                      </div>
+                      {DASH_APPROVALS.map((a) => (
+                        <div className="lp-dash-row" key={a.title}>
+                          <span className="lp-pr-av" />
+                          <span className="lp-dash-row-text">
+                            <b>{a.title}</b>
+                            <small>{a.meta}</small>
+                          </span>
+                          <span className={`lp-mini-status ${a.tone}`}>{a.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* marquee */}

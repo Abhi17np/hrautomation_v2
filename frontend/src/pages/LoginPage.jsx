@@ -190,13 +190,25 @@ export default function LoginPage() {
           padding: '40px 40px 0', position: 'relative', overflow: 'hidden',
           display: 'flex', flexDirection: 'column', color: '#fff',
         }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            padding: '10px 18px', borderRadius: 12, flexShrink: 0,
-            background: '#fff', boxShadow: '0 4px 14px rgba(15,35,90,.18)',
-            marginBottom: 30, alignSelf: 'flex-start',
-          }}>
-            <img src="/infopace-logo.webp" alt="Infopace" style={{ height: 34, width: 'auto', maxWidth: 150, objectFit: 'contain', display: 'block' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 30 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              padding: '10px 18px', borderRadius: 12, flexShrink: 0,
+              background: '#fff', boxShadow: '0 4px 14px rgba(15,35,90,.18)',
+            }}>
+              <img src="/infopace-logo.webp" alt="Infopace" style={{ height: 34, width: 'auto', maxWidth: 150, objectFit: 'contain', display: 'block' }} />
+            </div>
+            <button
+              type="button"
+              onClick={() => { window.location.hash = '/'; }}
+              style={{
+                background: 'rgba(255,255,255,.14)', border: '1px solid rgba(255,255,255,.28)',
+                borderRadius: 999, color: '#fff', fontSize: 11.5, fontWeight: 600,
+                padding: '8px 14px', cursor: 'pointer',
+              }}
+            >
+              ← Back to home
+            </button>
           </div>
 
           <h1 style={{

@@ -1,6 +1,7 @@
 // FIX #5: removed unused 'useState', 'useEffect', and 'axios' imports
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import LandingPage   from './pages/LandingPage';
 import LoginPage     from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import EmployeesPage from './pages/EmployeesPage';
@@ -114,7 +115,11 @@ function AppRouter() {
   if (path.startsWith('/reset-password')) return <ResetPasswordPage />;
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
-  if (!user)   return <LoginPage />;
+
+  if (!user) {
+    if (path === '/login') return <LoginPage />;
+    return <LandingPage />;
+  }
 
   const PageComponent = PAGES[path] ?? NotFound;
 

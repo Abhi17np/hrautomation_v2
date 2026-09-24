@@ -218,7 +218,7 @@ export default function LoginPage() {
             One place for all your HR needs.
           </h1>
           <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', maxWidth: 220, margin: 0 }}>
-            Offer letters, appointment orders, exits, approvals & leave — all in one portal.
+            Offer letters, appointment orders, exits, approvals and leave, all in one portal.
           </p>
 
           <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', paddingBottom: 4 }}>
@@ -287,8 +287,7 @@ export default function LoginPage() {
                 </button>
 
                 <p style={{ fontSize: 11.5, color: '#AEB7C4', lineHeight: 1.6, margin: '2px 0 4px' }}>
-                  This portal is for Infopace India employees only. Contact HR if you
-                  believe you should have access but can't sign in.
+                  Contact HR if you believe you should have access but can't sign in.
                 </p>
 
                 <button

@@ -16,7 +16,6 @@ const ICONS = {
   bolt: 'M13 2 4 14h6l-1 8 9-12h-6l1-8z',
   exit: 'M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h9',
   bell: 'M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M13.7 20a2 2 0 0 1-3.4 0',
-  sparkle: 'M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4L12 3z',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
   mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
   lock: 'M6 10h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM8 10V7a4 4 0 0 1 8 0v3',
@@ -74,6 +73,22 @@ function Counter({ to, suffix = '', duration = 1500 }) {
   );
 }
 
+/* Swaps between short messages inside the attendance pill */
+function RotatingText({ items, interval = 3800 }) {
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setI((v) => (v + 1) % items.length), interval);
+    return () => clearInterval(id);
+  }, [items.length, interval]);
+
+  return (
+    <span className="lp-rotator" key={i}>
+      {items[i]}
+    </span>
+  );
+}
+
 /* ── Content ───────────────────────────────────────────────── */
 const NAV = [
   { label: 'Modules', target: 'modules' },
@@ -122,12 +137,12 @@ const STATS = [
 const LAYERS = [
   {
     name: 'People layer',
-    desc: 'Employee records, org chart, roles and documents — the single source of truth every other module reads from.',
+    desc: 'Employee records, org chart, roles and documents. The single source of truth every other module reads from.',
     tags: [{ t: 'Employees', w: 84 }, { t: 'Org chart', w: 82 }],
   },
   {
     name: 'HR operations layer',
-    desc: 'Offer letters, onboarding, leave, attendance and exits — the day-to-day work your HR team actually runs.',
+    desc: 'Offer letters, onboarding, leave, attendance and exits. The day-to-day work your HR team actually runs.',
     tags: [{ t: 'Offer letters', w: 94 }, { t: 'Leave & attendance', w: 126 }],
   },
   {
@@ -155,7 +170,7 @@ const STEPS = [
   },
   {
     title: 'Run payroll and close the month',
-    desc: 'Attendance and approved expenses flow straight into the payroll run, and payslips land in each employee’s portal.',
+    desc: 'Attendance and approved expenses flow straight into the payroll run, and payslips land in every employee portal.',
     points: ['One payroll run across the organisation', 'Instant payslip download for employees', 'Audit-ready records for every cycle'],
   },
 ];
@@ -295,7 +310,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="lp-hero-sub" data-reveal style={{ '--d': '140ms' }}>
-            Offer letters, appointment orders, leave, attendance, payroll and exits — the
+            Offer letters, appointment orders, leave, attendance, payroll and exits. The
             Infopace India HR Automation System runs every workflow from a single secure portal.
           </p>
 
@@ -307,10 +322,6 @@ export default function LandingPage() {
               See how it works
             </button>
           </div>
-
-          <p className="lp-hero-note" data-reveal style={{ '--d': '280ms' }}>
-            This portal is for Infopace India employees only.
-          </p>
 
           {/* orbital visual */}
           <div className="lp-orbit" data-reveal style={{ '--d': '340ms' }}>
@@ -402,98 +413,195 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Feature bento ── */}
+      {/* ── Modules ── */}
       <section className="lp-section">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">
-            <Icon name="sparkle" size={13} /> Modules
-          </span>
-          <h2 className="lp-h2">Every HR workflow, unified</h2>
+          <span className="lp-tag">Modules</span>
+          <h2 className="lp-h2">Built for everyone</h2>
           <p className="lp-lede">
-            From the first offer letter to the final exit checklist — no more spreadsheets,
-            email threads and paper files scattered across teams.
+            From HR and managers to every employee in the company, each team gets what it
+            needs inside a single portal.
           </p>
         </div>
 
-        <div className="lp-bento">
-          <article className="lp-card lp-card-wide" data-reveal>
-            <span className="lp-card-ic">
-              <Icon name="doc" size={21} />
-            </span>
-            <h3 className="lp-card-title">Offer letters &amp; appointment orders</h3>
-            <p className="lp-card-desc">
+        <div className="lp-everyone">
+          {/* Letters */}
+          <article className="lp-e-card" data-reveal>
+            <div className="lp-e-visual">
+              <span className="lp-lv-ghost is-left" />
+              <span className="lp-lv-ghost is-right" />
+              <div className="lp-lv-card">
+                <div className="lp-lv-head">
+                  <span className="lp-lv-ic">
+                    <Icon name="doc" size={13} />
+                  </span>
+                  <span className="lp-lv-name">Offer letter</span>
+                  <span className="lp-mini-status lp-status-green">Signed</span>
+                </div>
+                <span className="lp-lv-line" style={{ width: '88%' }} />
+                <span className="lp-lv-line" style={{ width: '62%' }} />
+                <span className="lp-lv-line" style={{ width: '74%' }} />
+              </div>
+            </div>
+            <h3 className="lp-e-title">Offer letters &amp; appointment orders</h3>
+            <p className="lp-e-desc">
               Generate branded letters from reusable templates in seconds, route them for
               approval and file them against the employee record automatically.
             </p>
-            <div className="lp-mini">
-              {[
-                { t: 'Offer letter — Software Engineer', s: 'Signed', c: 'lp-status-green' },
-                { t: 'Appointment order — HR Executive', s: 'Sent', c: 'lp-status-blue' },
-                { t: 'Experience letter — Sales Lead', s: 'In review', c: 'lp-status-amber' },
-              ].map((r, i) => (
-                <div className="lp-mini-row" key={r.t} style={{ animationDelay: `${i * 140}ms` }}>
-                  <span className="lp-mini-dot">
-                    <Icon name="doc" size={12} />
-                  </span>
-                  {r.t}
-                  <span className={`lp-mini-status ${r.c}`}>{r.s}</span>
-                </div>
-              ))}
-            </div>
           </article>
 
-          <article className="lp-card lp-card-wide" data-reveal style={{ '--d': '110ms' }}>
-            <span className="lp-card-ic is-teal">
-              <Icon name="clock" size={21} />
-            </span>
-            <h3 className="lp-card-title">Leave &amp; attendance</h3>
-            <p className="lp-card-desc">
-              Biometric sync, shift summaries, holiday calendars and self-service leave
-              requests — reconciled automatically, every single day.
-            </p>
-            <div className="lp-mini">
-              <div className="lp-bars">
-                {[52, 74, 61, 88, 69, 94, 48, 80, 66].map((h, i) => (
-                  <span
-                    key={`${h}-${i}`}
-                    className={`lp-bar ${i % 4 === 3 ? 'is-soft' : ''}`}
-                    style={{ height: `${h}%`, animationDelay: `${i * 70}ms` }}
+          {/* Leave & attendance */}
+          <article className="lp-e-card" data-reveal style={{ '--d': '90ms' }}>
+            <div className="lp-e-visual">
+              <div className="lp-dial">
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="lpDial" x1="0" y1="0" x2="120" y2="120">
+                      <stop offset="0" stopColor="#6e9dfc" />
+                      <stop offset="1" stopColor="#3e7bfa" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#e4edfc" strokeWidth="11" />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="none"
+                    stroke="url(#lpDial)"
+                    strokeWidth="11"
+                    strokeLinecap="round"
+                    strokeDasharray="314"
+                    strokeDashoffset="38"
+                    transform="rotate(-90 60 60)"
                   />
-                ))}
+                  <circle cx="60" cy="60" r="35" fill="none" stroke="#eef4fd" strokeWidth="7" />
+                </svg>
+                <span className="lp-dial-val">88%</span>
+                <span className="lp-dial-cap">Present</span>
+              </div>
+
+              <div className="lp-float-pill">
+                <span className="lp-float-pill-ic">
+                  <Icon name="clock" size={12} />
+                </span>
+                <RotatingText items={['Live attendance sync', 'Balances update instantly']} />
               </div>
             </div>
-          </article>
-
-          <article className="lp-card lp-card-third" data-reveal>
-            <span className="lp-card-ic is-purple">
-              <Icon name="wallet" size={21} />
-            </span>
-            <h3 className="lp-card-title">Payroll &amp; payslips</h3>
-            <p className="lp-card-desc">
-              Run payroll across the organisation, publish instant payslips and keep every
-              cycle audit-ready.
+            <h3 className="lp-e-title">Leave &amp; attendance</h3>
+            <p className="lp-e-desc">
+              Biometric sync, shift summaries and holiday calendars reconcile themselves,
+              with live balances on every leave request.
             </p>
           </article>
 
-          <article className="lp-card lp-card-third" data-reveal style={{ '--d': '90ms' }}>
-            <span className="lp-card-ic is-amber">
-              <Icon name="check" size={21} />
-            </span>
-            <h3 className="lp-card-title">Approvals &amp; workflows</h3>
-            <p className="lp-card-desc">
+          {/* Approvals */}
+          <article className="lp-e-card" data-reveal style={{ '--d': '180ms' }}>
+            <div className="lp-e-visual">
+              <div className="lp-ap-card is-back">
+                <span className="lp-lv-line" style={{ width: '70%' }} />
+                <span className="lp-lv-line" style={{ width: '46%' }} />
+              </div>
+              <div className="lp-ap-card is-front">
+                <span className="lp-lv-line" style={{ width: '64%' }} />
+                <span className="lp-lv-line" style={{ width: '82%' }} />
+              </div>
+              <span className="lp-ap-badge">
+                <Icon name="check" size={20} />
+              </span>
+            </div>
+            <h3 className="lp-e-title">Approvals &amp; workflows</h3>
+            <p className="lp-e-desc">
               Configurable multi-level chains for leave, expenses and letters, routed to the
               right people automatically.
             </p>
           </article>
 
-          <article className="lp-card lp-card-third" data-reveal style={{ '--d': '180ms' }}>
-            <span className="lp-card-ic">
-              <Icon name="chart" size={21} />
-            </span>
-            <h3 className="lp-card-title">Analytics &amp; reports</h3>
-            <p className="lp-card-desc">
+          {/* Payroll — wide */}
+          <article className="lp-e-card lp-e-wide" data-reveal>
+            <div className="lp-e-visual is-wide">
+              <span className="lp-e-badge">
+                <Icon name="wallet" size={16} />
+              </span>
+              <div className="lp-pr">
+                <div className="lp-pr-panel">
+                  <div className="lp-pr-head">
+                    Payroll run <span>September</span>
+                  </div>
+                  {[
+                    { r: 'Software Engineer', a: '68,400' },
+                    { r: 'HR Executive', a: '41,250' },
+                    { r: 'Sales Lead', a: '57,900' },
+                  ].map((p) => (
+                    <div className="lp-pr-row" key={p.r}>
+                      <span className="lp-pr-av" />
+                      <span className="lp-pr-role">{p.r}</span>
+                      <span className="lp-pr-amt">{p.a}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="lp-pr-panel is-chart">
+                  <div className="lp-pr-head">Monthly cost</div>
+                  <div className="lp-bars">
+                    {[48, 66, 57, 78, 62, 88].map((h, i) => (
+                      <span
+                        key={`${h}-${i}`}
+                        className={`lp-bar ${i === 5 ? '' : i % 3 === 2 ? 'is-soft' : ''}`}
+                        style={{ height: `${h}%`, animationDelay: `${i * 80}ms` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <h3 className="lp-e-title">Payroll &amp; payslips</h3>
+            <p className="lp-e-desc">
+              Attendance and approved expenses flow straight into the payroll run. Publish
+              instant payslips and keep every cycle audit-ready.
+            </p>
+          </article>
+
+          {/* Analytics — narrow */}
+          <article className="lp-e-card lp-e-narrow" data-reveal style={{ '--d': '90ms' }}>
+            <div className="lp-e-visual is-wide">
+              <div className="lp-donut">
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                  {[
+                    { c: '#3e7bfa', len: 116, off: 0 },
+                    { c: '#7c6fe0', len: 78, off: -116 },
+                    { c: '#0e9f94', len: 48, off: -194 },
+                    { c: '#c3d7fb', len: 41, off: -242 },
+                  ].map((s) => (
+                    <circle
+                      key={s.c}
+                      cx="60"
+                      cy="60"
+                      r="45"
+                      fill="none"
+                      stroke={s.c}
+                      strokeWidth="14"
+                      strokeDasharray={`${s.len} ${283 - s.len}`}
+                      strokeDashoffset={s.off}
+                      transform="rotate(-90 60 60)"
+                    />
+                  ))}
+                </svg>
+              </div>
+              <div className="lp-donut-legend">
+                <span>
+                  <i style={{ background: '#3e7bfa' }} /> Headcount
+                </span>
+                <span>
+                  <i style={{ background: '#7c6fe0' }} /> Attendance
+                </span>
+                <span>
+                  <i style={{ background: '#0e9f94' }} /> Payroll
+                </span>
+              </div>
+            </div>
+            <h3 className="lp-e-title">Analytics &amp; reports</h3>
+            <p className="lp-e-desc">
               Live dashboards across headcount, attendance and payroll so leadership decides
-              on facts, not guesses.
+              on facts.
             </p>
           </article>
         </div>
@@ -502,12 +610,10 @@ export default function LandingPage() {
       {/* ── Isometric architecture ── */}
       <section className="lp-section lp-section-tinted" id="platform">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">
-            <Icon name="layers" size={13} /> Platform
-          </span>
+          <span className="lp-tag">Platform</span>
           <h2 className="lp-h2">Four connected layers, one portal</h2>
           <p className="lp-lede">
-            Each layer feeds the next — so a single employee record drives every letter,
+            Each layer feeds the next, so a single employee record drives every letter,
             approval, payslip and report in the system.
           </p>
         </div>
@@ -618,12 +724,10 @@ export default function LandingPage() {
       {/* ── Sticky explorer ── */}
       <section className="lp-section" id="workflow">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">
-            <Icon name="bolt" size={13} /> Workflow
-          </span>
+          <span className="lp-tag">Workflow</span>
           <h2 className="lp-h2">Watch a month run itself</h2>
           <p className="lp-lede">
-            Scroll through a typical cycle — the portal on the left keeps up with each stage.
+            Scroll through a typical cycle. The portal on the left keeps up with each stage.
           </p>
         </div>
 
@@ -645,10 +749,10 @@ export default function LandingPage() {
                     <span className="lp-pane-chip">4 generated today</span>
                   </div>
                   {[
-                    { t: 'Offer letter — Software Engineer', s: 'Signed', c: 'lp-status-green' },
-                    { t: 'Appointment order — HR Executive', s: 'Sent', c: 'lp-status-blue' },
-                    { t: 'Confirmation — Support Analyst', s: 'In review', c: 'lp-status-amber' },
-                    { t: 'Experience letter — Sales Lead', s: 'Signed', c: 'lp-status-green' },
+                    { t: 'Offer letter · Software Engineer', s: 'Signed', c: 'lp-status-green' },
+                    { t: 'Appointment order · HR Executive', s: 'Sent', c: 'lp-status-blue' },
+                    { t: 'Confirmation · Support Analyst', s: 'In review', c: 'lp-status-amber' },
+                    { t: 'Experience letter · Sales Lead', s: 'Signed', c: 'lp-status-green' },
                   ].map((r) => (
                     <div className="lp-mini-row" key={r.t}>
                       <span className="lp-mini-dot">
@@ -754,13 +858,11 @@ export default function LandingPage() {
       {/* ── Journey timeline ── */}
       <section className="lp-section lp-section-tinted" id="journey">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">
-            <Icon name="users" size={13} /> Journey
-          </span>
+          <span className="lp-tag">Journey</span>
           <h2 className="lp-h2">The full employee lifecycle</h2>
           <p className="lp-lede">
             One record follows every person from their offer letter to their experience
-            letter — nothing re-typed, nothing lost.
+            letter, with nothing re-typed and nothing lost.
           </p>
         </div>
 
@@ -804,7 +906,7 @@ export default function LandingPage() {
             <h2 className="lp-cta-title">Your HR workspace is one sign-in away</h2>
             <p className="lp-cta-sub">
               Use your Infopace India credentials to open letters, leave, payroll and
-              approvals — everything waiting exactly where you left it.
+              approvals, with everything waiting exactly where you left it.
             </p>
             <button className="lp-btn lp-btn-lg lp-cta-btn" onClick={goToLogin}>
               Sign in now <Icon name="arrow" size={16} className="lp-arrow" />
@@ -823,7 +925,7 @@ export default function LandingPage() {
             </div>
             <div className="lp-help-row">
               <Icon name="lock" size={16} />
-              Use “Forgot password” on the sign-in page
+              Use the "Forgot password" link on the sign-in page
             </div>
             <div className="lp-help-row">
               <Icon name="shield" size={16} />
@@ -839,7 +941,7 @@ export default function LandingPage() {
           <div className="lp-footer-brand">
             <img src="/infopace-logo.webp" alt="Infopace" style={{ height: 30 }} />
             <p className="lp-footer-note">
-              HR Automation System — the internal HR portal for Infopace India employees.
+              HR Automation System, the internal HR portal for Infopace India employees.
               Contact your administrator if you believe you should have access but cannot sign in.
             </p>
           </div>

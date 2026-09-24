@@ -807,6 +807,366 @@
   to { transform: scaleY(1); opacity: 1; }
 }
 
+/* ── Modules: visual-on-top cards ──────────────────────────── */
+.lp-everyone {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 20px;
+}
+
+.lp-e-card {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  border-radius: 22px;
+  padding: 18px 18px 26px;
+  box-shadow: var(--lp-shadow-sm);
+  transition: transform 0.24s, box-shadow 0.24s, border-color 0.24s;
+}
+
+.lp-e-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--lp-blue-300);
+  box-shadow: var(--lp-shadow);
+}
+
+.lp-e-wide { grid-column: span 4; }
+.lp-e-narrow { grid-column: span 2; }
+
+.lp-e-visual {
+  position: relative;
+  height: 212px;
+  margin-bottom: 22px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eaf1fd 100%);
+  border: 1px solid var(--lp-line-soft);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lp-e-visual.is-wide {
+  height: 246px;
+}
+
+.lp-e-title {
+  font-family: var(--display, 'Poppins', sans-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--lp-ink);
+  margin: 0 4px 9px;
+  letter-spacing: -0.2px;
+}
+
+.lp-e-desc {
+  font-size: 13px;
+  color: var(--lp-muted);
+  line-height: 1.68;
+  margin: 0 4px;
+}
+
+.lp-e-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  color: var(--lp-purple);
+  box-shadow: var(--lp-shadow-sm);
+  z-index: 3;
+}
+
+/* letters carousel */
+.lp-lv-ghost {
+  position: absolute;
+  top: 44px;
+  bottom: 44px;
+  width: 54px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  opacity: 0.55;
+}
+
+.lp-lv-ghost.is-left { left: -18px; }
+.lp-lv-ghost.is-right { right: -18px; }
+
+.lp-lv-card {
+  position: relative;
+  z-index: 2;
+  width: 76%;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  box-shadow: 0 12px 28px rgba(83, 112, 165, 0.14);
+  padding: 14px;
+  animation: lp-float 6s ease-in-out infinite;
+}
+
+.lp-lv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 13px;
+}
+
+.lp-lv-ic {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lp-blue-100);
+  color: var(--lp-blue);
+  flex-shrink: 0;
+}
+
+.lp-lv-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lp-text);
+}
+
+.lp-lv-head .lp-mini-status { margin-left: auto; }
+
+.lp-lv-line {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: #eef2f9;
+  margin-bottom: 7px;
+}
+
+.lp-lv-line:last-child { margin-bottom: 0; }
+
+/* attendance dial */
+.lp-dial {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lp-dial svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lp-dial-val {
+  font-family: var(--display, 'Poppins', sans-serif);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--lp-ink);
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-top: -6px;
+}
+
+.lp-dial-cap {
+  position: absolute;
+  top: 58%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lp-dim);
+}
+
+.lp-float-pill {
+  position: absolute;
+  left: 14px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  box-shadow: 0 8px 22px rgba(83, 112, 165, 0.16);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lp-text);
+  animation: lp-float 5.5s ease-in-out infinite;
+}
+
+.lp-float-pill-ic {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lp-teal-100);
+  color: var(--lp-teal);
+  flex-shrink: 0;
+}
+
+/* pill text that cycles between two messages */
+.lp-rotator {
+  display: block;
+  min-width: 152px;
+  line-height: 16px;
+  white-space: nowrap;
+  animation: lp-rot-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lp-rot-in {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* approvals stacked cards */
+.lp-ap-card {
+  position: absolute;
+  width: 58%;
+  border-radius: 13px;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  padding: 15px 14px;
+  box-shadow: 0 10px 26px rgba(83, 112, 165, 0.12);
+}
+
+.lp-ap-card.is-back {
+  transform: translate(-26%, -16%) rotate(-7deg);
+}
+
+.lp-ap-card.is-front {
+  transform: translate(24%, 16%) rotate(6deg);
+}
+
+.lp-ap-badge {
+  position: absolute;
+  z-index: 3;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #3e7bfa, #6d63e8);
+  box-shadow: 0 14px 30px rgba(62, 123, 250, 0.4);
+  animation: lp-float 5s ease-in-out infinite;
+}
+
+/* payroll panels */
+.lp-pr {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 12px;
+  width: 100%;
+  padding: 0 18px;
+}
+
+.lp-pr-panel {
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(83, 112, 165, 0.08);
+}
+
+.lp-pr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lp-text);
+  margin-bottom: 12px;
+}
+
+.lp-pr-head span {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--lp-blue);
+  background: var(--lp-blue-100);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.lp-pr-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--lp-line-soft);
+}
+
+.lp-pr-row:last-child { border-bottom: none; }
+
+.lp-pr-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #b9d0fb, #7c6fe0);
+  flex-shrink: 0;
+}
+
+.lp-pr-role {
+  font-size: 11px;
+  color: var(--lp-muted);
+  font-weight: 500;
+}
+
+.lp-pr-amt {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+
+.lp-pr-panel.is-chart .lp-bars {
+  height: 96px;
+}
+
+/* analytics donut */
+.lp-donut {
+  width: 132px;
+  height: 132px;
+  flex-shrink: 0;
+}
+
+.lp-donut svg { width: 100%; height: 100%; }
+
+.lp-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-left: 16px;
+}
+
+.lp-donut-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lp-muted);
+}
+
+.lp-donut-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 /* ── Isometric architecture ────────────────────────────────── */
 .lp-iso-wrap {
   max-width: 1080px;
@@ -989,7 +1349,7 @@
   border-radius: 14px;
   background: var(--lp-blue-50);
   border: 1px solid var(--lp-line);
-  min-height: 330px;
+  min-height: 372px;
   padding: 20px;
 }
 
@@ -1039,7 +1399,7 @@
 }
 
 .lp-cal-cell {
-  aspect-ratio: 1;
+  height: 38px;
   border-radius: 7px;
   background: #fff;
   border: 1px solid var(--lp-line);
@@ -1548,6 +1908,9 @@
   .lp-h2 { font-size: 29px; }
   .lp-stats { grid-template-columns: repeat(2, 1fr); }
   .lp-card-wide, .lp-card-third { grid-column: span 6; }
+  .lp-e-card, .lp-e-wide, .lp-e-narrow { grid-column: span 3; }
+  .lp-pr { grid-template-columns: 1fr; }
+  .lp-pr-panel.is-chart { display: none; }
   .lp-iso-wrap { grid-template-columns: 1fr; gap: 34px; }
   .lp-iso { position: relative; top: 0; }
   .lp-iso-legend { gap: 14px; padding: 0; }
@@ -1575,6 +1938,8 @@
   .lp-hero-actions { flex-direction: column; }
   .lp-hero-actions .lp-btn { width: 100%; }
   .lp-stats { grid-template-columns: 1fr; }
+  .lp-everyone { grid-template-columns: 1fr; gap: 16px; }
+  .lp-e-card, .lp-e-wide, .lp-e-narrow { grid-column: span 1; }
   .lp-milestones { grid-template-columns: 1fr; }
   .lp-core { width: 116px; height: 116px; }
   .lp-core img { width: 62px; }

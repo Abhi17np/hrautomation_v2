@@ -39,7 +39,9 @@
   background: var(--lp-surface);
   color: var(--lp-text);
   font-family: var(--font, 'Poppins', sans-serif);
-  overflow-x: hidden;
+  /* `clip` (not `hidden`) — `hidden` would make this a scroll container and
+     break position:sticky in the platform and workflow sections. */
+  overflow-x: clip;
   isolation: isolate;
 }
 
@@ -812,12 +814,15 @@
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 40px;
-  align-items: center;
+  align-items: start;
 }
 
 .lp-iso {
-  position: relative;
+  position: sticky;
+  top: 96px;
   width: 100%;
+  max-width: 450px;
+  margin: 0 auto;
 }
 
 .lp-iso svg {
@@ -861,13 +866,14 @@
 .lp-iso-legend {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 60px;
+  padding: 40px 0 240px;
 }
 
 .lp-iso-item {
   display: flex;
   gap: 15px;
-  padding: 18px 20px;
+  padding: 28px 26px;
   border-radius: 16px;
   border: 1px solid var(--lp-line);
   background: #fff;
@@ -1543,6 +1549,9 @@
   .lp-stats { grid-template-columns: repeat(2, 1fr); }
   .lp-card-wide, .lp-card-third { grid-column: span 6; }
   .lp-iso-wrap { grid-template-columns: 1fr; gap: 34px; }
+  .lp-iso { position: relative; top: 0; }
+  .lp-iso-legend { gap: 14px; padding: 0; }
+  .lp-iso-item { padding: 20px 20px; }
   .lp-explorer { grid-template-columns: 1fr; gap: 30px; }
   .lp-explorer-sticky { position: relative; top: 0; }
   .lp-milestones { grid-template-columns: repeat(2, 1fr); gap: 16px; }

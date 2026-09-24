@@ -186,6 +186,7 @@ function ellipsePath(cx, cy, rx, ry) {
 export default function LandingPage() {
   const rootRef = useRef(null);
   const stepRefs = useRef([]);
+  const layerRefs = useRef([]);
   const [stuck, setStuck] = useState(false);
   const [layer, setLayer] = useState(1);
   const [step, setStep] = useState(0);
@@ -213,6 +214,20 @@ export default function LandingPage() {
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /* which platform layer is centred in the viewport */
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setLayer(Number(e.target.dataset.layer));
+        });
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 }
+    );
+    layerRefs.current.forEach((el) => el && io.observe(el));
+    return () => io.disconnect();
   }, []);
 
   /* which explorer step is centred in the viewport */
@@ -567,22 +582,34 @@ export default function LandingPage() {
           </div>
 
           <div className="lp-iso-legend">
+            {/* The reveal observer adds .is-in imperatively, so it lives on a
+                wrapper whose className React never rewrites — re-rendering the
+                button below would otherwise wipe it and leave the card at
+                opacity 0. */}
             {LAYERS.map((l, i) => (
-              <button
+              <div
                 key={l.name}
-                className={`lp-iso-item ${layer === i ? 'is-active' : ''}`}
-                onMouseEnter={() => setLayer(i)}
-                onFocus={() => setLayer(i)}
-                onClick={() => setLayer(i)}
+                className="lp-iso-reveal"
+                data-layer={i}
+                ref={(el) => {
+                  layerRefs.current[i] = el;
+                }}
                 data-reveal
                 style={{ '--d': `${i * 80}ms` }}
               >
-                <span className="lp-iso-num">{String(i + 1).padStart(2, '0')}</span>
-                <span>
-                  <span className="lp-iso-name">{l.name}</span>
-                  <span className="lp-iso-desc">{l.desc}</span>
-                </span>
-              </button>
+                <button
+                  className={`lp-iso-item ${layer === i ? 'is-active' : ''}`}
+                  onMouseEnter={() => setLayer(i)}
+                  onFocus={() => setLayer(i)}
+                  onClick={() => setLayer(i)}
+                >
+                  <span className="lp-iso-num">{String(i + 1).padStart(2, '0')}</span>
+                  <span>
+                    <span className="lp-iso-name">{l.name}</span>
+                    <span className="lp-iso-desc">{l.desc}</span>
+                  </span>
+                </button>
+              </div>
             ))}
           </div>
         </div>

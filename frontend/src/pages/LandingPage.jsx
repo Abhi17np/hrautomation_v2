@@ -97,13 +97,26 @@ const NAV = [
   { label: 'Journey', target: 'journey' },
 ];
 
-const ORBIT_CHIPS = [
-  { label: 'Offer letters', icon: 'doc', tone: '', style: { top: '6%', left: '3%' }, delay: '0s' },
-  { label: 'Payroll runs', icon: 'wallet', tone: 'is-purple', style: { top: '13%', right: '4%' }, delay: '1.1s' },
-  { label: 'Attendance', icon: 'clock', tone: 'is-teal', style: { top: '45%', left: '0%' }, delay: '2.2s' },
-  { label: 'Approvals', icon: 'check', tone: '', style: { top: '52%', right: '1%' }, delay: '0.6s' },
-  { label: 'Leave requests', icon: 'calendar', tone: 'is-amber', style: { bottom: '9%', left: '13%' }, delay: '1.7s', optional: true },
-  { label: 'Exit & clearance', icon: 'exit', tone: 'is-purple', style: { bottom: '5%', right: '12%' }, delay: '2.8s', optional: true },
+/* Hero network. Node x/y are percentages of the 980x230 line canvas. */
+const NET_NODES = [
+  { icon: 'users', tone: 'is-teal', x: 6.1, y: 56.5, delay: '0s' },
+  { icon: 'calendar', tone: 'is-amber', x: 19.4, y: 22.6, delay: '1.2s' },
+  { icon: 'doc', tone: 'is-blue', x: 30.6, y: 68.7, delay: '2.1s' },
+  { icon: 'layers', tone: 'is-hubtone', x: 50, y: 40, delay: '0.5s', hub: true },
+  { icon: 'wallet', tone: 'is-blue', x: 70.4, y: 69.6, delay: '1.7s' },
+  { icon: 'shield', tone: 'is-coral', x: 82.7, y: 20.9, delay: '0.8s' },
+  { icon: 'chart', tone: 'is-slate', x: 93.9, y: 57.4, delay: '2.6s' },
+];
+
+const NET_LINKS = [
+  'M60,130 Q120,80 190,52',
+  'M190,52 Q340,40 490,92',
+  'M60,130 Q180,170 300,158',
+  'M300,158 Q400,140 490,92',
+  'M490,92 Q600,140 690,160',
+  'M490,92 Q660,30 810,48',
+  'M690,160 Q810,172 920,132',
+  'M810,48 Q892,72 920,132',
 ];
 
 const MARQUEE = [
@@ -190,11 +203,6 @@ function goToLogin() {
 
 function scrollToId(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/* Ellipse as a path so an SVG dot can travel along it */
-function ellipsePath(cx, cy, rx, ry) {
-  return `M ${cx - rx},${cy} a ${rx},${ry} 0 1,0 ${rx * 2},0 a ${rx},${ry} 0 1,0 ${-rx * 2},0`;
 }
 
 /* ── Page ──────────────────────────────────────────────────── */
@@ -300,85 +308,53 @@ export default function LandingPage() {
         <div className="lp-hero-grid" />
 
         <div className="lp-hero-inner">
-          <span className="lp-pill" data-reveal>
+          {/* connected module network */}
+          <div className="lp-net" data-reveal>
+            <svg className="lp-net-lines" viewBox="0 0 980 230" fill="none" aria-hidden="true">
+              {NET_LINKS.map((d, i) => (
+                <g key={d}>
+                  <path id={`lpNet${i}`} d={d} stroke="#cddffb" strokeWidth="1.4" strokeLinecap="round" />
+                  <circle r="3.5" fill="#3e7bfa" opacity="0.75">
+                    <animateMotion dur={`${5 + i * 0.7}s`} repeatCount="indefinite">
+                      <mpath href={`#lpNet${i}`} />
+                    </animateMotion>
+                  </circle>
+                </g>
+              ))}
+            </svg>
+
+            {NET_NODES.map((n) => (
+              <span
+                key={n.icon + n.x}
+                className={`lp-net-node ${n.tone}${n.hub ? ' is-hub' : ''}`}
+                style={{ left: `${n.x}%`, top: `${n.y}%`, '--delay': n.delay }}
+              >
+                <Icon name={n.icon} size={n.hub ? 34 : 20} />
+              </span>
+            ))}
+          </div>
+
+          <span className="lp-pill" data-reveal style={{ '--d': '60ms' }}>
             <span className="lp-pill-tag">NEW</span>
             Payroll, letters and approvals now share one workspace
           </span>
 
-          <h1 className="lp-h1" data-reveal style={{ '--d': '70ms' }}>
+          <h1 className="lp-h1" data-reveal style={{ '--d': '120ms' }}>
             One place for all your <span className="lp-grad">HR needs</span>
           </h1>
 
-          <p className="lp-hero-sub" data-reveal style={{ '--d': '140ms' }}>
+          <p className="lp-hero-sub" data-reveal style={{ '--d': '180ms' }}>
             Offer letters, appointment orders, leave, attendance, payroll and exits. The
             Infopace India HR Automation System runs every workflow from a single secure portal.
           </p>
 
-          <div className="lp-hero-actions" data-reveal style={{ '--d': '210ms' }}>
+          <div className="lp-hero-actions" data-reveal style={{ '--d': '240ms' }}>
             <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={goToLogin}>
               Sign in to your workspace <Icon name="arrow" size={16} className="lp-arrow" />
             </button>
             <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('workflow')}>
               See how it works
             </button>
-          </div>
-
-          {/* orbital visual */}
-          <div className="lp-orbit" data-reveal style={{ '--d': '340ms' }}>
-            <svg className="lp-orbit-svg" viewBox="0 0 880 520" fill="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="lpRingStroke" x1="0" y1="0" x2="880" y2="520" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#3e7bfa" stopOpacity="0.05" />
-                  <stop offset="0.45" stopColor="#3e7bfa" stopOpacity="0.45" />
-                  <stop offset="1" stopColor="#7c6fe0" stopOpacity="0.08" />
-                </linearGradient>
-              </defs>
-
-              <g transform="rotate(-12 440 260)">
-                <path id="lpRing1" className="lp-orbit-ring" d={ellipsePath(440, 260, 396, 140)} />
-                <circle className="lp-orbit-dot" r="5">
-                  <animateMotion dur="14s" repeatCount="indefinite">
-                    <mpath href="#lpRing1" />
-                  </animateMotion>
-                </circle>
-              </g>
-
-              <g transform="rotate(18 440 260)">
-                <path id="lpRing2" className="lp-orbit-ring" d={ellipsePath(440, 260, 320, 112)} />
-                <circle className="lp-orbit-dot lp-orbit-dot-2" r="4.5">
-                  <animateMotion dur="11s" repeatCount="indefinite" keyPoints="0.35;1.35" keyTimes="0;1" calcMode="linear">
-                    <mpath href="#lpRing2" />
-                  </animateMotion>
-                </circle>
-              </g>
-
-              <g transform="rotate(64 440 260)">
-                <path id="lpRing3" className="lp-orbit-ring" d={ellipsePath(440, 260, 250, 96)} />
-                <circle className="lp-orbit-dot lp-orbit-dot-3" r="4">
-                  <animateMotion dur="9s" repeatCount="indefinite" keyPoints="0.7;1.7" keyTimes="0;1" calcMode="linear">
-                    <mpath href="#lpRing3" />
-                  </animateMotion>
-                </circle>
-              </g>
-            </svg>
-
-            <div className="lp-core">
-              <img src="/infopace-logo.webp" alt="Infopace" />
-              <span className="lp-core-label">HR Portal</span>
-            </div>
-
-            {ORBIT_CHIPS.map((c) => (
-              <div
-                key={c.label}
-                className={`lp-chip ${c.optional ? 'lp-chip-opt' : ''}`}
-                style={{ ...c.style, '--delay': c.delay }}
-              >
-                <span className={`lp-chip-ic ${c.tone}`}>
-                  <Icon name={c.icon} size={13} />
-                </span>
-                {c.label}
-              </div>
-            ))}
           </div>
 
           {/* marquee */}

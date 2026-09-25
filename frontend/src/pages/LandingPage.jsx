@@ -353,9 +353,6 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <header className="lp-hero" ref={heroRef}>
-        <div className="lp-hero-wash" />
-        <div className="lp-hero-dots" />
-
         <div className="lp-hero-split">
           <div className="lp-hero-copy">
             <span className="lp-pill" data-reveal>

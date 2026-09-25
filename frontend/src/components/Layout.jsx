@@ -4,8 +4,6 @@ import { useAuth } from '../context/AuthContext';
 
 const NAV_HR = [
   { to: '/', icon: '⊞', label: 'Dashboard' },
-  { to: '/announcements', icon: '📣', label: 'Announcements' },
-  { to: '/policies', icon: '📘', label: 'Policies' },
   { to: '/employees', icon: '◎', label: 'Employees' },
   { group: 'Onboarding', icon: '⌘', items: [
       { to: '/templates', label: 'Templates' },
@@ -23,14 +21,16 @@ const NAV_HR = [
       { to: '/attendance/configuration', label: 'Configuration' },
       { to: '/attendance/shift-summary', label: 'Shift Summary' },
   ] },
-  { group: 'Payroll', icon: '💰', items: [
+  { group: 'Payroll', icon: '₹', items: [
       { to: '/payslip-management', label: 'Payslips' },
       { to: '/payroll/run', label: 'Run Payroll' },
       { to: '/payroll/settings', label: 'Statutory Settings' },
   ] },
-  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
+  { to: '/expenses', icon: '⊟', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
   { group: 'Organization', icon: '▣', items: [
+      { to: '/announcements', label: 'Announcements' },
+      { to: '/policies', label: 'Policies' },
       { to: '/organization/assets', label: 'Assets' },
       { to: '/organization/org-chart', label: 'Org Chart' },
       { to: '/organization/reports', label: 'Reports' },
@@ -43,23 +43,23 @@ const NAV_HR = [
 ];
 const NAV_EMPLOYEE = [
   { to: '/', icon: '▦', label: 'Dashboard' },
-  { to: '/announcements', icon: '📣', label: 'Announcements' },
-  { to: '/policies', icon: '📘', label: 'Policies' },
+  { to: '/announcements', icon: '※', label: 'Announcements' },
+  { to: '/policies', icon: '§', label: 'Policies' },
   { to: '/letters', icon: '◎', label: 'My Offer Letters' },
   { to: '/appointment', icon: '◈', label: 'Appointment Order' },
   { to: '/documents', icon: '⬡', label: 'My Documents' },
   { to: '/exit', icon: '⇥', label: 'Exit & Relieving' },
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip', icon: '💰', label: 'Payslips' },
-  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
+  { to: '/payslip', icon: '₹', label: 'Payslips' },
+  { to: '/expenses', icon: '⊟', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
 const NAV_MANAGER = [
   { to: '/', icon: '▦', label: 'Dashboard' },
-  { to: '/announcements', icon: '📣', label: 'Announcements' },
-  { to: '/policies', icon: '📘', label: 'Policies' },
+  { to: '/announcements', icon: '※', label: 'Announcements' },
+  { to: '/policies', icon: '§', label: 'Policies' },
   { to: '/letters', icon: '◎', label: 'My Offer Letters' },
   { to: '/appointment', icon: '◈', label: 'Appointment Order' },
   { to: '/documents', icon: '⬡', label: 'My Documents' },
@@ -67,8 +67,8 @@ const NAV_MANAGER = [
   { to: '/approvals', icon: '✓', label: 'Approvals' },
   { to: '/leave-tracker', icon: '▤', label: 'Leave Tracker' },
   { to: '/attendance', icon: '◷', label: 'Attendance' },
-  { to: '/payslip-management', icon: '💰', label: 'Payslips' },
-  { to: '/expenses', icon: '🧾', label: 'Expense Claims' },
+  { to: '/payslip-management', icon: '₹', label: 'Payslips' },
+  { to: '/expenses', icon: '⊟', label: 'Expense Claims' },
   { to: '/support', icon: '☎', label: 'HRM Support' },
 ];
 
@@ -240,11 +240,15 @@ function NotificationBell() {
         style={{
           width: 32, height: 32, borderRadius: 10, border: '1px solid #EEF1F6',
           background: '#fff', cursor: 'pointer', position: 'relative',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#5B6576',
         }}
         title="Notifications"
       >
-        🔔
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M13.7 20a2 2 0 0 1-3.4 0" />
+        </svg>
         {unread > 0 && (
           <span style={{
             position: 'absolute', top: -4, right: -4,
@@ -630,7 +634,7 @@ function ProfileModal({ onClose }) {
               {pwError && <div className="alert alert-error">{pwError}</div>}
               {pwSuccess && <div className="alert alert-success">{pwSuccess}</div>}
               <div style={{ padding: '12px 16px', background: '#f0f4ff', borderRadius: 8, fontSize: 12.5, color: '#374151', lineHeight: 1.6 }}>
-                🔒 Choose a strong password with at least 6 characters. You'll need to log in again after changing it.
+                Choose a strong password with at least 6 characters. You'll need to log in again after changing it.
               </div>
               {[
                 { label: 'Current Password', key: 'current_password', placeholder: 'Enter your current password' },
@@ -1016,7 +1020,6 @@ export default function Layout({ children, currentPath }) {
             border: '1px solid var(--border)',
           }}>
             <div style={{ marginBottom: 24, textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>👋</div>
               <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
                 Complete Your Profile
               </h2>

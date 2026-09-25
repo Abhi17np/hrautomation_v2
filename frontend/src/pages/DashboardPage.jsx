@@ -12,6 +12,11 @@ import { useAuth } from '../context/AuthContext';
 
 const nav = (path) => { window.location.hash = path; };
 
+function greetingFor(d = new Date()) {
+  const h = d.getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
 const TODAY = new Date().toLocaleDateString('en-IN', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
 });
@@ -448,7 +453,7 @@ function HRDashboard({ user }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900, color: '#232B3A', letterSpacing: -0.5 }}>
-              Good morning, {user?.name?.split(' ')[0]}
+              {greetingFor()}, {user?.name?.split(' ')[0]}
             </h1>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: '#8A94A6' }}>{TODAY}</p>
           </div>
@@ -765,8 +770,7 @@ function EmployeeDashboard({ user }) {
   const pendingAOs = aoOrders.filter(o => o.status === 'pending_hr_head').length;
   const rejectedAOs = aoOrders.filter(o => o.status === 'rejected').length;
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting = greetingFor();
 
   const download = async (id, fmt, name) => {
     try {

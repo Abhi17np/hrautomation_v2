@@ -896,16 +896,17 @@ export default function Layout({ children, currentPath }) {
             }}>
               HR Automation
             </div>
-            <div style={{
-              fontSize: 9.5, color: '#8A94A6',
-              fontFamily: 'var(--mono)', marginTop: 3,
-              textTransform: 'uppercase', letterSpacing: '1px',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-              {user?.role === 'employee' ? 'Employee Portal'
-                : user?.role === 'manager' ? 'Manager Portal'
-                  : 'Infopace'}
-            </div>
+            {/* only the role-specific portals get a subtitle */}
+            {(user?.role === 'employee' || user?.role === 'manager') && (
+              <div style={{
+                fontSize: 9.5, color: '#8A94A6',
+                fontFamily: 'var(--mono)', marginTop: 3,
+                textTransform: 'uppercase', letterSpacing: '1px',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {user.role === 'employee' ? 'Employee Portal' : 'Manager Portal'}
+              </div>
+            )}
           </div>
         </div>
 

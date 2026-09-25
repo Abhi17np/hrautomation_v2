@@ -37,6 +37,42 @@ function Icon({ name, size = 20, className = '' }) {
   );
 }
 
+/* ── Count-up number, triggered when scrolled into view ────── */
+function Counter({ to, suffix = '', duration = 1500 }) {
+  const [value, setValue] = useState(0);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        const start = performance.now();
+        const tick = (now) => {
+          const p = Math.min(1, (now - start) / duration);
+          setValue(Math.round(to * (1 - Math.pow(1 - p, 3))));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      },
+      { threshold: 0.4 }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, [to, duration]);
+
+  return (
+    <span ref={ref}>
+      {value}
+      {suffix}
+    </span>
+  );
+}
+
 /* Swaps between short messages inside the attendance pill */
 function RotatingText({ items, interval = 3800 }) {
   const [i, setI] = useState(0);
@@ -56,9 +92,9 @@ function RotatingText({ items, interval = 3800 }) {
 /* ── Content ───────────────────────────────────────────────── */
 const NAV = [
   { label: 'Modules', target: 'modules' },
-  { label: 'Structure', target: 'platform' },
-  { label: 'Monthly cycle', target: 'workflow' },
-  { label: 'Lifecycle', target: 'journey' },
+  { label: 'Platform', target: 'platform' },
+  { label: 'Workflow', target: 'workflow' },
+  { label: 'Journey', target: 'journey' },
 ];
 
 const MARQUEE = [
@@ -82,61 +118,60 @@ const MARQUEE = [
   { label: 'Analytics', icon: 'chart' },
 ];
 
-/* what people actually open the portal for */
 const STATS = [
-  { icon: 'wallet', title: 'Payslips', label: 'Download and save any month you need.' },
-  { icon: 'calendar', title: 'Leave', label: 'Apply, check your balance, see what was approved.' },
-  { icon: 'doc', title: 'Letters', label: 'Offer, confirmation and experience letters.' },
-  { icon: 'clock', title: 'Attendance', label: 'Your punches, shifts and the holiday list.' },
+  { icon: 'layers', to: 15, suffix: '+', label: 'Integrated HR modules in one portal' },
+  { icon: 'doc', to: 100, suffix: '%', label: 'Paperless letters and records' },
+  { icon: 'clock', static: '24/7', label: 'Employee self-service access' },
+  { icon: 'lock', to: 1, suffix: '', label: 'Secure login for your whole team' },
 ];
 
 const LAYERS = [
   {
-    name: 'Your record',
-    desc: 'Name, role, reporting line, documents and assets. Everything else reads from it.',
+    name: 'People layer',
+    desc: 'Employee records, org chart, roles and documents. The single source of truth every other module reads from.',
     tags: [{ t: 'Employees', w: 84 }, { t: 'Org chart', w: 82 }],
   },
   {
-    name: 'Day to day',
-    desc: 'Leave, attendance, letters and expense claims. This is where most of the traffic is.',
+    name: 'HR operations layer',
+    desc: 'Offer letters, onboarding, leave, attendance and exits. The day-to-day work your HR team actually runs.',
     tags: [{ t: 'Offer letters', w: 94 }, { t: 'Leave & attendance', w: 126 }],
   },
   {
-    name: 'Approvals and payroll',
-    desc: 'Who signs off on what, and what gets paid at the end of the month.',
+    name: 'Automation engine',
+    desc: 'Approval chains, configurable workflows and payroll runs that trigger themselves and route to the right people.',
     tags: [{ t: 'Approvals', w: 84 }, { t: 'Payroll runs', w: 96 }],
   },
   {
-    name: 'Access and audit',
-    desc: 'Roles decide what each person can open. Every change is logged.',
+    name: 'Data & compliance layer',
+    desc: 'Role-based access, audit logs and policy records that keep every action traceable and review-ready.',
     tags: [{ t: 'Audit log', w: 82 }, { t: 'Access control', w: 106 }],
   },
 ];
 
 const STEPS = [
   {
-    title: 'Letters go out',
-    desc: 'Pick a template, check the details and send. The signed copy files itself against the employee record.',
-    points: ['A template for each letter type', 'Approval before anything is sent', 'No re-typing the same details'],
+    title: 'Create and send letters',
+    desc: 'Pick a template, fill the employee details once and generate a branded offer letter, appointment order or experience letter instantly.',
+    points: ['Reusable templates for every letter type', 'Routed for approval before it leaves the building', 'Stored against the employee record automatically'],
   },
   {
-    title: 'Leave and attendance tick along',
-    desc: 'Punches come in from the biometric devices. People apply for leave from their own account and managers approve from theirs.',
-    points: ['Balances update as you go', 'Shifts, holidays and incidents', 'Approvals in the same place'],
+    title: 'Track leave and attendance',
+    desc: 'Biometric sync, shift summaries and holiday calendars reconcile themselves, so nobody chases a register at month end.',
+    points: ['Self-service leave requests with live balances', 'Shift, holiday and incident tracking built in', 'Manager approvals from the same dashboard'],
   },
   {
-    title: 'Payroll closes the month',
-    desc: 'Attendance and approved expenses feed the run. Publish it, and the payslips show up in the portal.',
-    points: ['One run for the whole company', 'Payslip download for each person', 'Records kept for audit'],
+    title: 'Run payroll and close the month',
+    desc: 'Attendance and approved expenses flow straight into the payroll run, and payslips land in every employee portal.',
+    points: ['One payroll run across the organisation', 'Instant payslip download for employees', 'Audit-ready records for every cycle'],
   },
 ];
 
 const JOURNEY = [
-  { phase: 'Step 01', title: 'Offer', desc: 'Offer letter and appointment order go out.', icon: 'mail' },
-  { phase: 'Step 02', title: 'Joining', desc: 'Documents collected, assets handed over, org chart updated.', icon: 'users' },
-  { phase: 'Step 03', title: 'Everyday', desc: 'Leave, attendance, payslips and claims, handled by the employee.', icon: 'calendar' },
-  { phase: 'Step 04', title: 'Along the way', desc: 'Policies and announcements.', icon: 'chart' },
-  { phase: 'Step 05', title: 'Exit', desc: 'Clearance, final settlement and the experience letter.', icon: 'exit' },
+  { phase: 'Step 01', title: 'Offer', desc: 'Offer letter and appointment order generated and sent.', icon: 'mail' },
+  { phase: 'Step 02', title: 'Onboarding', desc: 'Documents collected, assets assigned, org chart updated.', icon: 'users' },
+  { phase: 'Step 03', title: 'Everyday', desc: 'Leave, attendance, payslips and expenses, all self-served.', icon: 'calendar' },
+  { phase: 'Step 04', title: 'Growth', desc: 'Policies, announcements and performance records in one place.', icon: 'chart' },
+  { phase: 'Step 05', title: 'Exit', desc: 'Clearance, final settlement and experience letter.', icon: 'exit' },
 ];
 
 /* ── Helpers ───────────────────────────────────────────────── */
@@ -165,9 +200,9 @@ function smoothPath(pts) {
 }
 
 const HERO_FACTS = [
-  { label: 'Works on your phone', icon: 'check' },
-  { label: 'One login for every module', icon: 'lock' },
-  { label: 'Run by Infopace HR', icon: 'users' },
+  { label: '15+ modules in one portal', icon: 'layers' },
+  { label: 'Role based access', icon: 'lock' },
+  { label: 'Paperless records', icon: 'doc' },
 ];
 
 const DASH_STATS = [
@@ -324,18 +359,17 @@ export default function LandingPage() {
         <div className="lp-hero-split">
           <div className="lp-hero-copy">
             <span className="lp-pill" data-reveal>
-              <span className="lp-pill-tag">INFOPACE</span>
-              Internal HR portal
+              <span className="lp-pill-tag">NEW</span>
+              Payroll, letters and approvals in one workspace
             </span>
 
             <h1 className="lp-h1" data-reveal style={{ '--d': '80ms' }}>
-              Your payslips, leave and letters <span className="lp-grad">live here</span>
+              One place for all your <span className="lp-grad">HR needs</span>
             </h1>
 
             <p className="lp-hero-sub" data-reveal style={{ '--d': '160ms' }}>
-              Sign in to check a leave balance, pull up a payslip or see where your
-              request has reached. If you are on the HR team, the same login runs letters,
-              attendance and payroll.
+              Offer letters, appointment orders, leave, attendance, payroll and exits.
+              Every workflow runs from a single secure portal.
             </p>
 
             <div className="lp-hero-actions" data-reveal style={{ '--d': '240ms' }}>
@@ -450,7 +484,7 @@ export default function LandingPage() {
 
         {/* marquee */}
         <div className="lp-marquee-wrap">
-          <div className="lp-marquee-title">Modules in the portal</div>
+          <div className="lp-marquee-title">Everything inside your portal</div>
           <div className="lp-marquee">
             {[...MARQUEE, ...MARQUEE].map((m, i) => (
               <span className="lp-mq-item" key={`${m.label}-${i}`}>
@@ -470,7 +504,9 @@ export default function LandingPage() {
               <span className="lp-stat-ic">
                 <Icon name={s.icon} size={19} />
               </span>
-              <div className="lp-stat-val">{s.title}</div>
+              <div className="lp-stat-val">
+                {s.static ? s.static : <Counter to={s.to} suffix={s.suffix} />}
+              </div>
               <div className="lp-stat-label">{s.label}</div>
             </div>
           ))}
@@ -481,10 +517,10 @@ export default function LandingPage() {
       <section className="lp-section">
         <div className="lp-head" data-reveal>
           <span className="lp-tag">Modules</span>
-          <h2 className="lp-h2">What the portal covers</h2>
+          <h2 className="lp-h2">Built for everyone</h2>
           <p className="lp-lede">
-            The portal is split into a handful of areas. Most people only ever use two or
-            three of them.
+            From HR and managers to every employee in the company, each team gets what it
+            needs inside a single portal.
           </p>
         </div>
 
@@ -507,10 +543,10 @@ export default function LandingPage() {
                 <span className="lp-lv-line" style={{ width: '74%' }} />
               </div>
             </div>
-            <h3 className="lp-e-title">Letters</h3>
+            <h3 className="lp-e-title">Offer letters &amp; appointment orders</h3>
             <p className="lp-e-desc">
-              Offer letters, appointment orders, confirmations and experience letters all come
-              from saved templates, so the wording stays the same every time.
+              Generate branded letters from reusable templates in seconds, route them for
+              approval and file them against the employee record automatically.
             </p>
           </article>
 
@@ -551,10 +587,10 @@ export default function LandingPage() {
                 <RotatingText items={['Live attendance sync', 'Balances update instantly']} />
               </div>
             </div>
-            <h3 className="lp-e-title">Leave and attendance</h3>
+            <h3 className="lp-e-title">Leave &amp; attendance</h3>
             <p className="lp-e-desc">
-              Punches sync in from the biometric devices. Leave balances move as requests get
-              approved.
+              Biometric sync, shift summaries and holiday calendars reconcile themselves,
+              with live balances on every leave request.
             </p>
           </article>
 
@@ -573,9 +609,10 @@ export default function LandingPage() {
                 <Icon name="check" size={20} />
               </span>
             </div>
-            <h3 className="lp-e-title">Approvals</h3>
+            <h3 className="lp-e-title">Approvals &amp; workflows</h3>
             <p className="lp-e-desc">
-              Requests go to whoever has to sign off, in the order your team sets.
+              Configurable multi-level chains for leave, expenses and letters, routed to the
+              right people automatically.
             </p>
           </article>
 
@@ -616,10 +653,10 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            <h3 className="lp-e-title">Payroll and payslips</h3>
+            <h3 className="lp-e-title">Payroll &amp; payslips</h3>
             <p className="lp-e-desc">
-              Attendance and approved expenses feed the monthly run. Once it is published,
-              payslips appear in each account.
+              Attendance and approved expenses flow straight into the payroll run. Publish
+              instant payslips and keep every cycle audit-ready.
             </p>
           </article>
 
@@ -661,10 +698,10 @@ export default function LandingPage() {
                 </span>
               </div>
             </div>
-            <h3 className="lp-e-title">Reports</h3>
+            <h3 className="lp-e-title">Analytics &amp; reports</h3>
             <p className="lp-e-desc">
-              Headcount, attendance and payroll figures, exportable when finance or an auditor
-              asks for them.
+              Live dashboards across headcount, attendance and payroll so leadership decides
+              on facts.
             </p>
           </article>
         </div>
@@ -673,11 +710,11 @@ export default function LandingPage() {
       {/* ── Isometric architecture ── */}
       <section className="lp-section lp-section-tinted" id="platform">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">Structure</span>
-          <h2 className="lp-h2">How it fits together</h2>
+          <span className="lp-tag">Platform</span>
+          <h2 className="lp-h2">Four connected layers, one portal</h2>
           <p className="lp-lede">
-            One employee record sits underneath everything. Change it once and letters,
-            approvals and payroll all see the change.
+            Each layer feeds the next, so a single employee record drives every letter,
+            approval, payslip and report in the system.
           </p>
         </div>
 
@@ -787,10 +824,10 @@ export default function LandingPage() {
       {/* ── Sticky explorer ── */}
       <section className="lp-section" id="workflow">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">A typical month</span>
-          <h2 className="lp-h2">How a month usually goes</h2>
+          <span className="lp-tag">Workflow</span>
+          <h2 className="lp-h2">Watch a month run itself</h2>
           <p className="lp-lede">
-            Scroll down. The screen on the left follows along.
+            Scroll through a typical cycle. The portal on the left keeps up with each stage.
           </p>
         </div>
 
@@ -921,11 +958,11 @@ export default function LandingPage() {
       {/* ── Journey timeline ── */}
       <section className="lp-section lp-section-tinted" id="journey">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">Lifecycle</span>
-          <h2 className="lp-h2">From joining to leaving</h2>
+          <span className="lp-tag">Journey</span>
+          <h2 className="lp-h2">The full employee lifecycle</h2>
           <p className="lp-lede">
-            The same record follows a person the whole way through, so nothing has to be
-            re-typed at the end.
+            One record follows every person from their offer letter to their experience
+            letter, with nothing re-typed and nothing lost.
           </p>
         </div>
 
@@ -966,9 +1003,10 @@ export default function LandingPage() {
       <section className="lp-section">
         <div className="lp-cta-grid">
           <div className="lp-cta-main" data-reveal>
-            <h2 className="lp-cta-title">All of it sits behind one login</h2>
+            <h2 className="lp-cta-title">Your HR workspace is one sign-in away</h2>
             <p className="lp-cta-sub">
-              Use the company code and the email address HR set you up with.
+              Use your Infopace India credentials to open letters, leave, payroll and
+              approvals, with everything waiting exactly where you left it.
             </p>
             <button className="lp-btn lp-btn-lg lp-cta-btn" onClick={goToLogin}>
               Sign in now <Icon name="arrow" size={16} className="lp-arrow" />
@@ -978,8 +1016,8 @@ export default function LandingPage() {
           <div className="lp-cta-side" data-reveal style={{ '--d': '110ms' }}>
             <h3 className="lp-cta-side-title">Need access?</h3>
             <p className="lp-cta-side-desc">
-              Accounts are set up by the HR team. If your login is not working, try these
-              first.
+              Accounts are created by your HR administrator. If you cannot sign in, these are
+              the quickest routes to a fix.
             </p>
             <div className="lp-help-row">
               <Icon name="mail" size={16} />
@@ -1010,10 +1048,10 @@ export default function LandingPage() {
 
           <div className="lp-footer-cols">
             <div className="lp-footer-col">
-              <div className="lp-footer-col-title">The portal</div>
+              <div className="lp-footer-col-title">Product</div>
               <button onClick={() => scrollToId('modules')}>Modules</button>
-              <button onClick={() => scrollToId('platform')}>Structure</button>
-              <button onClick={() => scrollToId('workflow')}>Monthly cycle</button>
+              <button onClick={() => scrollToId('platform')}>Platform</button>
+              <button onClick={() => scrollToId('workflow')}>Workflow</button>
             </div>
             <div className="lp-footer-col">
               <div className="lp-footer-col-title">Employees</div>

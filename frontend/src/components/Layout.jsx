@@ -866,40 +866,47 @@ export default function Layout({ children, currentPath }) {
         boxSizing: 'border-box',
       }}>
 
-        {/* Logo */}
+        {/* Logo. Two rows: the sidebar is too narrow to fit the logo, the
+            wordmark and the bell on one line without clipping the title. */}
         <div style={{
-          padding: '18px 16px 16px',
+          padding: '16px 16px 14px',
           borderBottom: '1px solid #EEF1F6',
-          display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between',
+          display: 'flex', flexDirection: 'column', gap: 12,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <img
-            src="/infopace-logo.webp"
-            alt="Logo"
-            style={{
-              height: 34, width: 'auto', maxWidth: 74, flexShrink: 0,
-              objectFit: 'contain'
-            }}
-          />
-          <div>
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', gap: 10,
+          }}>
+            <img
+              src="/infopace-logo.webp"
+              alt="Logo"
+              style={{
+                height: 30, width: 'auto', maxWidth: 104, flexShrink: 0,
+                objectFit: 'contain', objectPosition: 'left center',
+              }}
+            />
+            <NotificationBell />
+          </div>
+
+          <div style={{ minWidth: 0 }}>
             <div style={{
               fontFamily: 'var(--display)', fontWeight: 600,
               fontSize: 14, color: '#232B3A', lineHeight: 1.2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               HR Automation
             </div>
             <div style={{
               fontSize: 9.5, color: '#8A94A6',
-              fontFamily: 'var(--mono)', marginTop: 2,
+              fontFamily: 'var(--mono)', marginTop: 3,
               textTransform: 'uppercase', letterSpacing: '1px',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {user?.role === 'employee' ? 'Employee Portal'
                 : user?.role === 'manager' ? 'Manager Portal'
-                  : 'Infopace '}
+                  : 'Infopace'}
             </div>
           </div>
-          </div>
-          <NotificationBell />
         </div>
 
         {/* Nav */}

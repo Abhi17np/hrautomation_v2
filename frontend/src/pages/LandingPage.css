@@ -987,6 +987,10 @@
   background: #fcfcfd;
 }
 
+.lp-e-card:hover .lp-bar {
+  animation: lp-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .lp-e-wide { grid-column: span 4; }
 .lp-e-narrow { grid-column: span 2; }
 
@@ -1863,6 +1867,77 @@
   font-size: 11.5px;
   color: var(--lp-dim);
   line-height: 1.55;
+}
+
+
+/* ── Card hover ─────────────────────────────────────────────
+   One shared gesture: an accent rule wipes across the top edge,
+   the icon flips to solid, and the surface warms very slightly.
+   ---------------------------------------------------------- */
+.lp-stat,
+.lp-e-card,
+.lp-ms-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.lp-stat::before,
+.lp-e-card::before,
+.lp-ms-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lp-blue);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-stat:hover::before,
+.lp-e-card:hover::before,
+.lp-ms-card:hover::before {
+  transform: scaleX(1);
+}
+
+/* icons invert and rise a touch */
+.lp-stat-ic,
+.lp-ms-ic,
+.lp-card-ic {
+  transition: background 0.28s, color 0.28s, border-color 0.28s,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-stat:hover .lp-stat-ic,
+.lp-ms-card:hover .lp-ms-ic,
+.lp-e-card:hover .lp-card-ic {
+  background: var(--lp-blue);
+  border-color: var(--lp-blue);
+  color: #fff;
+  transform: translateY(-3px);
+}
+
+/* the mock inside a module card eases forward */
+.lp-e-visual > * {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-e-card:hover .lp-e-visual > * {
+  transform: scale(1.025);
+}
+
+.lp-stat-val,
+.lp-ms-title,
+.lp-e-title {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-stat:hover .lp-stat-val,
+.lp-ms-card:hover .lp-ms-title,
+.lp-e-card:hover .lp-e-title {
+  transform: translateX(3px);
 }
 
 /* ── Final CTA ─────────────────────────────────────────────── */

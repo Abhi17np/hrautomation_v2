@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import './LandingPage.css';
 
-/* ── Icons ─────────────────────────────────────────────────── */
+/* ── Icons ─────────────────────────────────────────────────────────────
+   Hand-rolled because this project has no icon library and the sandbox
+   cannot install one. One family, one stroke width, 24px grid.          */
 const ICONS = {
   doc: 'M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h5',
   users: 'M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.7-3.2 3-5 5.5-5s4.8 1.8 5.5 5M16 11a3 3 0 1 0 0-6M17 15c2 .4 3.4 1.9 4 4.5',
@@ -16,10 +18,12 @@ const ICONS = {
   bolt: 'M13 2 4 14h6l-1 8 9-12h-6l1-8z',
   exit: 'M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h9',
   bell: 'M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M13.7 20a2 2 0 0 1-3.4 0',
-  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
   mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
   lock: 'M6 10h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM8 10V7a4 4 0 0 1 8 0v3',
+  receipt: 'M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1zM9 8h6M9 12h6',
   plug: 'M9 3v6M15 3v6M7 9h10v4a5 5 0 0 1-10 0zM12 18v3',
+  minus: 'M5 12h14',
+  plus: 'M12 5v14M5 12h14',
 };
 
 function Icon({ name, size = 20, className = '' }) {
@@ -38,39 +42,129 @@ function Icon({ name, size = 20, className = '' }) {
   );
 }
 
-/* ── Content ───────────────────────────────────────────────── */
+/* ── Content ───────────────────────────────────────────────────────────
+   Every figure below is a real default from the codebase, not a
+   marketing number: rates and ceilings from backend/payroll_engine.py,
+   leave caps from backend/routes/leaves.py, roles from routes/roles.py. */
 const NAV = [
+  { label: 'Modules', target: 'modules' },
+  { label: 'Roles', target: 'roles' },
   { label: 'Payroll', target: 'payroll' },
-  { label: 'Attendance', target: 'attendance' },
-  { label: 'Documents', target: 'documents' },
-  { label: 'Platform', target: 'platform' },
+  { label: 'Compliance', target: 'compliance' },
 ];
 
-const HERO_FACTS = [
-  { label: 'PF, ESI, PT and TDS on every run', icon: 'wallet' },
-  { label: 'eSSL and ZKTeco devices', icon: 'clock' },
-  { label: 'Role based access with audit log', icon: 'lock' },
+const COUNTS = [
+  { n: '31', label: 'screens beyond the dashboard', sub: 'From employee records and payroll runs through to the audit log' },
+  { n: '5', label: 'statutory heads on every run', sub: 'Provident fund, ESI, professional tax, TDS and loss of pay' },
+  { n: '5', label: 'roles, every permission editable', sub: 'Admin, HR head, HR, manager and employee, plus custom roles' },
+  { n: '4', label: 'leave types in the tracker', sub: 'Casual, sick and maternity capped by month, loss of pay logged' },
 ];
 
-const MARQUEE = [
-  { label: 'Employees', icon: 'users' },
-  { label: 'Offer Letters', icon: 'doc' },
-  { label: 'Appointment Orders', icon: 'doc' },
-  { label: 'Documents', icon: 'layers' },
-  { label: 'Leave Tracker', icon: 'calendar' },
-  { label: 'Attendance', icon: 'clock' },
-  { label: 'Payslips', icon: 'wallet' },
-  { label: 'Payroll Runs', icon: 'wallet' },
-  { label: 'Expenses', icon: 'wallet' },
-  { label: 'Approvals', icon: 'check' },
-  { label: 'Workflows', icon: 'bolt' },
-  { label: 'Org Chart', icon: 'users' },
-  { label: 'Assets', icon: 'layers' },
-  { label: 'Announcements', icon: 'bell' },
-  { label: 'Policies', icon: 'shield' },
-  { label: 'Audit Log', icon: 'lock' },
-  { label: 'Reports', icon: 'chart' },
-  { label: 'Exit and Relieving', icon: 'exit' },
+const MODULES = [
+  {
+    key: 'people',
+    span: 'is-wide',
+    kind: 'photo',
+    icon: 'users',
+    title: 'People records and org chart',
+    body:
+      'One record per employee carrying personal details, reporting line, documents, assigned assets and history. ' +
+      'Every other module reads from it, so a change lands everywhere at once.',
+    tags: ['Employees', 'Org chart', 'Documents', 'Assets'],
+  },
+  {
+    key: 'payroll',
+    kind: 'tint',
+    icon: 'wallet',
+    title: 'Payroll runs',
+    body: 'Monthly runs with statutory deductions computed in the engine, payslips published to each employee.',
+  },
+  {
+    key: 'time',
+    icon: 'clock',
+    title: 'Attendance and shifts',
+    body: 'Biometric punches synced off your terminals, shift summaries and holiday calendars kept per company.',
+  },
+  {
+    key: 'leave',
+    icon: 'calendar',
+    title: 'Leave tracker',
+    body: 'Monthly caps by employee category, with days beyond the cap recorded as loss of pay automatically.',
+  },
+  {
+    key: 'letters',
+    icon: 'doc',
+    title: 'Letters and templates',
+    body: 'Offer, appointment, confirmation, experience and relieving letters from your own templates, as DOCX and PDF.',
+  },
+  {
+    key: 'flow',
+    span: 'is-wide',
+    kind: 'ink',
+    icon: 'bolt',
+    title: 'Approvals and workflows',
+    body:
+      'Approval chains you configure per company rather than per request. Each stage names the role that signs off, ' +
+      'whether self approval is allowed, and who gets notified when it moves.',
+    tags: ['Leave', 'Expenses', 'Letters', 'Resignations'],
+  },
+  {
+    key: 'expense',
+    icon: 'receipt',
+    title: 'Expenses',
+    body: 'Claims submitted with a receipt, approved by the manager, then marked reimbursed once finance pays.',
+  },
+  {
+    key: 'comms',
+    icon: 'bell',
+    title: 'Announcements and policies',
+    body: 'A notice board that notifies the people it targets, and a policy library that tracks who acknowledged what.',
+  },
+  {
+    key: 'audit',
+    kind: 'tint',
+    icon: 'chart',
+    title: 'Reports and audit trail',
+    body: 'Headcount and attrition trends, and a compliance register of the PF, ESI, PT and TDS actually withheld.',
+  },
+];
+
+const ROLES = [
+  {
+    key: 'hr',
+    tab: 'HR team',
+    line: 'Runs the month and owns the records',
+    points: [
+      'Run payroll, review the register and publish payslips',
+      'Generate offer and appointment letters, edit inline before approval',
+      'Set approval chains, leave rules and payroll defaults per company',
+      'Track policy acknowledgements, assets and the exit pipeline',
+      'Pull the compliance register of PF, ESI, PT and TDS withheld',
+    ],
+  },
+  {
+    key: 'mgr',
+    tab: 'Managers',
+    line: 'Signs off for their own team, nobody else',
+    points: [
+      "Approve or reject the team's leave requests and expense claims",
+      'See the month of attendance behind a request before deciding',
+      'Approve a team resignation, but never their own',
+      'View their branch of the org chart and who reports where',
+    ],
+  },
+  {
+    key: 'emp',
+    tab: 'Employees',
+    line: 'Self serves, and sees the loss of pay before submitting',
+    points: [
+      'Apply for leave with a live preview of the paid and loss of pay split',
+      'Download payslips and letters from their own record',
+      'Claim an expense with a receipt attached and follow its status',
+      'Read and acknowledge policies, and see announcements addressed to them',
+      'Submit a resignation and track clearance through to the relieving letter',
+    ],
+  },
 ];
 
 const PAYROLL_POINTS = [
@@ -81,18 +175,20 @@ const PAYROLL_POINTS = [
   'Loss of pay pulled from attendance, so the run matches the register',
 ];
 
-const ATTENDANCE_POINTS = [
+const TIME_POINTS = [
   'Punches pulled from eSSL and ZKTeco terminals over the network and de-duplicated on the way in',
   'Shift summaries, holiday calendars and incident history kept per company',
-  'Web login for staff working away from a terminal',
-  'Leave balances move as requests are approved, and feed the payroll run',
+  'Casual and sick leave capped monthly, two days for regular staff and one on probation',
+  'Days beyond the cap become loss of pay on the same request, and the employee sees it before submitting',
+  'Approved leave moves the balance and feeds straight into the payroll run',
 ];
 
-const DOC_ITEMS = [
-  { icon: 'doc', title: 'Offer letters', body: 'Built from your template with a CTC breakdown across basic, HRA, DA, provident fund, group health and other heads. Revised offers keep the original on record.' },
-  { icon: 'check', title: 'Approval before anything leaves', body: 'Multi stage chains you configure per company. Each stage names the role that signs off and whether self approval is allowed. HR can edit inline before approving.' },
-  { icon: 'mail', title: 'Sent, then filed', body: 'Approved letters email to the candidate. Accepting creates their login, so the same record carries through to onboarding.' },
-  { icon: 'exit', title: 'Through to relieving', body: 'Resignation, manager approval, clearance checklist, final settlement and the experience letter, all against the record opened on day one.' },
+const STATUTORY = [
+  { fig: '12%', label: 'Provident fund', note: 'Employee and employer share, with the statutory wage ceiling applied or waived per company.' },
+  { fig: '₹15,000', label: 'PF wage ceiling', note: 'The default cap on PF wages. Editable, and waivable for companies that contribute on full basic.' },
+  { fig: '₹21,000', label: 'ESI gross threshold', note: 'Employees under it are covered, with the employer and employee share computed separately.' },
+  { fig: 'By state', label: 'Professional tax', note: 'Slabs ship for the states we support, and you can enter your own where they differ.' },
+  { fig: 'Monthly', label: 'TDS estimate', note: 'Projected from annual income and revised as the year runs, rather than landing in March.' },
 ];
 
 const LAYERS = [
@@ -103,30 +199,71 @@ const LAYERS = [
   },
   {
     name: 'HR operations layer',
-    desc: 'Offer letters, onboarding, leave, attendance and exits. The day-to-day work your HR team actually runs.',
-    tags: [{ t: 'Offer letters', w: 94 }, { t: 'Leave & attendance', w: 126 }],
+    desc: 'Letters, onboarding, leave, attendance, expenses and exits. The day-to-day work your HR team actually runs.',
+    tags: [{ t: 'Letters', w: 74 }, { t: 'Leave & attendance', w: 126 }],
   },
   {
     name: 'Automation engine',
-    desc: 'Approval chains, configurable workflows and payroll runs that trigger themselves and route to the right people.',
+    desc: 'Approval chains, configurable workflows and payroll runs that route themselves to the right people.',
     tags: [{ t: 'Approvals', w: 84 }, { t: 'Payroll runs', w: 96 }],
   },
   {
-    name: 'Data & compliance layer',
-    desc: 'Role-based access, audit logs and policy records that keep every action traceable and review-ready.',
+    name: 'Data and compliance layer',
+    desc: 'Role-based access, audit log, the compliance register and a read-only API for the systems around it.',
     tags: [{ t: 'Audit log', w: 82 }, { t: 'Access control', w: 106 }],
   },
 ];
 
 const JOURNEY = [
-  { phase: 'Offer', title: 'Offer', desc: 'Offer letter and appointment order generated and sent.', icon: 'mail' },
-  { phase: 'Joining', title: 'Onboarding', desc: 'Documents collected, assets assigned, org chart updated.', icon: 'users' },
-  { phase: 'Everyday', title: 'Everyday', desc: 'Leave, attendance, payslips and expenses, all self-served.', icon: 'calendar' },
-  { phase: 'Review', title: 'Growth', desc: 'Policies, announcements and performance records in one place.', icon: 'chart' },
-  { phase: 'Leaving', title: 'Exit', desc: 'Clearance, final settlement and experience letter.', icon: 'exit' },
+  { phase: 'Offer', title: 'Offer', desc: 'Letter built from your template with the CTC broken out, approved, then emailed.', icon: 'mail' },
+  { phase: 'Joining', title: 'Onboarding', desc: 'Accepting the offer creates the login. Documents collected, assets assigned.', icon: 'users' },
+  { phase: 'Everyday', title: 'Everyday', desc: 'Attendance, leave, payslips, expenses and policies, all self served.', icon: 'calendar' },
+  { phase: 'Review', title: 'Confirmation', desc: 'Probation closes, the confirmation letter files against the same record.', icon: 'chart' },
+  { phase: 'Leaving', title: 'Exit', desc: 'Resignation, manager approval, clearance, settlement and the relieving letter.', icon: 'exit' },
 ];
 
-/* ── Helpers ───────────────────────────────────────────────── */
+const FAQ = [
+  {
+    q: 'Who can sign in?',
+    a:
+      'Anyone your HR administrator has created a record for. Accepting an offer letter creates the login ' +
+      'automatically, so most people already have one by their first day. You sign in with your company code ' +
+      'and your own credentials.',
+  },
+  {
+    q: 'Does attendance still have to be keyed in?',
+    a:
+      'No. A sync service talks to your eSSL and ZKTeco terminals over the network, de-duplicates the punches ' +
+      'and writes them into the month. Staff working away from a terminal can mark attendance from the web instead.',
+  },
+  {
+    q: 'Can we change the PF, ESI and professional tax settings?',
+    a:
+      'Yes. Rates, the wage ceiling, the ESI threshold and the professional tax slabs all ship as defaults and ' +
+      'are editable per company. Companies that contribute on full basic can waive the ceiling outright.',
+  },
+  {
+    q: 'Who approves what?',
+    a:
+      'You decide. Approval chains are configured per company rather than per request: each stage names the role ' +
+      'that signs off and whether self approval is allowed. Managers handle their own team, HR sees everything, ' +
+      'and a manager can never approve their own request.',
+  },
+  {
+    q: 'Can other systems read this data?',
+    a:
+      'On the Enterprise plan, yes. You can issue API keys for the read-only public API and subscribe webhooks ' +
+      'so another system hears about changes as they happen.',
+  },
+  {
+    q: 'What happens when someone resigns?',
+    a:
+      'The resignation goes to their manager, then into the exit pipeline: clearance checklist, final settlement ' +
+      'and the relieving letter, all against the record that was opened when they were offered the job.',
+  },
+];
+
+/* ── Helpers ───────────────────────────────────────────────────────── */
 function goToLogin() {
   window.location.hash = '/login';
 }
@@ -135,13 +272,15 @@ function scrollToId(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ── Page ──────────────────────────────────────────────────── */
+/* ── Page ──────────────────────────────────────────────────────────── */
 export default function LandingPage() {
   const rootRef = useRef(null);
   const heroRef = useRef(null);
   const layerRefs = useRef([]);
   const [stuck, setStuck] = useState(false);
   const [layer, setLayer] = useState(1);
+  const [role, setRole] = useState(0);
+  const [openQ, setOpenQ] = useState(0);
 
   /* subtle pointer parallax on the hero photograph */
   useEffect(() => {
@@ -237,53 +376,37 @@ export default function LandingPage() {
           </div>
 
           <div className="lp-nav-actions">
-            <button className="lp-btn lp-btn-soft lp-btn-sm" onClick={goToLogin}>
-              Sign in
-            </button>
             <button className="lp-btn lp-btn-primary lp-btn-sm" onClick={goToLogin}>
-              Open portal <Icon name="arrow" size={15} className="lp-arrow" />
+              Open the portal <Icon name="arrow" size={15} className="lp-arrow" />
             </button>
           </div>
         </div>
       </nav>
 
-      {/* ── Hero ── */}
+      {/* ── 1. Hero ── split copy / photograph ── */}
       <header className="lp-hero" ref={heroRef}>
         <div className="lp-hero-split">
           <div className="lp-hero-copy">
-            <span className="lp-tag" data-reveal>Infopace HR Automation</span>
-
-            <h1 className="lp-h1" data-reveal style={{ '--d': '80ms' }}>
-              HR and payroll built for <span className="lp-grad">Indian statutory rules</span>
+            <h1 className="lp-h1" data-reveal>
+              Run your entire HR operation in one place
             </h1>
 
-            <p className="lp-hero-sub" data-reveal style={{ '--d': '160ms' }}>
-              Provident fund, ESI, professional tax and TDS are computed on every payroll run,
-              not configured by hand. Attendance comes off the biometric terminal, letters come
-              off your own templates, and one employee record carries all of it from offer to
-              relieving.
+            <p className="lp-hero-sub" data-reveal style={{ '--d': '90ms' }}>
+              Hiring letters, attendance, leave, payroll and statutory filings, from a
+              candidate&rsquo;s offer through to their relieving letter.
             </p>
 
-            <div className="lp-hero-actions" data-reveal style={{ '--d': '240ms' }}>
+            <div className="lp-hero-actions" data-reveal style={{ '--d': '180ms' }}>
               <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={goToLogin}>
-                Sign in to your workspace <Icon name="arrow" size={16} className="lp-arrow" />
+                Open the portal <Icon name="arrow" size={16} className="lp-arrow" />
               </button>
-              <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('payroll')}>
-                See what it covers
+              <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('modules')}>
+                See the modules
               </button>
-            </div>
-
-            <div className="lp-hero-facts" data-reveal style={{ '--d': '320ms' }}>
-              {HERO_FACTS.map((f) => (
-                <span className="lp-hero-fact" key={f.label}>
-                  <Icon name={f.icon} size={15} />
-                  {f.label}
-                </span>
-              ))}
             </div>
           </div>
 
-          <figure className="lp-hero-figure" data-reveal style={{ '--d': '200ms' }}>
+          <figure className="lp-hero-figure" data-reveal style={{ '--d': '140ms' }}>
             <img
               src="/img/hero-office.webp"
               alt="Two colleagues reviewing work together on a laptop in an office"
@@ -294,22 +417,127 @@ export default function LandingPage() {
             />
           </figure>
         </div>
-
-        {/* module strip */}
-        <div className="lp-marquee-wrap">
-          <div className="lp-marquee-title">Modules in the portal</div>
-          <div className="lp-marquee">
-            {[...MARQUEE, ...MARQUEE].map((m, i) => (
-              <span className="lp-mq-item" key={`${m.label}-${i}`}>
-                <Icon name={m.icon} size={15} />
-                {m.label}
-              </span>
-            ))}
-          </div>
-        </div>
       </header>
 
-      {/* ── Payroll ── */}
+      {/* ── 2. Counts ── full-bleed band on ink ── */}
+      <section className="lp-counts">
+        <div className="lp-counts-inner">
+          {COUNTS.map((c, i) => (
+            <div className="lp-count" key={c.label} data-reveal style={{ '--d': `${i * 70}ms` }}>
+              <div className="lp-count-n">{c.n}</div>
+              <div className="lp-count-label">{c.label}</div>
+              <div className="lp-count-sub">{c.sub}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 3. Modules ── bento ── */}
+      <section className="lp-section" id="modules">
+        <div className="lp-head" data-reveal>
+          <span className="lp-tag">The suite</span>
+          <h2 className="lp-h2">Everything your HR team opens in a week</h2>
+          <p className="lp-lede">
+            Not a payroll tool with HR bolted on. The modules below sit on one employee record
+            and one set of permissions.
+          </p>
+        </div>
+
+        <div className="lp-bento">
+          {MODULES.map((m, i) => (
+            <article
+              className={`lp-cell ${m.span || ''} ${m.kind ? `is-${m.kind}` : ''}`}
+              key={m.key}
+              data-reveal
+              style={{ '--d': `${(i % 3) * 70}ms` }}
+            >
+              {m.kind === 'photo' && (
+                <div className="lp-cell-photo">
+                  <img
+                    src="/img/team-meeting.webp"
+                    alt="Colleagues talking around a table in an office meeting room"
+                    width="2048"
+                    height="1365"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              )}
+
+              <div className="lp-cell-body">
+                <span className="lp-cell-ic">
+                  <Icon name={m.icon} size={19} />
+                </span>
+                <h3 className="lp-cell-title">{m.title}</h3>
+                <p className="lp-cell-text">{m.body}</p>
+                {m.tags && (
+                  <div className="lp-cell-tags">
+                    {m.tags.map((t) => (
+                      <span className="lp-chip" key={t}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 4. Roles ── tabbed split ── */}
+      <section className="lp-section lp-section-tinted" id="roles">
+        <div className="lp-head" data-reveal>
+          <h2 className="lp-h2">What each role sees</h2>
+          <p className="lp-lede">
+            Five roles ship with the system and every permission on them is editable. Add your own,
+            and it behaves like the role you base it on.
+          </p>
+        </div>
+
+        <div className="lp-roles" data-reveal>
+          <div className="lp-role-tabs" role="tablist" aria-label="Roles">
+            {ROLES.map((r, i) => (
+              <button
+                key={r.key}
+                role="tab"
+                aria-selected={role === i}
+                className={`lp-role-tab ${role === i ? 'is-active' : ''}`}
+                onClick={() => setRole(i)}
+              >
+                <span className="lp-role-tab-name">{r.tab}</span>
+                <span className="lp-role-tab-line">{r.line}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="lp-role-panel">
+            <ul className="lp-role-list" key={ROLES[role].key}>
+              {ROLES[role].points.map((p) => (
+                <li key={p}>
+                  <span className="lp-tick">
+                    <Icon name="check" size={11} />
+                  </span>
+                  {p}
+                </li>
+              ))}
+            </ul>
+
+            <figure className="lp-role-figure">
+              <img
+                src="/img/desk-work.webp"
+                alt="An employee working at a desk with a laptop open"
+                width="2048"
+                height="1536"
+                loading="lazy"
+                decoding="async"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 5. Payroll ── zigzag 1 of 2 ── */}
       <section className="lp-section" id="payroll">
         <div className="lp-zig">
           <figure className="lp-figure" data-reveal>
@@ -324,8 +552,7 @@ export default function LandingPage() {
           </figure>
 
           <div className="lp-zig-copy" data-reveal style={{ '--d': '90ms' }}>
-            <span className="lp-tag">Payroll</span>
-            <h2 className="lp-h2">The statutory maths is already in the engine</h2>
+            <h2 className="lp-h2">The statutory maths runs inside the engine</h2>
             <p className="lp-lede">
               Most HR tools leave Indian compliance to a spreadsheet at the end of the month.
               This one computes it as part of the run.
@@ -333,7 +560,9 @@ export default function LandingPage() {
             <ul className="lp-points">
               {PAYROLL_POINTS.map((p) => (
                 <li key={p}>
-                  <span className="lp-tick"><Icon name="check" size={11} /></span>
+                  <span className="lp-tick">
+                    <Icon name="check" size={11} />
+                  </span>
                   {p}
                 </li>
               ))}
@@ -346,7 +575,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Attendance ── */}
+      {/* ── 6. Attendance and leave ── zigzag 2 of 2 ── */}
       <section className="lp-section" id="attendance">
         <div className="lp-zig is-flipped">
           <figure className="lp-figure" data-reveal>
@@ -361,16 +590,17 @@ export default function LandingPage() {
           </figure>
 
           <div className="lp-zig-copy" data-reveal style={{ '--d': '90ms' }}>
-            <span className="lp-tag">Attendance</span>
-            <h2 className="lp-h2">Attendance comes off the device, not a register</h2>
+            <h2 className="lp-h2">Attendance syncs itself, leave rules decide what is paid</h2>
             <p className="lp-lede">
-              The sync service talks to the terminals on your network and writes punches straight
-              into the month, so nobody keys them in twice.
+              The sync service talks to the terminals on your network, and the leave rules decide
+              what is paid before anyone has to argue about it.
             </p>
             <ul className="lp-points">
-              {ATTENDANCE_POINTS.map((p) => (
+              {TIME_POINTS.map((p) => (
                 <li key={p}>
-                  <span className="lp-tick"><Icon name="check" size={11} /></span>
+                  <span className="lp-tick">
+                    <Icon name="check" size={11} />
+                  </span>
                   {p}
                 </li>
               ))}
@@ -379,32 +609,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Documents ── */}
-      <section className="lp-section lp-section-tinted" id="documents">
-        <div className="lp-head" data-reveal>
-          <span className="lp-tag">Documents</span>
-          <h2 className="lp-h2">Every letter an employee will ever be sent</h2>
-          <p className="lp-lede">
-            Offer, appointment, confirmation, experience and relieving letters are generated from
-            your templates and stored against the person, as DOCX and PDF.
-          </p>
+      {/* ── 7. Statutory figures ── full-width display row ── */}
+      <section className="lp-statutory" id="compliance">
+        <div className="lp-statutory-head" data-reveal>
+          <span className="lp-tag">Statutory</span>
+          <h2 className="lp-h2">The defaults the engine already knows</h2>
         </div>
 
-        <div className="lp-docs">
-          {DOC_ITEMS.map((d, i) => (
-            <article className="lp-doc" key={d.title} data-reveal style={{ '--d': `${i * 70}ms` }}>
-              <span className="lp-doc-ic"><Icon name={d.icon} size={19} /></span>
-              <h3 className="lp-doc-title">{d.title}</h3>
-              <p className="lp-doc-body">{d.body}</p>
-            </article>
+        <div className="lp-stat-row">
+          {STATUTORY.map((s, i) => (
+            <div className="lp-stat" key={s.label} data-reveal style={{ '--d': `${i * 60}ms` }}>
+              <div className="lp-stat-fig">{s.fig}</div>
+              <div className="lp-stat-label">{s.label}</div>
+              <p className="lp-stat-note">{s.note}</p>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* ── Platform ── */}
+      {/* ── 8. Platform ── sticky isometric diagram ── */}
       <section className="lp-section" id="platform">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">Structure</span>
           <h2 className="lp-h2">How it fits together</h2>
           <p className="lp-lede">
             One employee record sits underneath everything. Change it once and letters,
@@ -432,11 +657,7 @@ export default function LandingPage() {
                 const cy = 130 + i * 118;
                 const on = layer === i;
                 return (
-                  <g
-                    key={l.name}
-                    className={`lp-iso-layer ${on ? 'is-active' : ''}`}
-                    onMouseEnter={() => setLayer(i)}
-                  >
+                  <g key={l.name} className={`lp-iso-layer ${on ? 'is-active' : ''}`} onMouseEnter={() => setLayer(i)}>
                     <polygon
                       points={`${isoCx - isoW},${cy} ${isoCx},${cy + isoH} ${isoCx},${cy + isoH + isoD} ${isoCx - isoW},${cy + isoD}`}
                       fill={on ? '#9dbdf9' : '#d3e2fd'}
@@ -512,11 +733,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Lifecycle ── */}
+      {/* ── 9. Lifecycle ── timeline ── */}
       <section className="lp-section lp-section-tinted" id="journey">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">Lifecycle</span>
-          <h2 className="lp-h2">From joining to leaving</h2>
+          <h2 className="lp-h2">From the offer letter to the relieving letter</h2>
           <p className="lp-lede">
             The same record follows a person the whole way through, so nothing has to be
             re-typed at the end.
@@ -555,17 +775,50 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Final CTA ── */}
+      {/* ── 10. FAQ ── accordion ── */}
+      <section className="lp-section" id="faq">
+        <div className="lp-faq">
+          <div className="lp-faq-side" data-reveal>
+            <h2 className="lp-h2">Questions people ask first</h2>
+            <p className="lp-lede">
+              If yours is not here, your HR administrator can answer it, or raise it from the
+              support page once you are signed in.
+            </p>
+          </div>
+
+          <div className="lp-faq-list" data-reveal style={{ '--d': '90ms' }}>
+            {FAQ.map((f, i) => (
+              <div className={`lp-qa ${openQ === i ? 'is-open' : ''}`} key={f.q}>
+                <button
+                  className="lp-qa-q"
+                  aria-expanded={openQ === i}
+                  onClick={() => setOpenQ(openQ === i ? -1 : i)}
+                >
+                  <span>{f.q}</span>
+                  <span className="lp-qa-sign">
+                    <Icon name={openQ === i ? 'minus' : 'plus'} size={16} />
+                  </span>
+                </button>
+                <div className="lp-qa-a">
+                  <p>{f.a}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── 11. CTA ── */}
       <section className="lp-section">
         <div className="lp-cta-grid">
           <div className="lp-cta-main" data-reveal>
             <h2 className="lp-cta-title">Your HR workspace is one sign-in away</h2>
             <p className="lp-cta-sub">
-              Use your Infopace India credentials to open letters, leave, payroll and
-              approvals, with everything waiting exactly where you left it.
+              Letters, leave, attendance, payroll and approvals, with everything waiting
+              exactly where you left it.
             </p>
             <button className="lp-btn lp-btn-lg lp-cta-btn" onClick={goToLogin}>
-              Sign in now <Icon name="arrow" size={16} className="lp-arrow" />
+              Open the portal <Icon name="arrow" size={16} className="lp-arrow" />
             </button>
           </div>
 
@@ -597,35 +850,38 @@ export default function LandingPage() {
           <div className="lp-footer-brand">
             <img src="/infopace-logo.webp" alt="Infopace" style={{ height: 30 }} />
             <p className="lp-footer-note">
-              HR Automation System, the internal HR portal for Infopace India employees.
-              Contact your administrator if you believe you should have access but cannot sign in.
+              HR Automation System, the HR portal for Infopace India. Contact your administrator
+              if you believe you should have access but cannot sign in.
             </p>
           </div>
 
           <div className="lp-footer-cols">
             <div className="lp-footer-col">
-              <div className="lp-footer-col-title">The portal</div>
+              <div className="lp-footer-col-title">Modules</div>
+              <button onClick={() => scrollToId('modules')}>The suite</button>
               <button onClick={() => scrollToId('payroll')}>Payroll</button>
-              <button onClick={() => scrollToId('attendance')}>Attendance</button>
-              <button onClick={() => scrollToId('documents')}>Documents</button>
+              <button onClick={() => scrollToId('attendance')}>Attendance and leave</button>
+              <button onClick={() => scrollToId('compliance')}>Statutory defaults</button>
             </div>
             <div className="lp-footer-col">
-              <div className="lp-footer-col-title">Employees</div>
-              <button onClick={goToLogin}>Sign in</button>
-              <button onClick={goToLogin}>Payslips</button>
-              <button onClick={goToLogin}>Leave requests</button>
+              <div className="lp-footer-col-title">Roles</div>
+              <button onClick={() => scrollToId('roles')}>HR team</button>
+              <button onClick={() => scrollToId('roles')}>Managers</button>
+              <button onClick={() => scrollToId('roles')}>Employees</button>
             </div>
             <div className="lp-footer-col">
-              <div className="lp-footer-col-title">Support</div>
-              <button onClick={() => scrollToId('journey')}>Employee journey</button>
-              <button onClick={goToLogin}>Contact HR</button>
+              <div className="lp-footer-col-title">More</div>
+              <button onClick={() => scrollToId('platform')}>How it fits together</button>
+              <button onClick={() => scrollToId('journey')}>Employee lifecycle</button>
+              <button onClick={() => scrollToId('faq')}>Questions</button>
+              <button onClick={goToLogin}>Open the portal</button>
             </div>
           </div>
         </div>
 
         <div className="lp-footer-base">
           <span>© {new Date().getFullYear()} Infopace India. All rights reserved.</span>
-          <span>Internal use only · Role-based access</span>
+          <span>Role-based access · Audit logged</span>
         </div>
       </footer>
     </div>

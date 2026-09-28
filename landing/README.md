@@ -21,39 +21,42 @@ npm run preview
 `dist/index.html` (see `prerender.mjs`). That is what keeps first paint off the
 JS bundle. The output in `dist/` is plain static files.
 
-## Imagery
+## No screenshots
 
-Every product screenshot is a real capture of the app in this repository,
-taken at 2x against a locally seeded demo tenant, then exported to AVIF with a
-WebP fallback at 800/1600/2400w. The sidebar, tables, figures and rupee amounts
-are what the app actually renders. The tenant shown ("Meridian Textiles") and
-its staff records are seeded sample data, not a real customer.
+The page ships no product screenshots. The product section is a **working
+console** (`sections/LiveConsole.tsx`): the search filters, the leave
+approvals commit and show the resulting balance, the payroll run resolves
+net pay, and the analytics view draws from the same records. It is a real
+React component, so it demonstrates the product instead of picturing it.
 
-The photograph in the "Rollout" band is generated, not a stock photo or a real
-Infopace site.
-
-`public/infopace-logo.webp` is the real company logo, copied from
-`frontend/public/`.
+`public/infopace-logo.webp` is the only image on the page.
 
 ## Design system
 
 "Executive Precision", built on colours sampled from the Infopace logo:
 
-| Token | Value | Note |
+| Token | Value | Sampled from |
 |---|---|---|
-| `--brand` | `#00B0EF` | sampled from the logo mark; fills and graphics only |
-| `--brand-700` | `#00729B` | derived; 5.4:1 on white, so buttons and links use this |
-| `--accent` | `#E8333A` | sampled from the logo accent; critical states only |
-| `--accent-700` | `#C52B31` | derived; 5.6:1 on white, for accent text |
-| `--ink` | `#111827` | 17.7:1 on white |
+| `--cyan` | `#00AFF0` | logo wordmark (84% of the mark) |
+| `--indigo` | `#3E4095` | logo underbar; also the dark zone surface |
+| `--accent` | `#EB3237` | logo square; critical states only |
+| `--blue-400` | `#3D7CF6` | product UI primary; fills and charts |
+| `--blue-500` | `#3770DD` | 4.6:1, white text sits on this |
+| `--blue-700` | `#3061C0` | 5.8:1, links and chart series |
+
+Cyan is 2.5:1 on white and the royal blue is 3.9:1, so neither carries
+text. Both are fills; the darker steps carry buttons and links. Geometry
+follows the product UI: 8px data rows, 12px cards, 16px panels, pill chips,
+with soft blue-tinted shadows.
 
 The logo blue is only 2.5:1 on white, which is why text and controls use the
 darker step rather than the sampled value. Radii follow "soft precision":
 4px data rows, 8px cards, 12px panels, pills for chips.
 
-Chart palettes are validated, not eyeballed. Light: `#00729B, #6D28D9,
-#0D9488, #B45309`. Dark section: `#1B93C4, #7C5CE0, #0FA091, #C27C0D`. Both
-pass lightness-band, chroma, CVD-separation and contrast checks.
+Chart palettes are validated, not eyeballed. Light: `#3061C0, #0D9488,
+#8B5CF6, #B45309`. Dark zone (on `#141642`): `#4477D6, #12A594, #8265E0,
+#C2831A`. Blue and violet are deliberately never adjacent in the order,
+which is the pair that failed the colour-vision separation check.
 
 ## One layout family per section
 

@@ -26,7 +26,7 @@ const SECTORS = ['Manufacturing', 'Financial services', 'Textiles', 'Logistics',
 
 function Card({ q, r, s }: { q: string; r: string; s: string }) {
   return (
-    <figure className="flex w-[330px] shrink-0 flex-col justify-between rounded-[8px] border
+    <figure className="flex w-[330px] shrink-0 flex-col justify-between rounded-[12px] border
                        border-hairline bg-surface p-6 transition-shadow duration-300
                        hover:shadow-[var(--shadow-md)] sm:w-[400px]">
       <QuotesIcon size={22} weight="fill" aria-hidden className="text-brand-200" />

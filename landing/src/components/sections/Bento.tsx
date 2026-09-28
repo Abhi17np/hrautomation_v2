@@ -16,7 +16,7 @@ function Cell({ className = '', children, live }: {
 }) {
   return (
     <Item variants={revealUp}
-      className={`group relative overflow-hidden rounded-[8px] border border-hairline bg-surface p-6
+      className={`group relative overflow-hidden rounded-[12px] border border-hairline bg-surface p-6
                   transition-[border-color,box-shadow] duration-300 hover:border-hairline-blue
                   hover:shadow-[var(--shadow-md)] ${className}`}>
       {live && (
@@ -69,7 +69,7 @@ export default function Bento() {
               A board objective splits into department targets and then into individual
               goals, each one still pointing back at the original.
             </p>
-            <div className="mt-6 rounded-[4px] border border-hairline bg-surface-tint p-4">
+            <div className="mt-6 rounded-[8px] border border-hairline bg-surface-tint p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[13px] font-700 text-ink">Expand APAC share</p>
                 <span className="tnum text-[13px] font-800 text-brand-700">{goal}%</span>
@@ -82,7 +82,7 @@ export default function Bento() {
                 {['Sales', 'Marketing', 'Delivery'].map((d, i) => {
                   const v = Math.max(0, Math.min(100, goal + (i - 1) * 11));
                   return (
-                    <div key={d} className="rounded-[4px] bg-surface p-2 ring-1 ring-hairline">
+                    <div key={d} className="rounded-[8px] bg-surface p-2 ring-1 ring-hairline">
                       <p className="t-micro text-ink-3">{d}</p>
                       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                         <div className="h-full rounded-full bg-brand-600 transition-[width] duration-300"
@@ -112,7 +112,7 @@ export default function Bento() {
                   { label: 'Quality',         value: 2 },
                 ]} />
             </div>
-            <div className="mt-6 rounded-[4px] bg-surface-tint p-3 ring-1 ring-hairline">
+            <div className="mt-6 rounded-[8px] bg-surface-tint p-3 ring-1 ring-hairline">
               <p className="t-micro text-ink-3">Current headcount</p>
               <p className="tnum text-3xl font-800 leading-tight text-ink">20</p>
             </div>
@@ -184,7 +184,7 @@ export default function Bento() {
             <p className="t-body mt-3 text-ink-2">
               Patterns surfaced from your own history, with the reasoning shown.
             </p>
-            <div className="mt-5 rounded-[4px] border border-hairline-blue bg-surface p-3">
+            <div className="mt-5 rounded-[8px] border border-hairline-blue bg-surface p-3">
               <p className="t-micro text-brand-700">Forecast</p>
               <p className="mt-1.5 text-[13px] font-600 leading-snug text-ink">
                 Logistics is tracking 21 points under the median for a third quarter.
@@ -222,7 +222,7 @@ export default function Bento() {
             <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {['Admin', 'HR head', 'Manager', 'Employee'].map((r, i) => (
                 <div key={r}
-                     className="rounded-[4px] border border-hairline bg-surface-tint p-2.5
+                     className="rounded-[8px] border border-hairline bg-surface-tint p-2.5
                                 transition-colors duration-200 hover:border-brand-600">
                   <p className="t-micro text-ink-3">{r}</p>
                   <div className="mt-2 flex gap-0.5" aria-hidden>

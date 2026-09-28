@@ -23,70 +23,95 @@
   font-weight:800; size-adjust:99.5%; }
 
 /* ===============================================================
-   Brand. Every value is sampled from the Infopace logo or derived
-   from it by a single lightness step. The logo's own blue
-   (#00B0EF) is only 2.48:1 on white, so it is used for fills and
-   graphics; text and buttons use the darker steps below.
+   Brand. Sampled from the Infopace logo (infopace-logo.webp) and
+   from the product UI:
+
+     #00AFF0  logo wordmark, cyan        (84% of the mark)
+     #3E4095  logo underbar, indigo      (14%)
+     #EB3237  logo square, red           (accent)
+     #363435  logo tagline, graphite
+     #3D7CF6  product UI primary, royal blue
+
+   Cyan is 2.5:1 on white and royal blue is 3.9:1, so neither can
+   carry text. Both are used as fills, charts and graphics, and the
+   darker derived steps carry buttons and links.
    =============================================================== */
 :root {
   /* Logo-exact */
-  --brand:        #00B0EF;   /* sampled: logo mark */
-  --accent:       #E8333A;   /* sampled: logo accent */
-  --logo-graphite:#353233;   /* sampled: logo wordmark */
+  --cyan:         #00AFF0;
+  --indigo:       #3E4095;
+  --accent:       #EB3237;
+  --logo-graphite:#363435;
 
-  /* Blue ramp, derived from --brand */
-  --brand-50:  #F2FBFE;
-  --brand-100: #E5F7FD;
-  --brand-200: #C4ECFA;
-  --brand-300: #8ADCF7;
-  --brand-400: #40C6F3;
-  --brand-500: #00B0EF;
-  --brand-600: #0084B3;
-  --brand-700: #00729B;   /* 5.41:1 on white: links, buttons */
-  --brand-800: #006183;
-  --brand-900: #00415A;
+  /* Royal blue ramp, from the product UI. The primary action colour. */
+  --blue-50:  #EFF5FE;
+  --blue-100: #DCE7FD;
+  --blue-200: #B1CBFB;
+  --blue-300: #6E9DF8;
+  --blue-400: #3D7CF6;   /* UI primary, fills and charts */
+  --blue-500: #3770DD;   /* 4.64:1, white text sits on this */
+  --blue-600: #3368CF;   /* 5.22:1 */
+  --blue-700: #3061C0;   /* 5.84:1, links and chart series */
+  --blue-800: #2C59B1;   /* 6.62:1 */
 
-  /* Accent ramp, derived from --accent. Critical states only. */
-  --accent-500: #E8333A;
-  --accent-600: #D12E34;
-  --accent-700: #C52B31;   /* 5.58:1 on white */
-  --accent-50:  #FEF2F2;
+  /* Cyan ramp. Graphics only, never text. */
+  --cyan-100: #E3F7FE;
+  --cyan-200: #B9EBFC;
+  --cyan-400: #00AFF0;
+  --cyan-600: #0086B8;
+
+  /* Indigo ramp, from the logo underbar. Depth, dark zones, series. */
+  --indigo-50:  #ECECF4;
+  --indigo-100: #D8D9E8;
+  --indigo-300: #7879B5;
+  --indigo-500: #3E4095;   /* 8.85:1 on white */
+  --indigo-700: #323377;
+  --indigo-900: #1B1C4F;
+  --indigo-950: #141642;   /* the dark zone surface */
+
+  /* Accent ramp. Critical states only, never decoration. */
+  --accent-50:  #FDEAEB;
+  --accent-400: #EB3237;   /* 4.16:1, fills and marks */
+  --accent-600: #D82E33;   /* 4.82:1 */
+  --accent-700: #C82A2F;   /* 5.49:1, accent text */
 
   /* Ink */
-  --ink:    #111827;   /* 17.7:1 on white */
-  --ink-2:  #475569;   /*  7.6:1 */
-  --ink-3:  #64748B;   /*  4.8:1, still AA */
+  --ink:   #0F1B2D;   /* 17.3:1 on white, 16.0:1 on the page tint */
+  --ink-2: #475569;   /*  7.6 / 7.0 */
+  --ink-3: #5B6B80;   /*  5.4 / 5.0, muted text that still passes on tint */
 
-  /* Surfaces: pure white with blue-tinted zoning */
+  /* Surfaces: white cards on a blue-grey ground, as in the product */
   --surface:      #FFFFFF;
-  --surface-tint: #F7FBFF;
-  --surface-blue: #EDF6FE;
-  --surface-deep: #0A1628;   /* the one dark section */
-  --surface-deep-2:#0E1E35;
+  --surface-tint: #F3F6FB;
+  --surface-blue: #EFF5FE;
+  --surface-deep: #141642;   /* indigo, from the logo bar */
+  --surface-deep-2:#1B1C4F;
 
   /* Structure */
-  --border:      #E2E8F0;
-  --border-blue: #D9EAF7;
+  --border:      #E4E9F2;
+  --border-blue: #DCE7FD;
 
-  /* Ambient executive shadow: a blue tint inside the shadow */
-  --shadow-sm: 0 1px 2px rgba(17,24,39,.04);
-  --shadow-md: 0 1px 3px rgba(17,24,39,.04), 0 12px 32px -4px rgba(0,153,230,.10);
-  --shadow-lg: 0 2px 4px rgba(17,24,39,.04), 0 24px 56px -8px rgba(0,153,230,.16);
+  /* Soft elevation, tinted with the royal blue */
+  --shadow-sm: 0 1px 2px rgba(15,27,45,.04);
+  --shadow-md: 0 2px 6px rgba(15,27,45,.04), 0 12px 28px -6px rgba(61,124,246,.14);
+  --shadow-lg: 0 4px 10px rgba(15,27,45,.04), 0 28px 60px -12px rgba(61,124,246,.22);
 
-  /* Chart palette, validated (lightness band, chroma, CVD, contrast). */
-  --c1: #00729B;  /* brand blue  */
-  --c2: #6D28D9;  /* violet      */
-  --c3: #0D9488;  /* teal        */
-  --c4: #B45309;  /* amber       */
-  /* Dark-section chart steps, validated against --surface-deep. */
-  --d1: #1B93C4;  --d2: #7C5CE0;  --d3: #0FA091;  --d4: #C27C0D;
-  --on-deep:   #E6EDF7;   /* 14.7:1 on --surface-deep */
-  --on-deep-2: #94A3B8;   /*  7.1:1 */
-  --on-deep-3: #8ADCF7;   /* 11.8:1, the brand tint on dark */
+  /* Chart palette, validated in this order (blue and violet are never
+     adjacent, which is what the separation check failed on). */
+  --c1: #3061C0;  /* royal blue */
+  --c2: #0D9488;  /* teal       */
+  --c3: #8B5CF6;  /* violet     */
+  --c4: #B45309;  /* amber      */
+
+  /* Dark-zone steps, validated against --surface-deep */
+  --d1: #4477D6;  --d2: #12A594;  --d3: #8265E0;  --d4: #C2831A;
+  --on-deep:   #E8EAF6;
+  --on-deep-2: #A6ABCF;
+  --on-deep-3: #7FD4F7;
 
   --good: #059669;
   --warn: #B45309;
-  --crit: #C52B31;
+  --crit: #C82A2F;
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -94,35 +119,49 @@
 @theme inline {
   --font-sans: 'Manrope', 'Manrope Fallback', ui-sans-serif, system-ui, sans-serif;
 
-  --color-brand:      var(--brand);
-  --color-brand-50:   var(--brand-50);
-  --color-brand-100:  var(--brand-100);
-  --color-brand-200:  var(--brand-200);
-  --color-brand-300:  var(--brand-300);
-  --color-brand-400:  var(--brand-400);
-  --color-brand-500:  var(--brand-500);
-  --color-brand-600:  var(--brand-600);
-  --color-brand-700:  var(--brand-700);
-  --color-brand-800:  var(--brand-800);
-  --color-brand-900:  var(--brand-900);
-  --color-accent:     var(--accent);
+  --color-brand:     var(--blue-400);
+  --color-brand-50:  var(--blue-50);
+  --color-brand-100: var(--blue-100);
+  --color-brand-200: var(--blue-200);
+  --color-brand-300: var(--blue-300);
+  --color-brand-400: var(--blue-400);
+  --color-brand-500: var(--blue-500);
+  --color-brand-600: var(--blue-600);
+  --color-brand-700: var(--blue-700);
+  --color-brand-800: var(--blue-800);
+
+  --color-cyan-100: var(--cyan-100);
+  --color-cyan-200: var(--cyan-200);
+  --color-cyan-400: var(--cyan-400);
+  --color-cyan-600: var(--cyan-600);
+
+  --color-indigo-50:  var(--indigo-50);
+  --color-indigo-100: var(--indigo-100);
+  --color-indigo-300: var(--indigo-300);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-700: var(--indigo-700);
+  --color-indigo-900: var(--indigo-900);
+
+  --color-accent:     var(--accent-400);
+  --color-accent-50:  var(--accent-50);
   --color-accent-600: var(--accent-600);
   --color-accent-700: var(--accent-700);
-  --color-accent-50:  var(--accent-50);
-  --color-ink:        var(--ink);
-  --color-ink-2:      var(--ink-2);
-  --color-ink-3:      var(--ink-3);
+
+  --color-ink:   var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
   --color-surface:      var(--surface);
   --color-surface-tint: var(--surface-tint);
   --color-surface-blue: var(--surface-blue);
   --color-surface-deep: var(--surface-deep);
-  --color-hairline:   var(--border);
+  --color-hairline:      var(--border);
   --color-hairline-blue: var(--border-blue);
 
-  /* Soft Precision geometry: 4px data, 8px cards, 12px dialogs, pill chips. */
-  --radius-data:  4px;
-  --radius-card:  8px;
-  --radius-panel: 12px;
+  /* Softer geometry, matching the product UI */
+  --radius-data:  8px;
+  --radius-card:  12px;
+  --radius-panel: 16px;
 }
 
 @layer base {
@@ -195,19 +234,20 @@
 @utility panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-sm);
 }
 @utility panel-float {
   background: var(--surface);
   border: 1px solid var(--border-blue);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-lg);
 }
 /* Glass, used only on the hero dashboard's floating widgets. */
 @utility glass {
-  background: color-mix(in srgb, #FFFFFF 78%, transparent);
-  backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(255,255,255,.75);
+  background: color-mix(in srgb, #FFFFFF 82%, transparent);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255,255,255,.9);
   box-shadow: var(--shadow-md);
   border-radius: var(--radius-card);
 }

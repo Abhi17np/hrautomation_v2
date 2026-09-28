@@ -52,12 +52,12 @@ export default function Nav() {
 
           <div className="flex shrink-0 items-center gap-2">
             <a href="#book"
-               className="hidden min-h-11 items-center rounded-[4px] bg-brand-700 px-4 text-[14px]
+               className="hidden min-h-11 items-center rounded-[8px] bg-brand-700 px-4 text-[14px]
                           font-700 text-white transition-colors duration-200 hover:bg-brand-800 sm:inline-flex">
               Book a demo
             </a>
             <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open}
-                    className="grid h-11 w-11 place-items-center rounded-[4px] text-ink lg:hidden">
+                    className="grid h-11 w-11 place-items-center rounded-[8px] text-ink lg:hidden">
               <ListIcon size={22} weight="light" />
             </button>
           </div>
@@ -74,7 +74,7 @@ export default function Nav() {
            aria-hidden={!open}>
         <div className="rail flex h-16 items-center justify-end">
           <button type="button" onClick={() => setOpen(false)} aria-label="Close menu"
-                  className="grid h-11 w-11 place-items-center rounded-[4px] text-ink">
+                  className="grid h-11 w-11 place-items-center rounded-[8px] text-ink">
             <XIcon size={22} weight="light" />
           </button>
         </div>
@@ -89,7 +89,7 @@ export default function Nav() {
           ))}
           <li className="mt-7">
             <a href="#book" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1}
-               className="inline-flex min-h-12 items-center rounded-[4px] bg-brand-700 px-6
+               className="inline-flex min-h-12 items-center rounded-[8px] bg-brand-700 px-6
                           text-[15px] font-700 text-white">
               Book a demo
             </a>

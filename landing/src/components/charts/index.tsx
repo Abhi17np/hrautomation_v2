@@ -106,7 +106,7 @@ export function TrendLine({ data, labels, forecastFrom, height = 190, color = 'v
       </svg>
 
       {hover != null && (
-        <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[4px]
+        <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[8px]
                         border border-hairline bg-surface px-2 py-1 shadow-[var(--shadow-md)]"
              style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(data[hover]) / H) * 100}%` }}>
           <p className="t-micro text-ink-3">{labels[hover]}</p>
@@ -221,7 +221,8 @@ export function Heatmap({ rows, cols, values, ariaLabel }: {
   const flat = values.flat();
   const min = Math.min(...flat), max = Math.max(...flat);
 
-  const steps = useMemo(() => ['#E5F7FD','#C4ECFA','#8ADCF7','#40C6F3','#00A0D8','#00729B'], []);
+  // sequential: one hue, light to dark, stepped off the royal-blue ramp
+  const steps = useMemo(() => ['#EFF5FE','#DCE7FD','#B1CBFB','#6E9DF8','#3D7CF6','#3061C0'], []);
   const stepFor = (v: number) => steps[Math.min(steps.length - 1,
     Math.floor(((v - min) / ((max - min) || 1)) * steps.length))];
 
@@ -249,7 +250,7 @@ export function Heatmap({ rows, cols, values, ariaLabel }: {
                     <motion.div
                       onPointerEnter={() => setHover(key)}
                       onPointerLeave={() => setHover(null)}
-                      className="grid h-9 min-w-[42px] place-items-center rounded-[4px] text-[11px] font-700 tnum"
+                      className="grid h-9 min-w-[42px] place-items-center rounded-[8px] text-[11px] font-700 tnum"
                       style={{
                         background: stepFor(v),
                         color: dark ? '#FFFFFF' : 'var(--ink)',

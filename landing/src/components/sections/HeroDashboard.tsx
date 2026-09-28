@@ -33,7 +33,7 @@ export default function HeroDashboard() {
       >
         <header className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-6 w-6 place-items-center rounded-[4px] bg-brand-700 text-[11px] font-800 text-white">P</span>
+            <span className="grid h-6 w-6 place-items-center rounded-[8px] bg-brand-700 text-[11px] font-800 text-white">P</span>
             <div>
               <p className="text-[13px] font-700 leading-tight text-ink">Workforce Console</p>
               <p className="t-micro text-ink-3">Q4 FY26</p>
@@ -52,7 +52,7 @@ export default function HeroDashboard() {
             ].map((m, i) => (
               <div key={m.k}
                 style={{ animationDelay: `${0.3 + i * 0.08}s` }}
-                className="rise rounded-[4px] border border-hairline bg-surface-tint p-3">
+                className="rise rounded-[8px] border border-hairline bg-surface-tint p-3">
                 <p className="t-micro truncate text-ink-3">{m.k}</p>
                 <div className="mt-1 flex items-end justify-between gap-1">
                   <span className="tnum text-xl font-800 leading-none text-ink">{m.v}</span>
@@ -63,7 +63,7 @@ export default function HeroDashboard() {
           </div>
 
           {/* trend */}
-          <div className="rounded-[4px] border border-hairline p-3">
+          <div className="rounded-[8px] border border-hairline p-3">
             <div className="mb-1 flex items-center justify-between">
               <p className="text-[13px] font-700 text-ink">Performance index, 12 months</p>
               <Chip tone="good">+26 pts</Chip>
@@ -73,7 +73,7 @@ export default function HeroDashboard() {
           </div>
 
           {/* department split */}
-          <div className="rounded-[4px] border border-hairline p-3">
+          <div className="rounded-[8px] border border-hairline p-3">
             <p className="mb-2.5 text-[13px] font-700 text-ink">Goal completion by department</p>
             <BarRows suffix="%" ariaLabel="Goal completion by department"
               rows={[

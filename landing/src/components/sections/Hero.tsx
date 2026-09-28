@@ -38,7 +38,7 @@ export default function Hero() {
 
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
               <a href="#book"
-                 className="group inline-flex min-h-12 items-center gap-2 rounded-[4px] bg-brand-700 px-6
+                 className="group inline-flex min-h-12 items-center gap-2 rounded-[8px] bg-brand-700 px-6
                             text-[15px] font-700 text-white transition-colors duration-200
                             hover:bg-brand-800 active:scale-[0.99]">
                 Book a demo
@@ -46,7 +46,7 @@ export default function Hero() {
                   className="transition-transform duration-200 group-hover:translate-x-1" />
               </a>
               <a href="#product"
-                 className="inline-flex min-h-12 items-center gap-2 rounded-[4px] border border-hairline
+                 className="inline-flex min-h-12 items-center gap-2 rounded-[8px] border border-hairline
                             bg-surface px-5 text-[15px] font-600 text-ink transition-colors duration-200
                             hover:border-brand-600 hover:bg-surface-tint">
                 <PlayCircleIcon size={19} weight="light" aria-hidden className="text-brand-700" />

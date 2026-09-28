@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { motion, useScroll, useTransform, useReducedMotion } from 'motion/react';
 import { Eyebrow, Counter, Chip } from '../primitives';
 import { Gauge, BarRows } from '../charts';
-import Shot from '../Shot';
+import StatutoryRegister from '../StatutoryRegister';
 import { EASE } from '../../lib/motion';
 
 /**
@@ -89,13 +89,7 @@ export default function Benefits() {
           </Block>
 
           <Block flip media={
-            <div className="overflow-hidden rounded-[8px] border border-hairline-blue bg-surface p-1.5
-                            shadow-[var(--shadow-lg)]">
-              <div className="overflow-hidden rounded-[4px]">
-                <Shot name="compliance" ratio={5.868} sizes="(max-width: 1023px) 92vw, 46vw"
-                  alt="A statutory compliance register row showing employee count, gross pay, provident fund, employee state insurance, professional tax and tax deducted at source." />
-              </div>
-            </div>
+            <StatutoryRegister />
           }>
             <h3 className="t-h3 text-balance text-ink">
               Filing stops depending on one person's spreadsheet
@@ -104,9 +98,6 @@ export default function Benefits() {
               Provident fund, state insurance, professional tax and TDS total up from
               the payroll runs you actually processed, so the register reconciles by
               construction.
-            </p>
-            <p className="t-small mt-6 text-ink-3">
-              Screenshot from the running product.
             </p>
           </Block>
 

@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform, useReducedMotion } from 'motion/react';
 import { Eyebrow, Counter } from '../primitives';
-import Shot from '../Shot';
 import { EASE } from '../../lib/motion';
 
 const ERAS = [
@@ -41,14 +40,8 @@ export default function Company() {
           </p>
         </div>
 
-        <div className="mt-12 overflow-hidden rounded-[8px] border border-hairline-blue
-                        shadow-[var(--shadow-md)]">
-          <Shot name="floor" ratio={2.333} sizes="(max-width: 1023px) 92vw, 1340px"
-            alt="A shift supervisor presses her finger to a wall-mounted biometric attendance terminal at the start of the morning shift, with rolls of fabric and sewing stations behind her." />
-        </div>
-
         {/* credibility figures: company facts, not customer claims */}
-        <dl className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-[8px]
+        <dl className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-[12px]
                        border border-hairline bg-hairline lg:grid-cols-4">
           {[
             { v: 1999, k: 'Year founded', raw: true },

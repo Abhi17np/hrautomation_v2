@@ -31,13 +31,13 @@ export default function Intelligence() {
         className="pointer-events-none absolute inset-x-0 -top-[10%] h-[120%] opacity-[0.10]">
         <div className="h-full w-full"
              style={{ backgroundImage:
-               'linear-gradient(to right, #8ADCF7 1px, transparent 1px), linear-gradient(to bottom, #8ADCF7 1px, transparent 1px)',
+               'linear-gradient(to right, var(--on-deep-3) 1px, transparent 1px), linear-gradient(to bottom, var(--on-deep-3) 1px, transparent 1px)',
                backgroundSize: '56px 56px' }} />
       </motion.div>
       <motion.div aria-hidden style={reduced ? undefined : { y: glowY }}
         className="pointer-events-none absolute -right-32 top-1/4 h-[460px] w-[460px] rounded-full opacity-25">
         <div className="h-full w-full rounded-full"
-          style={{ background: 'radial-gradient(circle, #1B93C4 0%, transparent 65%)' }} />
+          style={{ background: 'radial-gradient(circle, var(--d1) 0%, transparent 65%)' }} />
       </motion.div>
 
       <div className="rail relative">
@@ -56,7 +56,7 @@ export default function Intelligence() {
 
         <div className="mt-14 grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           {/* forecast */}
-          <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
+          <div className="rounded-[12px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="t-h4 text-white">Performance index and forecast</h3>
@@ -68,7 +68,7 @@ export default function Intelligence() {
             </div>
             <div className="mt-5">
               <TrendLine data={FORECAST} labels={FLABELS} forecastFrom={11} height={210}
-                color="#40C6F3" ariaLabel="Performance index rising, with a projected tail." />
+                color="var(--d1)" ariaLabel="Performance index rising, with a projected tail." />
             </div>
             <dl className="mt-5 grid grid-cols-3 gap-4 border-t border-white/10 pt-5">
               {[
@@ -87,14 +87,14 @@ export default function Intelligence() {
           </div>
 
           {/* risk radar */}
-          <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
+          <div className="rounded-[12px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="t-h4 text-white">Flight-risk radar</h3>
-              <WarningIcon size={19} weight="light" className="text-[#E8333A]" aria-hidden />
+              <WarningIcon size={19} weight="light" className="text-[var(--accent)]" aria-hidden />
             </div>
             <ul className="mt-5 grid gap-3">
               {RISKS.map((r, i) => {
-                const tone = r.score >= 75 ? '#E8333A' : r.score >= 55 ? '#C27C0D' : '#0FA091';
+                const tone = r.score >= 75 ? 'var(--accent)' : r.score >= 55 ? 'var(--d4)' : 'var(--d2)';
                 const band = r.score >= 75 ? 'High' : r.score >= 55 ? 'Watch' : 'Stable';
                 return (
                   <motion.li key={r.role}
@@ -102,7 +102,7 @@ export default function Intelligence() {
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true, margin: '-12% 0px' }}
                     transition={{ duration: 0.5, delay: i * 0.1, ease: EASE }}
-                    className="group rounded-[4px] border border-white/10 bg-[var(--surface-deep-2)] p-4
+                    className="group rounded-[8px] border border-white/10 bg-[var(--surface-deep-2)] p-4
                                transition-colors duration-300 hover:border-white/25">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-[14px] font-700 leading-snug text-white">{r.role}</p>

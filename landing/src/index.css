@@ -1,264 +1,245 @@
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------
-   Geist, self-hosted. Weights 400 / 500 / 600 only (DESIGN.md §3).
-   --------------------------------------------------------------- */
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Regular.woff2') format('woff2');
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Medium.woff2') format('woff2');
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
-  font-weight: 600; font-style: normal; font-display: swap;
-}
+/* ===============================================================
+   Manrope, self-hosted. 400/500/600/700/800.
+   =============================================================== */
+@font-face { font-family:'Manrope'; src:url('/fonts/Manrope-400.woff2') format('woff2');
+  font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Manrope'; src:url('/fonts/Manrope-500.woff2') format('woff2');
+  font-weight:500; font-style:normal; font-display:swap; }
+@font-face { font-family:'Manrope'; src:url('/fonts/Manrope-600.woff2') format('woff2');
+  font-weight:600; font-style:normal; font-display:swap; }
+@font-face { font-family:'Manrope'; src:url('/fonts/Manrope-700.woff2') format('woff2');
+  font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Manrope'; src:url('/fonts/Manrope-800.woff2') format('woff2');
+  font-weight:800; font-style:normal; font-display:swap; }
 
-/* Metric-matched fallback. Geist loads with font-display: swap, so the
-   fallback must occupy the same width per weight or the swap reflows the
-   hero and costs layout shift. Ratios measured against Arial. */
-@font-face {
-  font-family: 'Geist Fallback';
-  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
-  font-weight: 400; size-adjust: 101.16%;
-}
-@font-face {
-  font-family: 'Geist Fallback';
-  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
-  font-weight: 500; size-adjust: 103.48%;
-}
-@font-face {
-  font-family: 'Geist Fallback';
-  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
-  font-weight: 600; size-adjust: 98.85%;
-}
+/* Metric-matched fallback so the swap does not re-wrap headlines. */
+@font-face { font-family:'Manrope Fallback'; src:local('Arial'),local('Helvetica'),local('Liberation Sans');
+  font-weight:400; size-adjust:104.5%; }
+@font-face { font-family:'Manrope Fallback'; src:local('Arial'),local('Helvetica'),local('Liberation Sans');
+  font-weight:700; size-adjust:101%; }
+@font-face { font-family:'Manrope Fallback'; src:local('Arial'),local('Helvetica'),local('Liberation Sans');
+  font-weight:800; size-adjust:99.5%; }
 
-/* ---------------------------------------------------------------
-   Colour tokens. Light is the default; dark is applied by BOTH the
-   media query (guarded so a manual light choice wins) and the
-   explicit [data-theme="dark"] attribute. One theme system only.
-   No pure #000 and no pure #fff anywhere.
-   --------------------------------------------------------------- */
+/* ===============================================================
+   Brand. Every value is sampled from the Infopace logo or derived
+   from it by a single lightness step. The logo's own blue
+   (#00B0EF) is only 2.48:1 on white, so it is used for fills and
+   graphics; text and buttons use the darker steps below.
+   =============================================================== */
 :root {
-  --bg:            #FBFBFD;
-  --bg-tint:       #F5F5F7;
-  --bg-raised:     #FDFDFE;
-  --ink:           #1D1D1F;
-  --ink-2:         #6E6E73;
-  --accent:        #2F68E0;
-  --accent-hover:  #2B60CE;   /* 8% darker */
-  --accent-on:     #FFFFFF;   /* 5.03:1 on --accent */
-  --accent-text:   #2F68E0;   /* 4.86:1 on --bg */
-  --hairline:      rgba(29, 29, 31, 0.10);
-  --shadow-tint:   rgba(40, 48, 72, 0.14);
-  --tile-tone:     #F2F2F4;   /* neutral tonal tile, --ink-2 on it is 4.54:1 */
-  --bezel-fill:    rgba(29, 29, 31, 0.035);
-  --bezel-top:     rgba(255, 255, 255, 0.9);
+  /* Logo-exact */
+  --brand:        #00B0EF;   /* sampled: logo mark */
+  --accent:       #E8333A;   /* sampled: logo accent */
+  --logo-graphite:#353233;   /* sampled: logo wordmark */
 
-  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Blue ramp, derived from --brand */
+  --brand-50:  #F2FBFE;
+  --brand-100: #E5F7FD;
+  --brand-200: #C4ECFA;
+  --brand-300: #8ADCF7;
+  --brand-400: #40C6F3;
+  --brand-500: #00B0EF;
+  --brand-600: #0084B3;
+  --brand-700: #00729B;   /* 5.41:1 on white: links, buttons */
+  --brand-800: #006183;
+  --brand-900: #00415A;
+
+  /* Accent ramp, derived from --accent. Critical states only. */
+  --accent-500: #E8333A;
+  --accent-600: #D12E34;
+  --accent-700: #C52B31;   /* 5.58:1 on white */
+  --accent-50:  #FEF2F2;
+
+  /* Ink */
+  --ink:    #111827;   /* 17.7:1 on white */
+  --ink-2:  #475569;   /*  7.6:1 */
+  --ink-3:  #64748B;   /*  4.8:1, still AA */
+
+  /* Surfaces: pure white with blue-tinted zoning */
+  --surface:      #FFFFFF;
+  --surface-tint: #F7FBFF;
+  --surface-blue: #EDF6FE;
+  --surface-deep: #0A1628;   /* the one dark section */
+  --surface-deep-2:#0E1E35;
+
+  /* Structure */
+  --border:      #E2E8F0;
+  --border-blue: #D9EAF7;
+
+  /* Ambient executive shadow: a blue tint inside the shadow */
+  --shadow-sm: 0 1px 2px rgba(17,24,39,.04);
+  --shadow-md: 0 1px 3px rgba(17,24,39,.04), 0 12px 32px -4px rgba(0,153,230,.10);
+  --shadow-lg: 0 2px 4px rgba(17,24,39,.04), 0 24px 56px -8px rgba(0,153,230,.16);
+
+  /* Chart palette, validated (lightness band, chroma, CVD, contrast). */
+  --c1: #00729B;  /* brand blue  */
+  --c2: #6D28D9;  /* violet      */
+  --c3: #0D9488;  /* teal        */
+  --c4: #B45309;  /* amber       */
+  /* Dark-section chart steps, validated against --surface-deep. */
+  --d1: #1B93C4;  --d2: #7C5CE0;  --d3: #0FA091;  --d4: #C27C0D;
+  --on-deep:   #E6EDF7;   /* 14.7:1 on --surface-deep */
+  --on-deep-2: #94A3B8;   /*  7.1:1 */
+  --on-deep-3: #8ADCF7;   /* 11.8:1, the brand tint on dark */
+
+  --good: #059669;
+  --warn: #B45309;
+  --crit: #C52B31;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg:          #09090B;
-    --bg-tint:     #131316;
-    --bg-raised:   #1B1B1F;
-    --ink:         #F2F2F4;
-    --ink-2:       #A1A1A8;
-    --accent:      #2F68E0;
-    --accent-hover:#3A74EC;   /* lifts on dark instead of darkening */
-    --accent-on:   #FFFFFF;
-    --accent-text: #7BA0F5;   /* 7.76:1 on dark --bg */
-    --hairline:    rgba(255, 255, 255, 0.12);
-    --shadow-tint: rgba(0, 0, 0, 0.55);
-    --tile-tone:   #191920;   /* --ink-2 on it is 6.81:1 */
-    --bezel-fill:  rgba(255, 255, 255, 0.04);
-    --bezel-top:   rgba(255, 255, 255, 0.10);
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg:          #09090B;
-  --bg-tint:     #131316;
-  --bg-raised:   #1B1B1F;
-  --ink:         #F2F2F4;
-  --ink-2:       #A1A1A8;
-  --accent:      #2F68E0;
-  --accent-hover:#3A74EC;
-  --accent-on:   #FFFFFF;
-  --accent-text: #7BA0F5;
-  --hairline:    rgba(255, 255, 255, 0.12);
-  --shadow-tint: rgba(0, 0, 0, 0.55);
-  --tile-tone:   #191920;
-  --bezel-fill:  rgba(255, 255, 255, 0.04);
-  --bezel-top:   rgba(255, 255, 255, 0.10);
-}
-
-/* Expose tokens to Tailwind utilities (v4 @theme). */
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Manrope', 'Manrope Fallback', ui-sans-serif, system-ui, sans-serif;
 
-  --color-bg:         var(--bg);
-  --color-bg-tint:    var(--bg-tint);
-  --color-bg-raised:  var(--bg-raised);
+  --color-brand:      var(--brand);
+  --color-brand-50:   var(--brand-50);
+  --color-brand-100:  var(--brand-100);
+  --color-brand-200:  var(--brand-200);
+  --color-brand-300:  var(--brand-300);
+  --color-brand-400:  var(--brand-400);
+  --color-brand-500:  var(--brand-500);
+  --color-brand-600:  var(--brand-600);
+  --color-brand-700:  var(--brand-700);
+  --color-brand-800:  var(--brand-800);
+  --color-brand-900:  var(--brand-900);
+  --color-accent:     var(--accent);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-50:  var(--accent-50);
   --color-ink:        var(--ink);
   --color-ink-2:      var(--ink-2);
-  --color-accent:     var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-on:  var(--accent-on);
-  --color-accent-text: var(--accent-text);
-  --color-hairline:   var(--hairline);
-  --color-tile-tone:  var(--tile-tone);
+  --color-ink-3:      var(--ink-3);
+  --color-surface:      var(--surface);
+  --color-surface-tint: var(--surface-tint);
+  --color-surface-blue: var(--surface-blue);
+  --color-surface-deep: var(--surface-deep);
+  --color-hairline:   var(--border);
+  --color-hairline-blue: var(--border-blue);
 
-  /* Shape rule: pill for buttons/chips, 28px media tiles + hero frame,
-     12px small UI. Nested cores use calc(28px - shell padding). */
-  --radius-tile:      28px;
-  --radius-core:      22px;   /* 28px - 6px shell padding (p-1.5) */
-  --radius-ui:        12px;
+  /* Soft Precision geometry: 4px data, 8px cards, 12px dialogs, pill chips. */
+  --radius-data:  4px;
+  --radius-card:  8px;
+  --radius-panel: 12px;
 }
 
-/* ---------------------------------------------------------------
-   Base
-   --------------------------------------------------------------- */
 @layer base {
-  html {
-    scroll-behavior: smooth;
-    -webkit-text-size-adjust: 100%;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-  }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
-    background-color: var(--bg);
+    background: var(--surface);
     color: var(--ink);
-    font-family: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
-    font-size: 17px;
-    line-height: 1.5;
-    letter-spacing: -0.005em;
+    font-family: 'Manrope', 'Manrope Fallback', ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px; line-height: 1.625; letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
     overflow-x: hidden;
   }
-  ::selection {
-    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
-  }
-  /* One focus treatment everywhere: 2px accent ring, 3px offset. */
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-    border-radius: 4px;
-  }
+  ::selection { background: color-mix(in srgb, var(--brand) 26%, transparent); }
+  :focus-visible { outline: 2px solid var(--brand-700); outline-offset: 3px; border-radius: 3px; }
   :focus:not(:focus-visible) { outline: none; }
   summary::-webkit-details-marker { display: none; }
   summary { list-style: none; cursor: pointer; }
 }
 
-/* ---------------------------------------------------------------
-   Type scale (DESIGN.md §3). Fluid, clamped so a 1366x768 laptop
-   never wraps the hero headline past 2 lines.
-   --------------------------------------------------------------- */
-@utility type-hero {
-  font-size: clamp(2.75rem, 7.2vw, 6rem);   /* up to 96px */
-  font-weight: 600;
-  line-height: 1.02;
-  letter-spacing: -0.035em;
+/* ===============================================================
+   Type scale (Executive Precision)
+   =============================================================== */
+@utility t-hero {
+  /* Caps at 60px: this headline lives in a half-width column, where the
+     76px display tier would run to four lines. */
+  font-size: clamp(2rem, 4.1vw, 3.75rem);     /* 32 - 60px */
+  font-weight: 800; line-height: 1.06; letter-spacing: -0.035em;
 }
-@utility type-section {
-  font-size: clamp(2.125rem, 4.6vw, 4.5rem); /* 34 - 72px */
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+@utility t-display {
+  font-size: clamp(2.75rem, 6.2vw, 4.75rem);  /* 44 - 76px, full-bleed sections */
+  font-weight: 800; line-height: 1.04; letter-spacing: -0.035em;
 }
-@utility type-statement {
-  font-size: clamp(1.75rem, 4vw, 3.5rem);
-  font-weight: 600;
-  line-height: 1.18;
-  letter-spacing: -0.03em;
+@utility t-h2 {
+  font-size: clamp(2rem, 3.4vw, 3rem);        /* 32 - 48px */
+  font-weight: 700; line-height: 1.16; letter-spacing: -0.025em;
 }
-@utility type-sub {
-  font-size: clamp(1.125rem, 1.55vw, 1.4rem); /* 18 - 22.4px */
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
+@utility t-h3 {
+  font-size: clamp(1.375rem, 1.9vw, 2rem);    /* 22 - 32px */
+  font-weight: 600; line-height: 1.25; letter-spacing: -0.02em;
 }
-@utility type-tile {
-  font-size: clamp(1.375rem, 2vw, 1.75rem);
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+@utility t-h4 {
+  font-size: 1.25rem; font-weight: 600; line-height: 1.33; letter-spacing: -0.015em;
 }
-@utility type-body {
-  font-size: 17px;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: -0.005em;
+@utility t-metric {
+  font-size: clamp(2rem, 3vw, 2.625rem);      /* up to 42px */
+  font-weight: 800; line-height: 1.1; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
-@utility type-caption {
-  font-size: 13.5px;
-  font-weight: 400;
-  line-height: 1.45;
-  letter-spacing: 0;
+@utility t-body-xl { font-size: 1.125rem; line-height: 1.66; letter-spacing: -0.005em; }
+@utility t-body    { font-size: 1rem;     line-height: 1.625; }
+@utility t-small   { font-size: 0.875rem; line-height: 1.57; }
+@utility t-label {
+  font-size: 0.8125rem; font-weight: 600; line-height: 1.38; letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-
-/* ---------------------------------------------------------------
-   Double-bezel. Used in EXACTLY two places: the hero device frame
-   and the large bento tiles. Reads as a glass plate in a tray.
-   --------------------------------------------------------------- */
-@utility bezel {
-  padding: 6px;                      /* p-1.5 */
-  border-radius: var(--radius-tile);
-  background: var(--bezel-fill);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+@utility t-micro {
+  font-size: 0.6875rem; font-weight: 700; line-height: 1.45; letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-@utility bezel-core {
-  border-radius: var(--radius-core);
-  background: var(--bg-raised);
-  box-shadow: inset 0 1px 0 0 var(--bezel-top),
-              inset 0 0 0 1px var(--hairline);
-  overflow: hidden;
-}
-
-/* Single soft shadow, tinted to the background hue, one light
-   direction. Only on floating things. */
-@utility lift {
-  box-shadow: 0 32px 64px -24px var(--shadow-tint),
-              0 8px 20px -12px var(--shadow-tint);
-}
+@utility tnum { font-variant-numeric: tabular-nums; }
 
 @utility rail {
-  width: 100%;
-  max-width: 1400px;
-  margin-inline: auto;
-  /* 16px gutter at phone width, easing to 32px from the md breakpoint up. */
-  padding-inline: clamp(16px, 2.2vw, 32px);
+  /* Executive cockpit: the grid stays fluid and caps at 1600px. */
+  width: 100%; max-width: 1600px; margin-inline: auto;
+  padding-inline: clamp(1.25rem, 3.2vw, 3.5rem);
 }
+
+/* Hairline-bordered surface, the system's default container. */
+@utility panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+@utility panel-float {
+  background: var(--surface);
+  border: 1px solid var(--border-blue);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-md);
+}
+/* Glass, used only on the hero dashboard's floating widgets. */
+@utility glass {
+  background: color-mix(in srgb, #FFFFFF 78%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.75);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-card);
+}
+
+/* Status chips */
+@utility chip {
+  display: inline-flex; align-items: center; gap: .375rem;
+  padding: 2px 8px; border-radius: 9999px;
+  font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------
+   Hero entrance. CSS rather than JS, because the page is prerendered:
+   a motion-held opacity:0 ships inside the markup and delays the
+   largest paint until hydration.
+   --------------------------------------------------------------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+.rise { animation: rise .7s var(--ease) both; }
+.rise-1 { animation-delay: .04s }
+.rise-2 { animation-delay: .10s }
+.rise-3 { animation-delay: .17s }
+.rise-4 { animation-delay: .24s }
+.rise-5 { animation-delay: .31s }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.001ms !important;
+    animation-duration: .001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    transition-duration: .001ms !important;
   }
-}
-
-/* ---------------------------------------------------------------
-   Hero settle (DESIGN.md §5, option A). Driven by CSS rather than
-   JS so the prerendered markup paints at full opacity on the first
-   frame: a JS-held `opacity: 0` would delay the largest paint.
-   --------------------------------------------------------------- */
-@keyframes hero-settle {
-  from { opacity: 0; transform: translateY(28px) scale(0.965); }
-  to   { opacity: 1; transform: none; }
-}
-.hero-settle {
-  transform-origin: top center;
-  animation: hero-settle 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-settle { animation: none; }
 }

@@ -1,11 +1,14 @@
-import Nav from './components/Nav';
-import Hero from './components/Hero';
-import Statement from './components/Statement';
-import Walkthrough from './components/Walkthrough';
-import Bento from './components/Bento';
-import PhotoBand from './components/PhotoBand';
-import Faq from './components/Faq';
-import FinalCta from './components/FinalCta';
+import Nav from './components/sections/Nav';
+import Hero from './components/sections/Hero';
+import Problem from './components/sections/Problem';
+import Bento from './components/sections/Bento';
+import Journey from './components/sections/Journey';
+import Product from './components/sections/Product';
+import Intelligence from './components/sections/Intelligence';
+import Benefits from './components/sections/Benefits';
+import Company from './components/sections/Company';
+import Voices from './components/sections/Voices';
+import FinalCta from './components/sections/FinalCta';
 import Footer from './components/Footer';
 
 export default function App() {
@@ -13,18 +16,21 @@ export default function App() {
     <>
       <a href="#main"
          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60]
-                    focus:rounded-full focus:bg-accent focus:px-5 focus:py-2 focus:text-accent-on">
+                    focus:rounded-[4px] focus:bg-brand-700 focus:px-5 focus:py-2 focus:text-white">
         Skip to content
       </a>
       <Nav />
       <main id="main">
-        <Hero />
-        <Statement />
-        <Walkthrough />
-        <Bento />
-        <PhotoBand />
-        <Faq />
-        <FinalCta />
+        <Hero />          {/* split + live console            */}
+        <Problem />       {/* stepped diagonal ladder         */}
+        <Bento />         {/* asymmetric bento                */}
+        <Journey />       {/* vertical spine                  */}
+        <Product />       {/* tab console, real screenshots   */}
+        <Intelligence />  {/* dark analytics                  */}
+        <Benefits />      {/* alternating storytelling        */}
+        <Company />       {/* horizontal timeline             */}
+        <Voices />        {/* auto-scrolling carousel         */}
+        <FinalCta />      {/* full-bleed declaration          */}
       </main>
       <Footer />
     </>

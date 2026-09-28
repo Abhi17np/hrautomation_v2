@@ -12,8 +12,8 @@ const COLUMNS = [
     { label: 'Payroll and payslips', href: '#product' },
   ]},
   { title: 'Company', links: [
-    { label: 'Since 1999', href: '#company' },
     { label: 'Infopace Management', href: 'https://www.infopaceindia.com' },
+    { label: 'Book a demo', href: '#book' },
   ]},
 ];
 
@@ -23,11 +23,9 @@ export default function Footer() {
       <div className="rail">
         <div className="grid gap-10 md:grid-cols-[1.5fr_repeat(3,1fr)]">
           <div>
-            <div className="flex items-center gap-2.5">
-              <img src="/infopace-logo.webp" alt="" width={300} height={128} className="h-6 w-auto" />
-              <span className="h-5 w-px bg-hairline" />
-              <span className="text-[13px] font-700 text-ink-2">HR Automation</span>
-            </div>
+            {/* the footer has room for the full lockup, tagline and all */}
+            <img src="/infopace-lockup.webp" alt="Infopace, commitment to excellence"
+                 width={500} height={213} className="h-12 w-auto" />
             <p className="t-small mt-4 max-w-[36ch] text-ink-2">
               One record for HR operations, from a change management practice
               working with Indian enterprises since 1999.

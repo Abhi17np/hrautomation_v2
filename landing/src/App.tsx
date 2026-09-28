@@ -6,7 +6,6 @@ import Journey from './components/sections/Journey';
 import Product from './components/sections/Product';
 import Intelligence from './components/sections/Intelligence';
 import Benefits from './components/sections/Benefits';
-import Company from './components/sections/Company';
 import Voices from './components/sections/Voices';
 import FinalCta from './components/sections/FinalCta';
 import Footer from './components/Footer';
@@ -28,7 +27,6 @@ export default function App() {
         <Product />       {/* tab console, real screenshots   */}
         <Intelligence />  {/* dark analytics                  */}
         <Benefits />      {/* alternating storytelling        */}
-        <Company />       {/* horizontal timeline             */}
         <Voices />        {/* auto-scrolling carousel         */}
         <FinalCta />      {/* full-bleed declaration          */}
       </main>

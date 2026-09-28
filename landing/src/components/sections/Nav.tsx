@@ -8,7 +8,6 @@ const LINKS = [
   { label: 'How it works', href: '#journey' },
   { label: 'Product',    href: '#product' },
   { label: 'Intelligence', href: '#intelligence' },
-  { label: 'Company',    href: '#company' },
 ];
 
 export default function Nav() {
@@ -31,10 +30,11 @@ export default function Nav() {
         className="fixed inset-x-0 top-0 border-b border-hairline bg-[color-mix(in_srgb,#FFFFFF_88%,transparent)] backdrop-blur-xl">
         <nav aria-label="Main" className="rail flex h-16 items-center justify-between gap-4">
           <a href="#top" className="flex h-16 shrink-0 items-center gap-2.5" aria-label="Infopace HR, home">
-            <img src="/infopace-logo.webp" alt="" width={300} height={128} className="h-6 w-auto" />
-            <span className="hidden h-5 w-px bg-hairline sm:block" />
-            <span className="hidden text-[13px] font-700 tracking-[-0.01em] text-ink-2 sm:block">
-              HR Automation
+            <img src="/infopace-mark.webp" alt="Infopace" width={500} height={186}
+                 className="h-7 w-auto sm:h-8" />
+            <span className="hidden h-6 w-px bg-hairline sm:block" />
+            <span className="hidden text-[13px] font-700 leading-tight tracking-[-0.01em] text-ink-2 sm:block">
+              HR<br />Automation
             </span>
           </a>
 

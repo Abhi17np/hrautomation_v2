@@ -109,9 +109,16 @@
   --on-deep-2: #A6ABCF;
   --on-deep-3: #7FD4F7;
 
-  --good: #059669;
+  /* Status colours. The light values are set so 11px chip text clears
+     4.5:1 on their own tinted chip backgrounds. */
+  --good: #036B4F;
   --warn: #B45309;
   --crit: #C82A2F;
+
+  /* Status on the dark indigo zone, measured against #1B1C4F */
+  --good-deep: #2BC0AE;   /* 6.98:1 */
+  --warn-deep: #E0A63A;   /* 7.31:1 */
+  --crit-deep: #FB8185;   /* 6.47:1 */
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -275,6 +282,10 @@
 .rise-4 { animation-delay: .24s }
 .rise-5 { animation-delay: .31s }
 @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
+
+/* Horizontal rails scroll natively; the bar itself is noise. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -90,11 +90,11 @@ export default function Intelligence() {
           <div className="rounded-[12px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="t-h4 text-white">Flight-risk radar</h3>
-              <WarningIcon size={19} weight="light" className="text-[var(--accent)]" aria-hidden />
+              <WarningIcon size={19} weight="light" className="text-[var(--crit-deep)]" aria-hidden />
             </div>
             <ul className="mt-5 grid gap-3">
               {RISKS.map((r, i) => {
-                const tone = r.score >= 75 ? 'var(--accent)' : r.score >= 55 ? 'var(--d4)' : 'var(--d2)';
+                const tone = r.score >= 75 ? 'var(--crit-deep)' : r.score >= 55 ? 'var(--warn-deep)' : 'var(--good-deep)';
                 const band = r.score >= 75 ? 'High' : r.score >= 55 ? 'Watch' : 'Stable';
                 return (
                   <motion.li key={r.role}

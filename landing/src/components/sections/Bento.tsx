@@ -38,9 +38,16 @@ function Title({ icon: Icon, children }: { icon: React.ElementType; children: Re
   );
 }
 
+const CYCLES = [
+  { q: 'Q1 FY25', d: 21 }, { q: 'Q2 FY25', d: 18 }, { q: 'Q3 FY25', d: 16 },
+  { q: 'Q4 FY25', d: 14 }, { q: 'Q1 FY26', d: 11 }, { q: 'Q2 FY26', d: 9 },
+  { q: 'Q3 FY26', d: 8 },  { q: 'Q4 FY26', d: 6 },
+];
+
 export default function Bento() {
   const rm = useReducedMotion();
   const [goal, setGoal] = useState(68);
+  const [cycle, setCycle] = useState(CYCLES.length - 1);
 
   return (
     <section id="platform" className="relative bg-surface-tint py-24 lg:py-32">
@@ -157,25 +164,32 @@ export default function Bento() {
             </ul>
           </Cell>
 
-          {/* 5 — appraisal automation */}
+          {/* 5 — appraisal automation, hover a bar to read the cycle */}
           <Cell className="lg:col-span-2">
             <Title icon={LightningIcon}>Appraisal automation</Title>
             <p className="t-body mt-3 text-ink-2">
               Cycles open, chase and close themselves on the calendar you set.
             </p>
-            <div className="mt-5 flex items-end gap-1.5" aria-hidden>
-              {[38, 52, 30, 64, 44, 72, 58, 86].map((h, i) => (
-                <motion.span key={i}
-                  className="w-full rounded-t-[3px] bg-brand-200 group-hover:bg-brand-400"
-                  style={{ height: h }}
+            <div className="mt-5 flex items-end gap-1.5">
+              {CYCLES.map((c, i) => (
+                <motion.button key={c.q} type="button"
+                  onPointerEnter={() => setCycle(i)} onFocus={() => setCycle(i)}
+                  aria-label={`${c.q}: ${c.d} days`}
+                  className={`min-h-11 w-full rounded-t-[3px] transition-colors duration-200
+                    ${cycle === i ? 'bg-brand-500' : 'bg-brand-200 hover:bg-brand-300'}`}
+                  style={{ height: c.d * 4 }}
                   initial={rm ? false : { scaleY: 0 }}
                   whileInView={{ scaleY: 1 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.04, ease: [0.22,1,0.36,1] }}
+                  transition={{ duration: 0.5, delay: i * 0.05, ease: [0.22,1,0.36,1] }}
                 />
               ))}
             </div>
-            <p className="t-micro mt-3 text-ink-3">Cycle duration falling, sample</p>
+            <p className="t-micro mt-3 text-ink-3">
+              <span className="font-800 text-ink">{CYCLES[cycle].q}</span>
+              {' '}closed in{' '}
+              <span className="font-800 text-brand-700">{CYCLES[cycle].d} days</span>
+            </p>
           </Cell>
 
           {/* 6 — AI insights */}

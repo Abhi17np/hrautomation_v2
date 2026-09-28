@@ -58,12 +58,26 @@ Chart palettes are validated, not eyeballed. Light: `#3061C0, #0D9488,
 #C2831A`. Blue and violet are deliberately never adjacent in the order,
 which is the pair that failed the colour-vision separation check.
 
+## Logo assets
+
+`infopace-mark.webp` is the wordmark, registered mark and indigo underbar,
+cropped off the full artwork at the blank band (rows 0-184). The nav uses
+it because the original lockup bakes in the "commitment to excellence"
+strapline, which turns to mush below about 40px. `infopace-lockup.webp` is
+the full artwork, used in the footer where there is room for the tagline.
+
 ## One layout family per section
 
 Each section introduces a pattern no other section repeats: split hero with a
-live console, a stepped diagonal ladder, an asymmetric bento, a vertical
-spine, a tab console, a dark analytics zone, alternating storytelling blocks,
-a horizontal timeline, an auto-scrolling carousel, and a full-bleed close.
+live console, a tick-the-symptoms diagnostic, an asymmetric bento, a vertical
+spine of expandable stages, a working product console, a dark analytics zone,
+alternating storytelling blocks, a snap-scroll carousel, and a full-bleed
+close.
+
+Interactive rather than decorative: the diagnostic totals the days you
+select, the journey stages expand, the bento holds a goal-cascade slider and
+an explorable cycle chart, the product console filters, approves and runs
+payroll, and the carousel takes swipe, drag, buttons and keyboard.
 
 ## Conventions worth keeping
 

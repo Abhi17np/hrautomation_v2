@@ -1,14 +1,26 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { motion, useScroll, useTransform, useReducedMotion, type MotionValue } from 'motion/react';
 import { Eyebrow } from '../primitives';
 import { EASE } from '../../lib/motion';
 
-const STEPS = [
-  { n: 1, t: 'Define goals', d: 'Board objectives are written once and cascaded down, so every target on the floor still points at the original.' },
-  { n: 2, t: 'Track progress', d: 'Attendance, leave and delivery data land against the same record continuously, not in a scramble at year end.' },
-  { n: 3, t: 'Review performance', d: 'Managers rate against evidence already on the record, with the balance and history in front of them.' },
-  { n: 4, t: 'Generate insights', d: 'Trends, outliers and statutory totals compile themselves from runs you actually processed.' },
-  { n: 5, t: 'Drive growth', d: 'The board gets a defensible picture, and the next cycle starts from what the last one proved.' },
+type Step = { n: number; t: string; d: string; detail: string };
+
+const STEPS: Step[] = [
+  { n: 1, t: 'Define goals',
+    d: 'Board objectives are written once and cascaded down, so every target on the floor still points at the original.',
+    detail: 'One objective splits into department targets, then individual goals, each carrying a link back to its parent.' },
+  { n: 2, t: 'Track progress',
+    d: 'Attendance, leave and delivery data land against the same record continuously, not in a scramble at year end.',
+    detail: 'Biometric punches, web logins and approved leave all write to one daily record per person.' },
+  { n: 3, t: 'Review performance',
+    d: 'Managers rate against evidence already on the record, with the balance and history in front of them.',
+    detail: 'The reviewer sees attendance, leave taken and goal completion on the same screen as the rating.' },
+  { n: 4, t: 'Generate insights',
+    d: 'Trends, outliers and statutory totals compile themselves from runs you actually processed.',
+    detail: 'Headcount, attrition and the PF, ESI and TDS register are derived, never keyed in twice.' },
+  { n: 5, t: 'Drive growth',
+    d: 'The board gets a defensible picture, and the next cycle starts from what the last one proved.',
+    detail: 'Last cycle\u2019s outcomes seed the next set of objectives, so the loop closes.' },
 ];
 
 function Node({ i, progress }: { i: number; progress: MotionValue<number> }) {
@@ -24,7 +36,7 @@ function Node({ i, progress }: { i: number; progress: MotionValue<number> }) {
       <motion.span style={{ opacity: fill }}
         className="absolute inset-0 rounded-full ring-4 ring-[color-mix(in_srgb,var(--brand)_18%,transparent)]" />
       <motion.span className="relative tnum text-[13px] font-800"
-        style={{ color: useTransform(fill, [0, 1], ['#64748B', '#FFFFFF']) }}>
+        style={{ color: useTransform(fill, [0, 0.48, 0.52, 1], ['#475569', '#475569', '#FFFFFF', '#FFFFFF']) }}>
         {i + 1}
       </motion.span>
     </motion.span>
@@ -38,6 +50,7 @@ function Node({ i, progress }: { i: number; progress: MotionValue<number> }) {
 export default function Journey() {
   const track = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
+  const [open, setOpen] = useState<number | null>(null);
   const { scrollYProgress } = useScroll({
     target: track,
     offset: ['start 0.7', 'end 0.65'],
@@ -66,16 +79,40 @@ export default function Journey() {
           <ol className="grid gap-10 md:gap-14">
             {STEPS.map((s, i) => {
               const left = i % 2 === 0;   // desktop: alternate sides of the spine
+              const on = open === i;
               const Card = (
                 <motion.div
                   initial={reduced ? false : { opacity: 0, x: left ? -28 : 28 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: '-18% 0px' }}
-                  transition={{ duration: 0.6, ease: EASE }}
-                  className={`panel p-6 transition-shadow duration-300 hover:shadow-[var(--shadow-md)]
-                              ${left ? 'md:text-right' : ''}`}>
-                  <h3 className="t-h4 text-ink">{s.t}</h3>
-                  <p className="t-body mt-2 text-ink-2">{s.d}</p>
+                  transition={{ duration: 0.6, ease: EASE }}>
+                  <div className={`panel relative p-6 transition-all duration-300
+                                   hover:shadow-[var(--shadow-md)]
+                                   ${on ? 'border-brand-400 shadow-[var(--shadow-md)]' : ''}
+                                   ${left ? 'md:text-right' : ''}`}>
+                    <button type="button" onClick={() => setOpen(on ? null : i)} aria-expanded={on}
+                      className="absolute inset-0 z-10 cursor-pointer rounded-[16px]">
+                      <span className="sr-only">
+                        {on ? 'Hide detail for' : 'Show detail for'} {s.t}
+                      </span>
+                    </button>
+                    <div className="relative">
+                      <h3 className="t-h4 text-ink">{s.t}</h3>
+                      <p className="t-body mt-2 text-ink-2">{s.d}</p>
+                      <motion.div initial={false} aria-hidden={!on}
+                        animate={{ height: on ? 'auto' : 0, opacity: on ? 1 : 0 }}
+                        transition={{ duration: reduced ? 0 : 0.3, ease: EASE }}
+                        className="overflow-hidden">
+                        <p className="mt-3 border-t border-hairline-blue pt-3 text-[14px] font-600 text-brand-700">
+                          {s.detail}
+                        </p>
+                      </motion.div>
+                      <span className={`t-micro mt-3 inline-block transition-colors
+                        ${on ? 'text-ink-3' : 'text-brand-700'}`}>
+                        {on ? 'Hide' : 'What that means'}
+                      </span>
+                    </div>
+                  </div>
                 </motion.div>
               );
               return (

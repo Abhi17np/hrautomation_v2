@@ -42,14 +42,14 @@ function Icon({ name, size = 20, className = '' }) {
 const NAV = [
   { label: 'Payroll', target: 'payroll' },
   { label: 'Attendance', target: 'attendance' },
-  { label: 'Documents', target: 'documents' },
+  { label: 'Modules', target: 'modules' },
   { label: 'Platform', target: 'platform' },
 ];
 
 const HERO_FACTS = [
+  { label: 'Letters, leave, payroll and exits', icon: 'layers' },
   { label: 'PF, ESI, PT and TDS on every run', icon: 'wallet' },
-  { label: 'eSSL and ZKTeco devices', icon: 'clock' },
-  { label: 'Role based access with audit log', icon: 'lock' },
+  { label: 'Biometric attendance, no re-keying', icon: 'clock' },
 ];
 
 const MARQUEE = [
@@ -85,14 +85,16 @@ const ATTENDANCE_POINTS = [
   'Punches pulled from eSSL and ZKTeco terminals over the network and de-duplicated on the way in',
   'Shift summaries, holiday calendars and incident history kept per company',
   'Web login for staff working away from a terminal',
-  'Leave balances move as requests are approved, and feed the payroll run',
+  'Casual and sick leave capped by month, two days for regular staff and one on probation',
+  'Days beyond the cap become loss of pay on the same request, and the employee sees the split before submitting',
+  'Approved leave moves the balance and feeds straight into the payroll run',
 ];
 
 const DOC_ITEMS = [
-  { icon: 'doc', title: 'Offer letters', body: 'Built from your template with a CTC breakdown across basic, HRA, DA, provident fund, group health and other heads. Revised offers keep the original on record.' },
-  { icon: 'check', title: 'Approval before anything leaves', body: 'Multi stage chains you configure per company. Each stage names the role that signs off and whether self approval is allowed. HR can edit inline before approving.' },
-  { icon: 'mail', title: 'Sent, then filed', body: 'Approved letters email to the candidate. Accepting creates their login, so the same record carries through to onboarding.' },
-  { icon: 'exit', title: 'Through to relieving', body: 'Resignation, manager approval, clearance checklist, final settlement and the experience letter, all against the record opened on day one.' },
+  { icon: 'users', title: 'People records and org chart', body: 'One record per employee carrying personal details, reporting line, documents and assigned assets. Every other module reads from it, so a change lands everywhere at once.' },
+  { icon: 'doc', title: 'Letters and templates', body: 'Offer, appointment, confirmation, experience and relieving letters built from your own templates, as DOCX and PDF. Offers carry the CTC broken out across basic, HRA, DA, provident fund and group health.' },
+  { icon: 'check', title: 'Approvals, expenses and workflows', body: 'Approval chains configured per company rather than per request. Each stage names the role that signs off and whether self approval is allowed. Expense claims come in with a receipt and route the same way.' },
+  { icon: 'chart', title: 'Announcements, policies and reporting', body: 'A notice board that notifies the people it targets, a policy library tracking who acknowledged what, and headcount, attrition and the register of PF, ESI, PT and TDS actually withheld.' },
 ];
 
 const LAYERS = [
@@ -103,8 +105,8 @@ const LAYERS = [
   },
   {
     name: 'HR operations layer',
-    desc: 'Offer letters, onboarding, leave, attendance and exits. The day-to-day work your HR team actually runs.',
-    tags: [{ t: 'Offer letters', w: 94 }, { t: 'Leave & attendance', w: 126 }],
+    desc: 'Letters, onboarding, leave, attendance, expenses and exits. The day-to-day work your HR team actually runs.',
+    tags: [{ t: 'Letters', w: 74 }, { t: 'Leave & attendance', w: 126 }],
   },
   {
     name: 'Automation engine',
@@ -113,17 +115,17 @@ const LAYERS = [
   },
   {
     name: 'Data & compliance layer',
-    desc: 'Role-based access, audit logs and policy records that keep every action traceable and review-ready.',
+    desc: 'Role-based access, the audit log, the compliance register and a read-only API for the systems around it.',
     tags: [{ t: 'Audit log', w: 82 }, { t: 'Access control', w: 106 }],
   },
 ];
 
 const JOURNEY = [
-  { phase: 'Offer', title: 'Offer', desc: 'Offer letter and appointment order generated and sent.', icon: 'mail' },
-  { phase: 'Joining', title: 'Onboarding', desc: 'Documents collected, assets assigned, org chart updated.', icon: 'users' },
-  { phase: 'Everyday', title: 'Everyday', desc: 'Leave, attendance, payslips and expenses, all self-served.', icon: 'calendar' },
-  { phase: 'Review', title: 'Growth', desc: 'Policies, announcements and performance records in one place.', icon: 'chart' },
-  { phase: 'Leaving', title: 'Exit', desc: 'Clearance, final settlement and experience letter.', icon: 'exit' },
+  { phase: 'Offer', title: 'Offer', desc: 'Letter built from your template with the CTC broken out, approved, then emailed.', icon: 'mail' },
+  { phase: 'Joining', title: 'Onboarding', desc: 'Accepting the offer creates the login. Documents collected, assets assigned.', icon: 'users' },
+  { phase: 'Everyday', title: 'Everyday', desc: 'Attendance, leave, payslips, expenses and policies, all self-served.', icon: 'calendar' },
+  { phase: 'Review', title: 'Confirmation', desc: 'Probation closes and the confirmation letter files against the same record.', icon: 'chart' },
+  { phase: 'Leaving', title: 'Exit', desc: 'Resignation, manager approval, clearance, settlement and the relieving letter.', icon: 'exit' },
 ];
 
 /* ── Helpers ───────────────────────────────────────────────── */
@@ -254,21 +256,20 @@ export default function LandingPage() {
             <span className="lp-tag" data-reveal>Infopace HR Automation</span>
 
             <h1 className="lp-h1" data-reveal style={{ '--d': '80ms' }}>
-              HR and payroll built for <span className="lp-grad">Indian statutory rules</span>
+              Every HR process, on <span className="lp-grad">one employee record</span>
             </h1>
 
             <p className="lp-hero-sub" data-reveal style={{ '--d': '160ms' }}>
-              Provident fund, ESI, professional tax and TDS are computed on every payroll run,
-              not configured by hand. Attendance comes off the biometric terminal, letters come
-              off your own templates, and one employee record carries all of it from offer to
-              relieving.
+              Letters, onboarding, attendance, leave, payroll, expenses and exits all run off the
+              same record. Provident fund, ESI, professional tax and TDS are computed on every
+              run, not configured by hand.
             </p>
 
             <div className="lp-hero-actions" data-reveal style={{ '--d': '240ms' }}>
               <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={goToLogin}>
                 Sign in to your workspace <Icon name="arrow" size={16} className="lp-arrow" />
               </button>
-              <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('payroll')}>
+              <button className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId('modules')}>
                 See what it covers
               </button>
             </div>
@@ -361,11 +362,11 @@ export default function LandingPage() {
           </figure>
 
           <div className="lp-zig-copy" data-reveal style={{ '--d': '90ms' }}>
-            <span className="lp-tag">Attendance</span>
-            <h2 className="lp-h2">Attendance comes off the device, not a register</h2>
+            <span className="lp-tag">Attendance &amp; leave</span>
+            <h2 className="lp-h2">Attendance and leave, settled before payroll runs</h2>
             <p className="lp-lede">
-              The sync service talks to the terminals on your network and writes punches straight
-              into the month, so nobody keys them in twice.
+              The sync service writes punches straight into the month, and the leave rules decide
+              what is paid before anyone has to argue about it.
             </p>
             <ul className="lp-points">
               {ATTENDANCE_POINTS.map((p) => (
@@ -380,13 +381,13 @@ export default function LandingPage() {
       </section>
 
       {/* ── Documents ── */}
-      <section className="lp-section lp-section-tinted" id="documents">
+      <section className="lp-section lp-section-tinted" id="modules">
         <div className="lp-head" data-reveal>
-          <span className="lp-tag">Documents</span>
-          <h2 className="lp-h2">Every letter an employee will ever be sent</h2>
+          <span className="lp-tag">The suite</span>
+          <h2 className="lp-h2">The rest of what the portal does</h2>
           <p className="lp-lede">
-            Offer, appointment, confirmation, experience and relieving letters are generated from
-            your templates and stored against the person, as DOCX and PDF.
+            Payroll and attendance are two of the modules. These are the others your HR team
+            opens in a given week, all sitting on the same record and the same permissions.
           </p>
         </div>
 
@@ -516,7 +517,7 @@ export default function LandingPage() {
       <section className="lp-section lp-section-tinted" id="journey">
         <div className="lp-head" data-reveal>
           <span className="lp-tag">Lifecycle</span>
-          <h2 className="lp-h2">From joining to leaving</h2>
+          <h2 className="lp-h2">From the offer letter to the relieving letter</h2>
           <p className="lp-lede">
             The same record follows a person the whole way through, so nothing has to be
             re-typed at the end.
@@ -561,8 +562,8 @@ export default function LandingPage() {
           <div className="lp-cta-main" data-reveal>
             <h2 className="lp-cta-title">Your HR workspace is one sign-in away</h2>
             <p className="lp-cta-sub">
-              Use your Infopace India credentials to open letters, leave, payroll and
-              approvals, with everything waiting exactly where you left it.
+              Letters, leave, attendance, payroll, expenses and approvals, with everything
+              waiting exactly where you left it.
             </p>
             <button className="lp-btn lp-btn-lg lp-cta-btn" onClick={goToLogin}>
               Sign in now <Icon name="arrow" size={16} className="lp-arrow" />
@@ -607,7 +608,7 @@ export default function LandingPage() {
               <div className="lp-footer-col-title">The portal</div>
               <button onClick={() => scrollToId('payroll')}>Payroll</button>
               <button onClick={() => scrollToId('attendance')}>Attendance</button>
-              <button onClick={() => scrollToId('documents')}>Documents</button>
+              <button onClick={() => scrollToId('modules')}>Modules</button>
             </div>
             <div className="lp-footer-col">
               <div className="lp-footer-col-title">Employees</div>

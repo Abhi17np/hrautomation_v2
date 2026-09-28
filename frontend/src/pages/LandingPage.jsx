@@ -40,7 +40,7 @@ function Icon({ name, size = 20, className = '' }) {
 
 /* ── Content ───────────────────────────────────────────────── */
 const NAV = [
-  { label: 'Payroll', target: 'payroll' },
+  { label: 'Onboarding', target: 'onboarding' },
   { label: 'Attendance', target: 'attendance' },
   { label: 'Modules', target: 'modules' },
   { label: 'Platform', target: 'platform' },
@@ -73,12 +73,13 @@ const MARQUEE = [
   { label: 'Exit and Relieving', icon: 'exit' },
 ];
 
-const PAYROLL_POINTS = [
-  'Provident fund at 12 percent, with the statutory wage ceiling applied or waived per company',
-  'ESI computed for employees under the gross threshold, employer and employee share separately',
-  'Professional tax from the slab for your state, or slabs you enter yourself',
-  'A monthly TDS estimate from projected annual income, revised as the year runs',
-  'Loss of pay pulled from attendance, so the run matches the register',
+const ONBOARDING_POINTS = [
+  'The offer letter is built from your own template, with the CTC broken out across basic, HRA, DA, provident fund and group health',
+  'It routes through the approval chain you configured, and the HR Head can edit it inline before signing off',
+  'Approval emails it to the candidate and files it against the record, as DOCX and PDF',
+  'Accepting the offer creates their login, so nobody has to set up an account separately',
+  'Appointment order, joining documents and assigned assets all collect against that same record',
+  'Policies queue for acknowledgement, and probation runs through to the confirmation letter',
 ];
 
 const ATTENDANCE_POINTS = [
@@ -311,12 +312,12 @@ export default function LandingPage() {
       </header>
 
       {/* ── Payroll ── */}
-      <section className="lp-section" id="payroll">
+      <section className="lp-section" id="onboarding">
         <div className="lp-zig">
           <figure className="lp-figure" data-reveal>
             <img
               src="/img/payroll-desk.webp"
-              alt="Salary statements and a calculator on a desk during a payroll run"
+              alt="Printed forms and a laptop on a desk, with someone filling in paperwork"
               width="2048"
               height="1536"
               loading="lazy"
@@ -325,14 +326,14 @@ export default function LandingPage() {
           </figure>
 
           <div className="lp-zig-copy" data-reveal style={{ '--d': '90ms' }}>
-            <span className="lp-tag">Payroll</span>
-            <h2 className="lp-h2">The statutory maths is already in the engine</h2>
+            <span className="lp-tag">Onboarding</span>
+            <h2 className="lp-h2">Onboarding runs itself from the offer onward</h2>
             <p className="lp-lede">
-              Most HR tools leave Indian compliance to a spreadsheet at the end of the month.
-              This one computes it as part of the run.
+              From the day you generate an offer to the day probation closes, one record carries
+              the person through. Nothing is re-typed between steps.
             </p>
             <ul className="lp-points">
-              {PAYROLL_POINTS.map((p) => (
+              {ONBOARDING_POINTS.map((p) => (
                 <li key={p}>
                   <span className="lp-tick"><Icon name="check" size={11} /></span>
                   {p}
@@ -340,8 +341,8 @@ export default function LandingPage() {
               ))}
             </ul>
             <p className="lp-note">
-              Rates, ceilings and slabs ship as editable defaults. Your finance team sets them per
-              company and the engine follows.
+              A revised offer keeps the original on record, so you can always see what changed
+              and when it changed.
             </p>
           </div>
         </div>
@@ -606,7 +607,7 @@ export default function LandingPage() {
           <div className="lp-footer-cols">
             <div className="lp-footer-col">
               <div className="lp-footer-col-title">The portal</div>
-              <button onClick={() => scrollToId('payroll')}>Payroll</button>
+              <button onClick={() => scrollToId('onboarding')}>Onboarding</button>
               <button onClick={() => scrollToId('attendance')}>Attendance</button>
               <button onClick={() => scrollToId('modules')}>Modules</button>
             </div>

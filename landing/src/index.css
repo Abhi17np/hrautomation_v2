@@ -1,0 +1,264 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------
+   Geist, self-hosted. Weights 400 / 500 / 600 only (DESIGN.md §3).
+   --------------------------------------------------------------- */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+
+/* Metric-matched fallback. Geist loads with font-display: swap, so the
+   fallback must occupy the same width per weight or the swap reflows the
+   hero and costs layout shift. Ratios measured against Arial. */
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  font-weight: 400; size-adjust: 101.16%;
+}
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  font-weight: 500; size-adjust: 103.48%;
+}
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  font-weight: 600; size-adjust: 98.85%;
+}
+
+/* ---------------------------------------------------------------
+   Colour tokens. Light is the default; dark is applied by BOTH the
+   media query (guarded so a manual light choice wins) and the
+   explicit [data-theme="dark"] attribute. One theme system only.
+   No pure #000 and no pure #fff anywhere.
+   --------------------------------------------------------------- */
+:root {
+  --bg:            #FBFBFD;
+  --bg-tint:       #F5F5F7;
+  --bg-raised:     #FDFDFE;
+  --ink:           #1D1D1F;
+  --ink-2:         #6E6E73;
+  --accent:        #2F68E0;
+  --accent-hover:  #2B60CE;   /* 8% darker */
+  --accent-on:     #FFFFFF;   /* 5.03:1 on --accent */
+  --accent-text:   #2F68E0;   /* 4.86:1 on --bg */
+  --hairline:      rgba(29, 29, 31, 0.10);
+  --shadow-tint:   rgba(40, 48, 72, 0.14);
+  --tile-tone:     #F2F2F4;   /* neutral tonal tile, --ink-2 on it is 4.54:1 */
+  --bezel-fill:    rgba(29, 29, 31, 0.035);
+  --bezel-top:     rgba(255, 255, 255, 0.9);
+
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:          #09090B;
+    --bg-tint:     #131316;
+    --bg-raised:   #1B1B1F;
+    --ink:         #F2F2F4;
+    --ink-2:       #A1A1A8;
+    --accent:      #2F68E0;
+    --accent-hover:#3A74EC;   /* lifts on dark instead of darkening */
+    --accent-on:   #FFFFFF;
+    --accent-text: #7BA0F5;   /* 7.76:1 on dark --bg */
+    --hairline:    rgba(255, 255, 255, 0.12);
+    --shadow-tint: rgba(0, 0, 0, 0.55);
+    --tile-tone:   #191920;   /* --ink-2 on it is 6.81:1 */
+    --bezel-fill:  rgba(255, 255, 255, 0.04);
+    --bezel-top:   rgba(255, 255, 255, 0.10);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:          #09090B;
+  --bg-tint:     #131316;
+  --bg-raised:   #1B1B1F;
+  --ink:         #F2F2F4;
+  --ink-2:       #A1A1A8;
+  --accent:      #2F68E0;
+  --accent-hover:#3A74EC;
+  --accent-on:   #FFFFFF;
+  --accent-text: #7BA0F5;
+  --hairline:    rgba(255, 255, 255, 0.12);
+  --shadow-tint: rgba(0, 0, 0, 0.55);
+  --tile-tone:   #191920;
+  --bezel-fill:  rgba(255, 255, 255, 0.04);
+  --bezel-top:   rgba(255, 255, 255, 0.10);
+}
+
+/* Expose tokens to Tailwind utilities (v4 @theme). */
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg:         var(--bg);
+  --color-bg-tint:    var(--bg-tint);
+  --color-bg-raised:  var(--bg-raised);
+  --color-ink:        var(--ink);
+  --color-ink-2:      var(--ink-2);
+  --color-accent:     var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-on:  var(--accent-on);
+  --color-accent-text: var(--accent-text);
+  --color-hairline:   var(--hairline);
+  --color-tile-tone:  var(--tile-tone);
+
+  /* Shape rule: pill for buttons/chips, 28px media tiles + hero frame,
+     12px small UI. Nested cores use calc(28px - shell padding). */
+  --radius-tile:      28px;
+  --radius-core:      22px;   /* 28px - 6px shell padding (p-1.5) */
+  --radius-ui:        12px;
+}
+
+/* ---------------------------------------------------------------
+   Base
+   --------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  /* One focus treatment everywhere: 2px accent ring, 3px offset. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  :focus:not(:focus-visible) { outline: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary { list-style: none; cursor: pointer; }
+}
+
+/* ---------------------------------------------------------------
+   Type scale (DESIGN.md §3). Fluid, clamped so a 1366x768 laptop
+   never wraps the hero headline past 2 lines.
+   --------------------------------------------------------------- */
+@utility type-hero {
+  font-size: clamp(2.75rem, 7.2vw, 6rem);   /* up to 96px */
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+@utility type-section {
+  font-size: clamp(2.125rem, 4.6vw, 4.5rem); /* 34 - 72px */
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+@utility type-statement {
+  font-size: clamp(1.75rem, 4vw, 3.5rem);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+@utility type-sub {
+  font-size: clamp(1.125rem, 1.55vw, 1.4rem); /* 18 - 22.4px */
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+@utility type-tile {
+  font-size: clamp(1.375rem, 2vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+@utility type-body {
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+}
+@utility type-caption {
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------
+   Double-bezel. Used in EXACTLY two places: the hero device frame
+   and the large bento tiles. Reads as a glass plate in a tray.
+   --------------------------------------------------------------- */
+@utility bezel {
+  padding: 6px;                      /* p-1.5 */
+  border-radius: var(--radius-tile);
+  background: var(--bezel-fill);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+@utility bezel-core {
+  border-radius: var(--radius-core);
+  background: var(--bg-raised);
+  box-shadow: inset 0 1px 0 0 var(--bezel-top),
+              inset 0 0 0 1px var(--hairline);
+  overflow: hidden;
+}
+
+/* Single soft shadow, tinted to the background hue, one light
+   direction. Only on floating things. */
+@utility lift {
+  box-shadow: 0 32px 64px -24px var(--shadow-tint),
+              0 8px 20px -12px var(--shadow-tint);
+}
+
+@utility rail {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+  /* 16px gutter at phone width, easing to 32px from the md breakpoint up. */
+  padding-inline: clamp(16px, 2.2vw, 32px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Hero settle (DESIGN.md §5, option A). Driven by CSS rather than
+   JS so the prerendered markup paints at full opacity on the first
+   frame: a JS-held `opacity: 0` would delay the largest paint.
+   --------------------------------------------------------------- */
+@keyframes hero-settle {
+  from { opacity: 0; transform: translateY(28px) scale(0.965); }
+  to   { opacity: 1; transform: none; }
+}
+.hero-settle {
+  transform-origin: top center;
+  animation: hero-settle 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-settle { animation: none; }
+}

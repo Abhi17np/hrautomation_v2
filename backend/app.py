@@ -164,19 +164,19 @@ from tenant_scope import TenantMismatchError
 def tenant_mismatch(e):
     return {'error': 'Request referenced a different tenant than your session'}, 400
 
-# ── TEST ONLY — remove before production ─────────────────────────────
+# ── TEST ONLY — remove before production ─────────────────────────────────────
 # from flask import jsonify
 # @app.route('/api/test-scheduler')
 # def test_scheduler():
 #     from scheduler import run_checks_now
 #     return jsonify(run_checks_now(app))
 
-# ── Start background scheduler (birthday + anniversary emails) ──────────────
+# ── Start background scheduler (birthday + anniversary emails) ────────────────
 from scheduler import start_scheduler
 start_scheduler(app)
 
 # ── Start biometric attendance sync (guarded — a missing device/driver
-#    should never take down the whole API) ────────────────────────────
+#    should never take down the whole API) ────────────────────────────────────
 try:
     from services.essl_sync import start_background_sync
     start_background_sync(app)

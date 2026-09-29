@@ -157,8 +157,12 @@ export default function FinalCta() {
                                  focus:border-[var(--on-deep-3)] focus:bg-white/[0.12]" />
                   </div>
 
-                  {/* Hidden from people, tempting to bots. Never shown, never tabbed to. */}
-                  <div aria-hidden className="absolute h-0 w-0 overflow-hidden opacity-0">
+                  {/* Hidden from people, tempting to bots. Parked off-screen rather
+                      than display:none, which the cruder bots know to skip, and
+                      never reachable: aria-hidden, tabIndex -1, no autofill. */}
+                  <div aria-hidden
+                       style={{ position: 'absolute', left: '-9999px', top: 'auto',
+                                width: 1, height: 1, overflow: 'hidden' }}>
                     <label htmlFor="company_website">Company website</label>
                     <input id="company_website" type="text" tabIndex={-1} autoComplete="off"
                            value={honeypot} onChange={e => setHoneypot(e.target.value)} />

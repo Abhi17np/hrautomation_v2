@@ -186,17 +186,33 @@ def tenant_mismatch(e):
 #     from scheduler import run_checks_now
 #     return jsonify(run_checks_now(app))
 
-# ── Start background scheduler (birthday + anniversary emails) ────────────────
-from scheduler import start_scheduler
-start_scheduler(app)
+# ── Long-running background work ─────────────────────────────────────────────
+# Both of these want a process that stays alive between requests. On a
+# serverless platform there isn't one: the runtime freezes the process the
+# moment a response is returned and starts a fresh one for the next request, so
+# a scheduler started here would be started again on every cold start and would
+# never reach its next run time. Starting them there wastes cold-start seconds
+# on work that cannot happen, so they are skipped.
+#
+# The consequence is real and worth knowing: on serverless, the 09:00 birthday
+# and work-anniversary mail does not go out, and the biometric device is not
+# polled. Those need either a persistent host or an external scheduler calling
+# an endpoint.
+SERVERLESS = bool(os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
 
-# ── Start biometric attendance sync (guarded — a missing device/driver
-#    should never take down the whole API) ────────────────────────────────────
-try:
-    from services.essl_sync import start_background_sync
-    start_background_sync(app)
-except Exception as e:
-    print(f'[app.py] ESSL biometric sync not started: {e}', flush=True)
+if SERVERLESS:
+    print('[app.py] serverless runtime detected: scheduler and biometric sync '
+          'are not started (they need a persistent process)', flush=True)
+else:
+    from scheduler import start_scheduler
+    start_scheduler(app)
+
+    # Guarded — a missing device or driver should never take down the whole API.
+    try:
+        from services.essl_sync import start_background_sync
+        start_background_sync(app)
+    except Exception as e:
+        print(f'[app.py] ESSL biometric sync not started: {e}', flush=True)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5050))

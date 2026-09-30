@@ -25,6 +25,9 @@ from services.email_service import send_email, is_configured
 
 log = logging.getLogger(__name__)
 
+# A serverless runtime cannot finish work after the response is sent.
+SERVERLESS = bool(os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
+
 demo_requests_bp = Blueprint('demo_requests', __name__)
 
 # Deliberately permissive: the aim is to reject obvious typos, not to
@@ -137,31 +140,44 @@ def create_demo_request():
     # after the work that mattered was already done. send_email swallows and
     # logs its own failures, so the thread cannot take anything down with it.
     configured = is_configured()
-    if configured:
-        threading.Thread(target=_send_mail, args=(email, source, now),
-                         name=f'demo-mail-{email}', daemon=True).start()
-    else:
-        log.warning('demo request stored but SMTP is not configured, no mail sent: %s', email)
+    if not configured:
+        log.warning('demo request stored but no mail provider is configured: %s', email)
+        return jsonify({'ok': True,
+                        'emailed': {'confirmation': False, 'notification': False},
+                        'queued': False}), 201
 
-    # 'queued' rather than 'sent': at this point the request has been handed to
-    # a thread and nothing has been delivered yet, so the page promises a
-    # confirmation only when there is a mail server to send one.
-    return jsonify({'ok': True, 'emailed': {'confirmation': configured,
-                                            'notification': configured},
-                    'queued': configured}), 201
+    if SERVERLESS:
+        # A serverless runtime freezes the process as soon as the response is
+        # returned, so a background thread is killed before it can finish its
+        # send — silently, since nothing is left alive to log the failure. The
+        # send has to happen before we reply, which costs the caller the round
+        # trip but is the only way the mail actually leaves.
+        sent = _send_mail(email, source, now)
+        return jsonify({'ok': True, 'emailed': sent, 'queued': False}), 201
+
+    # On a persistent host the lead is already committed, so nobody should wait
+    # on the mail server.
+    threading.Thread(target=_send_mail, args=(email, source, now),
+                     name=f'demo-mail-{email}', daemon=True).start()
+    return jsonify({'ok': True,
+                    'emailed': {'confirmation': True, 'notification': True},
+                    'queued': True}), 201
 
 
-def _send_mail(email: str, source: str, when: datetime):
-    """Runs off the request thread. Failures are logged by send_email."""
-    send_email(email, 'Your Infopace HR demo request',
-               _confirmation_body(email), from_label='Infopace HR')
+def _send_mail(email: str, source: str, when: datetime) -> dict:
+    """Sends both messages and reports what actually left. Failures are logged
+    by send_email and never raised, so this is safe on a thread or inline."""
+    confirmation = send_email(email, 'Your Infopace HR demo request',
+                              _confirmation_body(email), from_label='Infopace HR')
+    notification = False
     notify_to = _notify_address()
     if notify_to:
-        send_email(notify_to, f'Demo request: {email}',
-                   _notification_body(email, source, when),
-                   from_label='Infopace HR website')
+        notification = send_email(notify_to, f'Demo request: {email}',
+                                  _notification_body(email, source, when),
+                                  from_label='Infopace HR website')
     else:
-        log.warning('demo request: no DEMO_NOTIFY_EMAIL or SMTP_FROM set, team not notified')
+        log.warning('demo request: no DEMO_NOTIFY_EMAIL or MAIL_FROM set, team not notified')
+    return {'confirmation': confirmation, 'notification': notification}
 
 
 @demo_requests_bp.route('', methods=['GET'])

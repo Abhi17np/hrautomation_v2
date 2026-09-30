@@ -25,7 +25,11 @@ from email.mime.text import MIMEText
 log = logging.getLogger(__name__)
 
 RESEND_ENDPOINT = 'https://api.resend.com/emails'
-SEND_TIMEOUT = 15
+# One request sends two messages (the visitor's confirmation and the team's
+# heads-up), so the worst case is twice this. Kept to 10s so that even two dead
+# sends come in under a 30s serverless function limit and the caller still gets
+# its response — the lead is already stored by then either way.
+SEND_TIMEOUT = 10
 
 
 def _smtp_config():
@@ -105,7 +109,11 @@ def send_email(to_email, subject, body_text, from_label='HR Team'):
         msg['To'] = to_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body_text, 'plain'))
-        with smtplib.SMTP(cfg['host'], cfg['port']) as s:
+        # A timeout is not optional: without one a mail server that accepts the
+        # connection and then stalls blocks this call indefinitely. On a
+        # persistent host that leaks a thread; on a serverless runtime it burns
+        # the whole function duration and the request fails outright.
+        with smtplib.SMTP(cfg['host'], cfg['port'], timeout=SEND_TIMEOUT) as s:
             s.ehlo(); s.starttls(); s.ehlo()
             s.login(cfg['user'], cfg['pass'])
             s.sendmail(cfg['from'] or cfg['user'], to_email, msg.as_string())

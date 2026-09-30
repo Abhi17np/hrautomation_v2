@@ -9,8 +9,16 @@ import { EASE } from '../../lib/motion';
    which is right when the site is served behind the same host as the API — and
    fails loudly in the network tab rather than quietly posting to localhost from
    a production build. */
-const API = import.meta.env.VITE_API_URL
+const RAW_API = import.meta.env.VITE_API_URL
   ?? (import.meta.env.DEV ? 'http://localhost:5050' : '');
+
+/* A host set without a scheme ("api.example.com") is a relative path to the
+   browser, so it resolves against this site and 404s here instead of reaching
+   the API. Assume https for anything that looks like a host, and drop a
+   trailing slash so the path does not end up doubled. */
+const API = RAW_API
+  ? (/^https?:\/\//i.test(RAW_API) ? RAW_API : `https://${RAW_API}`).replace(/\/+$/, '')
+  : '';
 
 const STEPS = [
   { n: 1, t: 'Book a demo',

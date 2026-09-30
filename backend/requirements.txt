@@ -14,3 +14,8 @@ opencv-python-headless>=4.9.0.80
 python-dotenv
 requests>=2.31.0
 cryptography>=42.0.0
+
+# Production WSGI server. app.run() in app.py is the Flask dev server and
+# must not serve real traffic; hosts like Render start the app with
+#   gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8
+gunicorn==23.0.0
